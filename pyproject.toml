@@ -1,0 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "depcheck"
+version = "0.1.0"
+description = "A dependency health checker for Python projects"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "jlaportebot" },
+]
+keywords = ["dependencies", "security", "vulnerabilities", "outdated", "health-check"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "httpx>=0.24",
+    "packaging>=23.0",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.scripts]
+depcheck = "depcheck.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-httpx>=0.21",
+    "respx>=0.20",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/jlaportebot/depcheck"
+Repository = "https://github.com/jlaportebot/depcheck"
+Issues = "https://github.com/jlaportebot/depcheck/issues"
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
