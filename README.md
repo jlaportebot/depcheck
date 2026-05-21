@@ -1,7 +1,5 @@
 # depcheck
 
-[![PyPI version](https://img.shields.io/pypi/v/depcheck.svg)](https://pypi.org/project/depcheck/)
-[![Python versions](https://img.shields.io/pypi/pyversions/depcheck.svg)](https://pypi.org/project/depcheck/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/jlaportebot/depcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/jlaportebot/depcheck/actions/workflows/ci.yml)
 

@@ -56,9 +56,19 @@ class PackageReport:
 
     @property
     def is_outdated(self) -> bool:
-        """Check if the package is outdated compared to latest version."""
+        """Check if the package is outdated compared to latest version.
+
+        Uses packaging.Version for proper PEP 440 version comparison
+        instead of string comparison (e.g., "1.10.0" > "1.9.0").
+        """
         if self.installed_version and self.latest_version:
-            return self.installed_version != self.latest_version
+            try:
+                from packaging.version import Version
+
+                return Version(self.installed_version) < Version(self.latest_version)
+            except Exception:
+                # Fallback to string comparison if versions can't be parsed
+                return self.installed_version != self.latest_version
         return False
 
     @property

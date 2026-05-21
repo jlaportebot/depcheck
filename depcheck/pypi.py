@@ -6,6 +6,8 @@ import datetime
 from typing import Any
 
 import httpx
+from packaging.specifiers import SpecifierSet
+from packaging.version import Version
 
 from depcheck.models import ParsedDependency
 
@@ -70,17 +72,24 @@ class PyPIClient:
             return None
         return info.get("info", {}).get("version")
 
-    def is_version_yanked(self, package_name: str, version: str) -> bool:
+    def is_version_yanked(
+        self,
+        package_name: str,
+        version: str,
+        info: dict[str, Any] | None = None,
+    ) -> bool:
         """Check if a specific version of a package has been yanked.
 
         Args:
             package_name: The normalized package name.
             version: The version string to check.
+            info: Pre-fetched package info (optional, fetched if not provided).
 
         Returns:
             True if the version has been yanked, False otherwise.
         """
-        info = self.get_package_info(package_name)
+        if info is None:
+            info = self.get_package_info(package_name)
         if info is None:
             return False
 
@@ -92,16 +101,22 @@ class PyPIClient:
         # A version is yanked if all its files are yanked
         return all(f.get("yanked", False) for f in version_files)
 
-    def get_last_release_date(self, package_name: str) -> datetime.datetime | None:
+    def get_last_release_date(
+        self,
+        package_name: str,
+        info: dict[str, Any] | None = None,
+    ) -> datetime.datetime | None:
         """Get the date of the most recent release for a package.
 
         Args:
             package_name: The normalized package name.
+            info: Pre-fetched package info (optional, fetched if not provided).
 
         Returns:
             The datetime of the last release, or None if not found.
         """
-        info = self.get_package_info(package_name)
+        if info is None:
+            info = self.get_package_info(package_name)
         if info is None:
             return None
 
@@ -145,7 +160,9 @@ class PyPIClient:
         """Resolve the installed/pinned version for a dependency.
 
         If the dependency has an exact version (==), return that.
-        Otherwise, return the latest compatible version.
+        If it has a version specifier (e.g., >=1.0,<2.0), return the latest
+        compatible version using packaging.specifiers.SpecifierSet.
+        Otherwise, return the latest version.
 
         Args:
             dep: The parsed dependency.
@@ -162,5 +179,26 @@ class PyPIClient:
             info = self.get_package_info(dep.name)
         if info is None:
             return None
+
+        # If there's a specifier, find the latest compatible version
+        if dep.specifier:
+            try:
+                spec = SpecifierSet(dep.specifier)
+            except Exception:
+                # Invalid specifier, fall back to latest
+                return info.get("info", {}).get("version")
+
+            releases = info.get("releases", {})
+            compatible_versions: list[Version] = []
+            for ver_str in releases:
+                try:
+                    ver = Version(ver_str)
+                    if ver in spec and not ver.is_prerelease and not ver.is_devrelease:
+                        compatible_versions.append(ver)
+                except Exception:
+                    continue
+
+            if compatible_versions:
+                return str(max(compatible_versions))
 
         return info.get("info", {}).get("version")

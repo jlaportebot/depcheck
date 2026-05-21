@@ -171,7 +171,8 @@ def _parse_pep621_dependency(dep_str: str) -> ParsedDependency | None:
 def parse_pipfile(filepath: Path) -> list[ParsedDependency]:
     """Parse a Pipfile for dependencies.
 
-    Reads the [packages] section of a Pipfile.
+    Uses proper TOML parsing (tomllib for Python 3.11+, tomli as fallback)
+    instead of regex-based line parsing.
 
     Args:
         filepath: Path to the Pipfile.
@@ -186,33 +187,54 @@ def parse_pipfile(filepath: Path) -> list[ParsedDependency]:
     except (OSError, UnicodeDecodeError):
         return dependencies
 
-    # Simple parsing: find [packages] section
-    in_packages = False
-    for line in content.splitlines():
-        stripped = line.strip()
+    # Use tomllib for Python 3.11+, tomli as fallback
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        try:
+            import tomli as tomllib  # type: ignore[no-redef]
+        except ImportError:
+            return dependencies
 
-        if stripped == "[packages]":
-            in_packages = True
-            continue
-        elif stripped.startswith("["):
-            in_packages = False
-            continue
+    try:
+        data = tomllib.loads(content)
+    except Exception:
+        return dependencies
 
-        if not in_packages or not stripped or stripped.startswith("#"):
-            continue
+    packages = data.get("packages", {})
+    for name, version_spec in packages.items():
+        version = None
+        specifier = None
+        if isinstance(version_spec, str):
+            if version_spec == "*":
+                version = None
+            elif version_spec.startswith("=="):
+                # Exact pin like "==2.31.0"
+                version = version_spec[2:]
+                specifier = version_spec
+            else:
+                # Other specifiers like ">=8.0", "^2.28"
+                specifier = version_spec
+                # Try to extract a version number for display
+                clean = re.sub(r"^[><=!~^]+\s*", "", version_spec)
+                if clean and clean[0].isdigit():
+                    version = clean
+        elif isinstance(version_spec, dict):
+            # Pipfile can use dict format: {version = "==2.31.0", extras = [...]}
+            v = version_spec.get("version", "")
+            if isinstance(v, str):
+                if v.startswith("=="):
+                    version = v[2:]
+                    specifier = v
+                elif v and v != "*":
+                    specifier = v
+                    clean = re.sub(r"^[><=!~^]+\s*", "", v)
+                    if clean and clean[0].isdigit():
+                        version = clean
 
-        # Parse "package = version" format (supports quoted and unquoted values)
-        # Examples: requests = "==2.31.0", flask = "*", click = ">=8.0", numpy = "1.24"
-        match = re.match(
-            r'^(?P<name>[a-zA-Z0-9][a-zA-Z0-9._-]*)\s*=\s*"?'
-            r"(?P<version>[><=!~*0-9][0-9.a-zA-Z*><=!~+-]*)?"
-            r'"?\s*$',
-            stripped,
+        dependencies.append(
+            ParsedDependency(name=normalize_package_name(name), version=version, specifier=specifier)
         )
-        if match:
-            name = normalize_package_name(match.group("name"))
-            version = match.group("version") or None
-            dependencies.append(ParsedDependency(name=name, version=version))
 
     return dependencies
 
@@ -285,7 +307,7 @@ def check_package_health(
         installed_version=dep.version or "unknown",
     )
 
-    # Fetch PyPI info
+    # Fetch PyPI info once and reuse it (avoids redundant API calls)
     info = pypi_client.get_package_info(dep.name)
 
     if info is None:
@@ -298,14 +320,14 @@ def check_package_health(
     latest_version = info.get("info", {}).get("version")
     report.latest_version = latest_version
 
-    # Resolve the installed version
+    # Resolve the installed version (pass info to avoid extra API call)
     resolved_version = pypi_client.resolve_version(dep, info)
     if resolved_version:
         report.installed_version = resolved_version
 
-    # Check if yanked
+    # Check if yanked (using cached info)
     if report.installed_version and report.installed_version != "unknown":
-        is_yanked = pypi_client.is_version_yanked(dep.name, report.installed_version)
+        is_yanked = pypi_client.is_version_yanked(dep.name, report.installed_version, info)
         if is_yanked:
             report.status = HealthStatus.YANKED
             report.is_yanked = True
@@ -319,27 +341,19 @@ def check_package_health(
             report.status = HealthStatus.VULNERABLE
             return report
 
-    # Check if outdated
-    if report.installed_version and latest_version:
-        if report.installed_version != latest_version:
-            report.status = HealthStatus.OUTDATED
-            # But also check unmaintained
-            last_release = pypi_client.get_last_release_date(dep.name)
-            if last_release:
-                report.last_release_date = last_release.strftime("%Y-%m-%d")
-                days_since = (datetime.datetime.now(tz=last_release.tzinfo) - last_release).days
-                if days_since > UNMAINTAINED_THRESHOLD_DAYS:
-                    report.status = HealthStatus.UNMAINTAINED
-            return report
-
-    # Check if unmaintained even if not outdated
-    last_release = pypi_client.get_last_release_date(dep.name)
+    # Get last release date (using cached info)
+    last_release = pypi_client.get_last_release_date(dep.name, info)
     if last_release:
         report.last_release_date = last_release.strftime("%Y-%m-%d")
         days_since = (datetime.datetime.now(tz=last_release.tzinfo) - last_release).days
         if days_since > UNMAINTAINED_THRESHOLD_DAYS:
             report.status = HealthStatus.UNMAINTAINED
             return report
+
+    # Check if outdated using proper PEP 440 version comparison
+    if report.is_outdated:
+        report.status = HealthStatus.OUTDATED
+        return report
 
     # All checks passed
     report.status = HealthStatus.HEALTHY
