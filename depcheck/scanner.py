@@ -232,13 +232,13 @@ def parse_pipfile(filepath: Path) -> list[ParsedDependency]:
                     if clean and clean[0].isdigit():
                         version = clean
 
-                dependencies.append(
-                    ParsedDependency(
-                        name=normalize_package_name(name),
-                        version=version,
-                        specifier=specifier,
-                    )
-                )
+        dependencies.append(
+            ParsedDependency(
+                name=normalize_package_name(name),
+                version=version,
+                specifier=specifier,
+            )
+        )
 
     return dependencies
 
