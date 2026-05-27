@@ -5,26 +5,23 @@ from __future__ import annotations
 import json
 import textwrap
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
 from depcheck.cli import main
 from depcheck.diff import (
-    DiffType,
     DiffResult,
+    DiffType,
     PackageDiff,
     compare_dependencies,
-    diff_files,
     detect_lockfile_drift,
+    diff_files,
     generate_unified_diff,
-    parse_dependency_file,
     render_diff_json,
     render_diff_table,
 )
 from depcheck.models import ParsedDependency
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -424,7 +421,12 @@ class TestRendering:
             old_source="a.txt",
             new_source="b.txt",
             packages=[
-                PackageDiff(name="x", diff_type=DiffType.UNCHANGED, old_version="1.0", new_version="1.0"),
+                PackageDiff(
+                    name="x",
+                    diff_type=DiffType.UNCHANGED,
+                    old_version="1.0",
+                    new_version="1.0",
+                ),
             ],
             old_total=1,
             new_total=1,
@@ -435,13 +437,19 @@ class TestRendering:
 
     def test_render_table_with_changes(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         result = DiffResult(
             old_source="a.txt",
             new_source="b.txt",
             packages=[
-                PackageDiff(name="requests", diff_type=DiffType.UPGRADED, old_version="2.28", new_version="2.31"),
+                PackageDiff(
+                    name="requests",
+                    diff_type=DiffType.UPGRADED,
+                    old_version="2.28",
+                    new_version="2.31",
+                ),
                 PackageDiff(name="flask", diff_type=DiffType.ADDED, new_version="3.0"),
                 PackageDiff(name="numpy", diff_type=DiffType.REMOVED, old_version="1.24"),
             ],
@@ -458,6 +466,7 @@ class TestRendering:
 
     def test_render_json_output(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         result = DiffResult(

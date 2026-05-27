@@ -309,16 +309,16 @@ def diff(
       depcheck diff --unified v1.txt v2.txt
       depcheck diff --fail-on-change requirements.old.txt requirements.new.txt
     """
+    from pathlib import Path
+
     from depcheck.diff import (
-        DiffResult,
+        detect_lockfile_drift,
         diff_directories,
         diff_files,
-        detect_lockfile_drift,
         generate_unified_diff,
         render_diff_json,
         render_diff_table,
     )
-    from pathlib import Path
 
     console = Console(quiet=quiet)
 

@@ -11,7 +11,6 @@ or a lockfile against its manifest to detect:
 from __future__ import annotations
 
 import difflib
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -24,12 +23,10 @@ from rich.table import Table
 from depcheck.models import ParsedDependency
 from depcheck.scanner import (
     discover_dependencies,
-    normalize_package_name,
     parse_pipfile,
     parse_pyproject_toml,
     parse_requirements_txt,
 )
-
 
 try:
     from packaging.version import Version as _PackagingVersion  # noqa: F401
@@ -588,7 +585,10 @@ def render_diff_table(result: DiffResult, console: Console | None = None) -> Non
     # Summary
     console.print()
     summary_parts: list[str] = []
-    summary_parts.append(f"[bold]Old: {result.old_total} deps → New: {result.new_total} deps[/bold]")
+    summary_parts.append(
+        f"[bold]Old: {result.old_total} deps "
+        f"→ New: {result.new_total} deps[/bold]"
+    )
     if result.added_count:
         summary_parts.append(f"[green]+{result.added_count} added[/green]")
     if result.removed_count:
