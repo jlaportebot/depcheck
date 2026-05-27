@@ -7,7 +7,14 @@ import re
 import sys
 from pathlib import Path
 
-from depcheck.models import HealthStatus, PackageReport, ParsedDependency, ScanResult
+from depcheck.licenses import LicenseCategory, check_license_compliance, parse_license_from_pypi
+from depcheck.models import (
+    HealthStatus,
+    LicenseInfo,
+    PackageReport,
+    ParsedDependency,
+    ScanResult,
+)
 from depcheck.osv import OSVClient
 from depcheck.pypi import PyPIClient
 
@@ -294,6 +301,9 @@ def check_package_health(
     pypi_client: PyPIClient,
     osv_client: OSVClient,
     check_vulnerabilities: bool = True,
+    check_licenses: bool = False,
+    allowed_license_categories: list[LicenseCategory] | None = None,
+    denied_licenses: list[str] | None = None,
 ) -> PackageReport:
     """Check the health of a single package.
 
@@ -302,6 +312,10 @@ def check_package_health(
         pypi_client: PyPI API client.
         osv_client: OSV API client.
         check_vulnerabilities: Whether to check for vulnerabilities.
+        check_licenses: Whether to check license compliance.
+        allowed_license_categories: List of allowed license categories
+        (e.g., [LicenseCategory.PERMISSIVE]).
+        denied_licenses: List of specific SPDX IDs to deny.
 
     Returns:
         A PackageReport with health status information.
@@ -337,6 +351,23 @@ def check_package_health(
             report.is_yanked = True
             return report
 
+    # Check license compliance (before vulnerability check since it's faster)
+    if check_licenses:
+        license_info = parse_license_from_pypi(info)
+        license_info = check_license_compliance(
+            license_info,
+            allowed_categories=allowed_license_categories,
+            denied_licenses=denied_licenses,
+        )
+        # Convert from licenses.LicenseInfo to models.LicenseInfo
+        report.license_info = LicenseInfo(
+            spdx_id=license_info.spdx_id,
+            raw_license=license_info.raw_license,
+            category=license_info.category.value,
+            is_compliant=license_info.is_compliant,
+            compliance_note=license_info.compliance_note,
+        )
+
     # Check for vulnerabilities
     if check_vulnerabilities and report.installed_version != "unknown":
         vulns = osv_client.query_vulnerabilities(dep.name, report.installed_version)
@@ -367,6 +398,9 @@ def check_package_health(
 def scan_project(
     project_path: str | Path,
     check_vulnerabilities: bool = True,
+    check_licenses: bool = False,
+    allowed_license_categories: list[LicenseCategory] | None = None,
+    denied_licenses: list[str] | None = None,
 ) -> ScanResult:
     """Scan a Python project for dependency health issues.
 
@@ -377,6 +411,9 @@ def scan_project(
     Args:
         project_path: Path to the project directory.
         check_vulnerabilities: Whether to check for vulnerabilities (can be slow).
+        check_licenses: Whether to check license compliance.
+        allowed_license_categories: List of allowed license categories.
+        denied_licenses: List of specific SPDX IDs to deny.
 
     Returns:
         A ScanResult containing health reports for all dependencies.
@@ -410,7 +447,15 @@ def scan_project(
     with PyPIClient() as pypi_client, OSVClient() as osv_client:
         for dep in dependencies:
             try:
-                report = check_package_health(dep, pypi_client, osv_client, check_vulnerabilities)
+                report = check_package_health(
+                    dep,
+                    pypi_client,
+                    osv_client,
+                    check_vulnerabilities=check_vulnerabilities,
+                    check_licenses=check_licenses,
+                    allowed_license_categories=allowed_license_categories,
+                    denied_licenses=denied_licenses,
+                )
                 reports.append(report)
             except Exception as exc:
                 reports.append(

@@ -32,6 +32,19 @@ def _status_color(status: HealthStatus) -> str:
     return STATUS_STYLES.get(status, ("⚪", "white"))[1]
 
 
+def _license_category_style(category: str) -> tuple[str, str]:
+    """Get icon and color for a license category."""
+    styles = {
+        "permissive": ("✅", "green"),
+        "copyleft": ("⚠️", "yellow"),
+        "public_domain": ("✅", "green"),
+        "restricted": ("🚫", "red"),
+        "proprietary": ("🚫", "red"),
+        "unknown": ("❓", "white"),
+    }
+    return styles.get(category, ("❓", "white"))
+
+
 def render_table(result: ScanResult, console: Console | None = None) -> None:
     """Render a Rich table showing the scan results.
 
@@ -103,6 +116,16 @@ def render_table(result: ScanResult, console: Console | None = None) -> None:
             if pkg.error:
                 issues.append(f"[white]{pkg.error[:50]}[/white]")
 
+        # License issues
+        if pkg.license_info and not pkg.license_info.is_compliant:
+            is_restricted = pkg.license_info.category in ("restricted", "copyleft")
+            lic_color = "red" if is_restricted else "yellow"
+            lic_text = pkg.license_info.spdx_id or "Unknown"
+            issues.append(f"[{lic_color}]⚖ License: {lic_text}[/{lic_color}]")
+            if pkg.license_info.compliance_note:
+                note = pkg.license_info.compliance_note[:60]
+                issues.append(f"[dim {lic_color}]{note}[/dim {lic_color}]")
+
         issues_str = "\n".join(issues) if issues else "[green]OK[/green]"
 
         table.add_row(
@@ -121,7 +144,7 @@ def render_table(result: ScanResult, console: Console | None = None) -> None:
     if vuln_packages:
         console.print()
         vuln_table = Table(
-            title="⚠️  Vulnerability Details",
+            title="⚠️ Vulnerability Details",
             show_header=True,
             header_style="bold red",
             show_lines=False,
@@ -151,6 +174,38 @@ def render_table(result: ScanResult, console: Console | None = None) -> None:
 
         console.print(vuln_table)
 
+    # License details
+    license_packages = [p for p in result.packages if p.license_info is not None]
+    if license_packages:
+        console.print()
+        lic_table = Table(
+            title="⚖️ License Summary",
+            show_header=True,
+            header_style="bold magenta",
+            show_lines=False,
+            expand=True,
+        )
+        lic_table.add_column("Package", style="bold", min_width=20)
+        lic_table.add_column("License", min_width=15)
+        lic_table.add_column("Category", min_width=12)
+        lic_table.add_column("Status", min_width=10)
+
+        for pkg in license_packages:
+            lic = pkg.license_info
+            assert lic is not None  # Guaranteed by filter above
+            lic_icon, lic_color = _license_category_style(lic.category)
+            status_text = "✅ Compliant" if lic.is_compliant else "❌ Non-compliant"
+            status_color = "green" if lic.is_compliant else "red"
+
+            lic_table.add_row(
+                pkg.name,
+                lic.spdx_id or lic.raw_license or "Unknown",
+                f"[{lic_color}]{lic_icon} {lic.category}[/{lic_color}]",
+                f"[{status_color}]{status_text}[/{status_color}]",
+            )
+
+        console.print(lic_table)
+
     # Summary panel
     console.print()
     summary_parts: list[str] = []
@@ -168,6 +223,8 @@ def render_table(result: ScanResult, console: Console | None = None) -> None:
         summary_parts.append(f"[red]🔴 Yanked: {result.yanked_count}[/red]")
     if result.removed_count:
         summary_parts.append(f"[red]🔴 Removed: {result.removed_count}[/red]")
+    if result.license_issues_count:
+        summary_parts.append(f"[red]⚖ License issues: {result.license_issues_count}[/red]")
 
     if result.files_scanned:
         summary_parts.append(f"\n[dim]Scanned: {', '.join(result.files_scanned)}[/dim]")
@@ -195,7 +252,8 @@ def determine_exit_code(result: ScanResult, fail_on: str | None = None) -> int:
 
     Args:
         result: The scan result.
-        fail_on: The fail-on criteria ("vulnerable", "outdated", "unmaintained", "any", or None).
+        fail_on: The fail-on criteria ("vulnerable", "outdated", "unmaintained",
+            "license", "any", or None).
 
     Returns:
         Exit code: 0 if passing, 1 if failing, 2 if errors occurred.
@@ -214,7 +272,10 @@ def determine_exit_code(result: ScanResult, fail_on: str | None = None) -> int:
         return 1 if result.outdated_count > 0 else 0
     elif fail_on == "unmaintained":
         return 1 if result.unmaintained_count > 0 else 0
+    elif fail_on == "license":
+        return 1 if result.license_issues_count > 0 else 0
     elif fail_on in ("any", "all"):
-        return 1 if result.has_issues() else 0
+        has_any = result.has_issues() or result.license_issues_count > 0
+        return 1 if has_any else 0
     else:
         return 0
