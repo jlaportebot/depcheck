@@ -14,7 +14,8 @@
 - 📦 **Outdated detection** — compares installed versions against the latest on PyPI
 - ⏰ **Unmaintained detection** — flags packages with no updates in over a year
 - 🚫 **Yanked/removed detection** — identifies packages no longer available on PyPI
-- ⚖️ **License compliance** — classifies licenses (permissive, copyleft, restricted, public domain) and flags non-compliant packages
+- 📋 **SBOM export** — generate Software Bills of Materials in CycloneDX and SPDX formats (`depcheck export`)
+- ⚖️ **License compliance** — license classification with SPDX identifiers and compliance checking
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
 - 🔄 **Dependency diff** — compare two requirement files or detect lockfile drift (`depcheck diff`)
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
@@ -118,6 +119,21 @@ depcheck diff --fail-on-change requirements.old.txt requirements.new.txt
 depcheck diff --unified v1.txt v2.txt
 ```
 
+### Generate an SBOM (Software Bill of Materials)
+
+```bash
+depcheck export --format cyclonedx
+depcheck export --format spdx --output sbom.json
+depcheck export --format summary
+depcheck export --format cyclonedx --check-licenses --output bom.cdx.json
+```
+
+### Export without vulnerability checks (faster)
+
+```bash
+depcheck export --format cyclonedx --no-vuln-check
+```
+
 ## Diff Change Types
 
 | Change | Symbol | Meaning |
@@ -141,6 +157,18 @@ Each package is assigned a health status with color-coded output:
 | Unmaintained | 🟡 | Yellow | No release in over 1 year |
 | Yanked | 🔴 | Red | Package or version has been yanked from PyPI |
 | Removed | 🔴 | Red | Package no longer exists on PyPI |
+
+## SBOM Export Formats
+
+`depcheck export` supports industry-standard SBOM formats for supply chain transparency and regulatory compliance (EU CRA, US EO 14028):
+
+| Format | Standard | Use Case |
+|--------|----------|----------|
+| `cyclonedx` | OWASP CycloneDX 1.6 | Supply chain security, vulnerability correlation |
+| `spdx` | SPDX 2.3 | License compliance, open source auditing |
+| `summary` | depcheck custom | Quick human review, CI dashboards |
+
+All formats include package names, versions, and [PURLs](https://github.com/package-url/purl-spec). CycloneDX output includes vulnerability data with severity ratings; SPDX output includes license declarations and dependency relationships.
 
 ## Exit Codes
 
