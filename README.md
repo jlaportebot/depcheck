@@ -18,6 +18,7 @@
 - ⚖️ **License compliance** — license classification with SPDX identifiers and compliance checking
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
 - 🔄 **Dependency diff** — compare two requirement files or detect lockfile drift (`depcheck diff`)
+- 📈 **Outdated analysis** — upgrade path tracking with semver classification, risk assessment, and changelog links (`depcheck outdated`)
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
 
 ## Installation
@@ -93,6 +94,25 @@ depcheck scan --allow-license permissive --deny-license GPL-3.0
 
 ```bash
 depcheck diff requirements.old.txt requirements.new.txt
+```
+
+### Outdated dependency analysis
+
+```bash
+# Check for outdated dependencies with upgrade path analysis
+depcheck outdated
+
+# Show pip upgrade commands grouped by risk level
+depcheck outdated --show-commands
+
+# JSON output for CI/CD
+depcheck outdated --json
+
+# Fail CI if major upgrades available (breaking changes)
+depcheck outdated --fail-on major
+
+# Fail on any outdated dependency
+depcheck outdated --fail-on any
 ```
 
 ### Compare as JSON (CI/CD)
