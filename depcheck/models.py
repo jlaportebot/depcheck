@@ -41,6 +41,27 @@ class Vulnerability:
 
 
 @dataclass
+class LicenseInfo:
+    """License information for a package."""
+
+    spdx_id: str = ""
+    raw_license: str = ""
+    category: str = "unknown"  # permissive, copyleft, proprietary, public_domain, restricted, unknown
+    is_compliant: bool = True
+    compliance_note: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "spdx_id": self.spdx_id,
+            "raw_license": self.raw_license,
+            "category": self.category,
+            "is_compliant": self.is_compliant,
+            "compliance_note": self.compliance_note,
+        }
+
+
+@dataclass
 class PackageReport:
     """Health report for a single package."""
 
@@ -53,6 +74,7 @@ class PackageReport:
     is_yanked: bool = False
     is_removed: bool = False
     error: str | None = None
+    license_info: LicenseInfo | None = None
 
     @property
     def is_outdated(self) -> bool:
@@ -81,6 +103,11 @@ class PackageReport:
         """Check if the package has known vulnerabilities."""
         return self.status == HealthStatus.VULNERABLE
 
+    @property
+    def has_license_issue(self) -> bool:
+        """Check if the package has a license compliance issue."""
+        return self.license_info is not None and not self.license_info.is_compliant
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -93,6 +120,7 @@ class PackageReport:
             "is_yanked": self.is_yanked,
             "is_removed": self.is_removed,
             "error": self.error,
+            "license": self.license_info.to_dict() if self.license_info else None,
         }
 
 
@@ -140,6 +168,11 @@ class ScanResult:
         """Number of removed packages."""
         return sum(1 for p in self.packages if p.status == HealthStatus.REMOVED)
 
+    @property
+    def license_issues_count(self) -> int:
+        """Number of packages with license compliance issues."""
+        return sum(1 for p in self.packages if p.has_license_issue)
+
     def has_vulnerabilities(self) -> bool:
         """Check if any packages have vulnerabilities."""
         return self.vulnerable_count > 0
@@ -161,6 +194,7 @@ class ScanResult:
                 "unmaintained": self.unmaintained_count,
                 "yanked": self.yanked_count,
                 "removed": self.removed_count,
+                "license_issues": self.license_issues_count,
             },
             "packages": [p.to_dict() for p in self.packages],
             "errors": self.errors,

@@ -8,6 +8,7 @@ import click
 from rich.console import Console
 
 from depcheck import __version__
+from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
 from depcheck.scanner import scan_project
 
@@ -18,7 +19,7 @@ def main() -> None:
     """depcheck — A dependency health checker for Python projects.
 
     Scan your project's dependencies for vulnerabilities, outdated packages,
-    unmaintained libraries, and yanked or removed packages.
+    unmaintained libraries, yanked or removed packages, and license compliance.
     """
     pass
 
@@ -38,7 +39,10 @@ def main() -> None:
 )
 @click.option(
     "--fail-on",
-    type=click.Choice(["vulnerable", "outdated", "unmaintained", "any"], case_sensitive=False),
+    type=click.Choice(
+        ["vulnerable", "outdated", "unmaintained", "license", "any"],
+        case_sensitive=False,
+    ),
     default=None,
     help="Exit with code 1 if the specified condition is met.",
 )
@@ -47,6 +51,30 @@ def main() -> None:
     is_flag=True,
     default=False,
     help="Skip vulnerability checking (faster but less comprehensive).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Check license compliance for each dependency.",
+)
+@click.option(
+    "--allow-license",
+    "allowed_licenses",
+    multiple=True,
+    type=click.Choice(
+        ["permissive", "copyleft", "public_domain"],
+        case_sensitive=False,
+    ),
+    help="Allowed license categories. Repeat for multiple. "
+    "E.g., --allow-license permissive --allow-license public_domain",
+)
+@click.option(
+    "--deny-license",
+    "denied_licenses",
+    multiple=True,
+    help="Specific SPDX license IDs to deny. Repeat for multiple. "
+    'E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0',
 )
 @click.option(
     "--quiet",
@@ -59,6 +87,9 @@ def scan(
     output_json: bool,
     fail_on: str | None,
     no_vuln_check: bool,
+    check_licenses: bool,
+    allowed_licenses: tuple[str, ...],
+    denied_licenses: tuple[str, ...],
     quiet: bool,
 ) -> None:
     """Scan a Python project for dependency health issues.
@@ -68,10 +99,34 @@ def scan(
     """
     console = Console(quiet=quiet)
 
+    # Parse license policy options
+    allowed_categories: list[LicenseCategory] | None = None
+    if allowed_licenses:
+        category_map = {
+            "permissive": LicenseCategory.PERMISSIVE,
+            "copyleft": LicenseCategory.COPYLEFT,
+            "public_domain": LicenseCategory.PUBLIC_DOMAIN,
+        }
+        allowed_categories = [
+            category_map[cat.lower()]
+            for cat in allowed_licenses
+            if cat.lower() in category_map
+        ]
+
+    denied_list: list[str] | None = None
+    if denied_licenses:
+        denied_list = list(denied_licenses)
+
+    # Enable license check if any license options are specified
+    should_check_licenses = check_licenses or bool(allowed_licenses) or bool(denied_licenses)
+
     # Run the scan
     result = scan_project(
         project_path=path,
         check_vulnerabilities=not no_vuln_check,
+        check_licenses=should_check_licenses,
+        allowed_license_categories=allowed_categories,
+        denied_licenses=denied_list,
     )
 
     # Render output

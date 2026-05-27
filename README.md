@@ -5,7 +5,7 @@
 
 **A dependency health checker for Python projects.**
 
-`depcheck` scans your Python project's dependencies and reports on their health — checking for outdated packages, known vulnerabilities (CVEs), unmaintained packages, and yanked or removed packages.
+`depcheck` scans your Python project's dependencies and reports on their health — checking for outdated packages, known vulnerabilities (CVEs), unmaintained packages, yanked or removed packages, and license compliance.
 
 ## Features
 
@@ -14,6 +14,7 @@
 - 📦 **Outdated detection** — compares installed versions against the latest on PyPI
 - ⏰ **Unmaintained detection** — flags packages with no updates in over a year
 - 🚫 **Yanked/removed detection** — identifies packages no longer available on PyPI
+- ⚖️ **License compliance** — classifies licenses (permissive, copyleft, restricted, public domain) and flags non-compliant packages
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
 
@@ -67,6 +68,25 @@ depcheck scan --fail-on outdated
 depcheck scan /path/to/project --json --fail-on vulnerable
 ```
 
+### License compliance checking
+
+```bash
+# Enable license scanning for all dependencies
+depcheck scan --check-licenses
+
+# Only allow permissive and public-domain licenses (flags copyleft/restricted as non-compliant)
+depcheck scan --check-licenses --allow-license permissive --allow-license public_domain
+
+# Deny specific licenses
+depcheck scan --check-licenses --deny-license GPL-3.0 --deny-license AGPL-3.0
+
+# Fail CI if any license issues found
+depcheck scan --check-licenses --fail-on license
+
+# Combine license options (specifying --allow-license or --deny-license enables checking automatically)
+depcheck scan --allow-license permissive --deny-license GPL-3.0
+```
+
 ## Health Status
 
 Each package is assigned a health status with color-coded output:
@@ -98,9 +118,10 @@ Each package is assigned a health status with color-coded output:
 
 1. **Discovery** — `depcheck` looks for `requirements.txt`, `pyproject.toml`, or `Pipfile` in your project directory
 2. **Parsing** — Extracts package names and version specifiers
-3. **PyPI Lookup** — Queries the PyPI JSON API for each package to get latest versions, release dates, and yanked status
+3. **PyPI Lookup** — Queries the PyPI JSON API for each package to get latest versions, release dates, yanked status, and license metadata
 4. **Vulnerability Check** — Queries the [OSV.dev API](https://osv.dev) for known vulnerabilities affecting each package version
-5. **Report** — Displays a rich, color-coded summary table
+5. **License Classification** — Normalizes license identifiers to SPDX IDs, classifies them into categories (permissive, copyleft, restricted, public domain), and checks against your compliance policy
+6. **Report** — Displays a rich, color-coded summary table with license compliance status
 
 ## Contributing
 
