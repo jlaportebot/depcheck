@@ -8,6 +8,7 @@ import click
 from rich.console import Console
 
 from depcheck import __version__
+from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
 from depcheck.scanner import scan_project
 
@@ -18,7 +19,7 @@ def main() -> None:
     """depcheck — A dependency health checker for Python projects.
 
     Scan your project's dependencies for vulnerabilities, outdated packages,
-    unmaintained libraries, and yanked or removed packages.
+    unmaintained libraries, yanked or removed packages, and license compliance.
     """
     pass
 
@@ -99,23 +100,18 @@ def scan(
     console = Console(quiet=quiet)
 
     # Parse license policy options
-    allowed_categories: list | None = None
+    allowed_categories: list[LicenseCategory] | None = None
     if allowed_licenses:
-        try:
-            from depcheck.licenses import LicenseCategory
-
-            category_map = {
-                "permissive": LicenseCategory.PERMISSIVE,
-                "copyleft": LicenseCategory.COPYLEFT,
-                "public_domain": LicenseCategory.PUBLIC_DOMAIN,
-            }
-            allowed_categories = [
-                category_map[cat.lower()]
-                for cat in allowed_licenses
-                if cat.lower() in category_map
-            ]
-        except ImportError:
-            click.echo("License compliance requires the license-checking feature.", err=True)
+        category_map = {
+            "permissive": LicenseCategory.PERMISSIVE,
+            "copyleft": LicenseCategory.COPYLEFT,
+            "public_domain": LicenseCategory.PUBLIC_DOMAIN,
+        }
+        allowed_categories = [
+            category_map[cat.lower()]
+            for cat in allowed_licenses
+            if cat.lower() in category_map
+        ]
 
     denied_list: list[str] | None = None
     if denied_licenses:
@@ -215,7 +211,7 @@ def tree(
     declared dependencies and displays it with health status indicators.
 
     Each package shows its version and health status:
-      ✓ healthy  ↑ outdated  ! vulnerable  ⚠ unmaintained  ✗ yanked/removed
+    ✓ healthy ↑ outdated ! vulnerable ⚠ unmaintained ✗ yanked/removed
 
     Circular dependencies are detected and marked with ↻.
     """
