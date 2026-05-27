@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 from rich.console import Console
 
-from depcheck.models import HealthStatus, PackageReport, ParsedDependency
+from depcheck.models import HealthStatus
 from depcheck.tree import (
     DependencyTreeResult,
     TreeNode,
@@ -43,7 +43,12 @@ class TestTreeNode:
 
     def test_to_dict_with_children(self) -> None:
         child = TreeNode(name="click", version="8.1.0", status=HealthStatus.HEALTHY)
-        parent = TreeNode(name="flask", version="3.0.0", status=HealthStatus.HEALTHY, children=[child])
+        parent = TreeNode(
+            name="flask",
+            version="3.0.0",
+            status=HealthStatus.HEALTHY,
+            children=[child],
+        )
         d = parent.to_dict()
         assert len(d["children"]) == 1
         assert d["children"][0]["name"] == "click"
@@ -93,8 +98,18 @@ class TestDependencyTreeResult:
 
     def test_total_packages_counts_unique(self) -> None:
         child = TreeNode(name="click", version="8.0", status=HealthStatus.HEALTHY)
-        root1 = TreeNode(name="flask", version="3.0", status=HealthStatus.HEALTHY, children=[child])
-        root2 = TreeNode(name="requests", version="2.0", status=HealthStatus.HEALTHY, children=[child])
+        root1 = TreeNode(
+            name="flask",
+            version="3.0",
+            status=HealthStatus.HEALTHY,
+            children=[child],
+        )
+        root2 = TreeNode(
+            name="requests",
+            version="2.0",
+            status=HealthStatus.HEALTHY,
+            children=[child],
+        )
         result = DependencyTreeResult(project_path="/tmp/test", roots=[root1, root2])
         # click appears in both trees but should only be counted once
         assert result.total_packages == 3  # flask, requests, click
@@ -248,33 +263,45 @@ class TestResolveDependencyTree:
             mock_pypi_info = {
                 "info": {
                     "version": "2.31.0",
-                    "requires_dist": ["charset-normalizer>=2", "urllib3>=1.21"],
+                    "requires_dist": [
+                        "charset-normalizer>=2",
+                        "urllib3>=1.21",
+                    ],
                     "license": "Apache-2.0",
                 },
                 "releases": {
-                    "2.31.0": [{"upload_time_iso_8601": "2023-10-24T14:00:00Z", "yanked": False}],
+                    "2.31.0": [
+                        {
+                            "upload_time_iso_8601": "2023-10-24T14:00:00Z",
+                            "yanked": False,
+                        }
+                    ],
                 },
             }
 
-            with patch("depcheck.tree.PyPIClient") as MockPyPI, patch("depcheck.tree.OSVClient") as MockOSV:
+            with (
+                patch("depcheck.tree.PyPIClient") as mock_pypi,
+                patch("depcheck.tree.OSVClient") as mock_osv,
+            ):
                 pypi_instance = MagicMock()
                 pypi_instance.get_package_info.return_value = mock_pypi_info
                 pypi_instance.resolve_version.return_value = "2.31.0"
                 pypi_instance.is_version_yanked.return_value = False
                 pypi_instance.get_last_release_date.return_value = None
-                MockPyPI.return_value.__enter__ = lambda s: pypi_instance
-                MockPyPI.return_value.__exit__ = MagicMock(return_value=False)
+                mock_pypi.return_value.__enter__ = lambda s: pypi_instance
+                mock_pypi.return_value.__exit__ = MagicMock(return_value=False)
 
                 osv_instance = MagicMock()
                 osv_instance.query_vulnerabilities.return_value = []
-                MockOSV.return_value.__enter__ = lambda s: osv_instance
-                MockOSV.return_value.__exit__ = MagicMock(return_value=False)
+                mock_osv.return_value.__enter__ = lambda s: osv_instance
+                mock_osv.return_value.__exit__ = MagicMock(return_value=False)
 
                 result = resolve_dependency_tree(tmpdir, max_depth=1)
                 assert len(result.roots) >= 1
                 assert result.roots[0].name == "requests"
         finally:
             import shutil
+
             shutil.rmtree(tmpdir, ignore_errors=True)
 
 
@@ -284,7 +311,9 @@ class TestRenderTree:
     def test_empty_result(self) -> None:
         buf = StringIO()
         console = Console(file=buf, force_terminal=True)
-        result = DependencyTreeResult(project_path="/tmp/test", errors=["No deps found"])
+        result = DependencyTreeResult(
+            project_path="/tmp/test", errors=["No deps found"]
+        )
         render_tree(result, console=console)
         output = buf.getvalue()
         assert "Error" in output
@@ -294,7 +323,12 @@ class TestRenderTree:
         console = Console(file=buf, force_terminal=True)
 
         child = TreeNode(name="click", version="8.1.0", status=HealthStatus.HEALTHY)
-        root = TreeNode(name="flask", version="3.0.0", status=HealthStatus.HEALTHY, children=[child])
+        root = TreeNode(
+            name="flask",
+            version="3.0.0",
+            status=HealthStatus.HEALTHY,
+            children=[child],
+        )
         result = DependencyTreeResult(project_path="/tmp/test", roots=[root])
 
         render_tree(result, console=console)
@@ -317,7 +351,9 @@ class TestRenderTree:
         buf = StringIO()
         console = Console(file=buf, force_terminal=True)
 
-        root = TreeNode(name="pkg", version="1.0.0", status=HealthStatus.VULNERABLE)
+        root = TreeNode(
+            name="pkg", version="1.0.0", status=HealthStatus.VULNERABLE
+        )
         result = DependencyTreeResult(project_path="/tmp/test", roots=[root])
 
         render_tree(result, console=console, highlight_issues=False)
@@ -328,9 +364,23 @@ class TestRenderTree:
         buf = StringIO()
         console = Console(file=buf, force_terminal=True)
 
-        grandchild = TreeNode(name="deep", version="1.0", status=HealthStatus.HEALTHY, depth=2)
-        child = TreeNode(name="mid", version="1.0", status=HealthStatus.HEALTHY, depth=1, children=[grandchild])
-        root = TreeNode(name="top", version="1.0", status=HealthStatus.HEALTHY, depth=0, children=[child])
+        grandchild = TreeNode(
+            name="deep", version="1.0", status=HealthStatus.HEALTHY, depth=2
+        )
+        child = TreeNode(
+            name="mid",
+            version="1.0",
+            status=HealthStatus.HEALTHY,
+            depth=1,
+            children=[grandchild],
+        )
+        root = TreeNode(
+            name="top",
+            version="1.0",
+            status=HealthStatus.HEALTHY,
+            depth=0,
+            children=[child],
+        )
         result = DependencyTreeResult(project_path="/tmp/test", roots=[root])
 
         render_tree(result, console=console, max_depth=0)
@@ -384,7 +434,12 @@ class TestRenderTreeJson:
         console = Console(file=buf, force_terminal=True)
 
         child = TreeNode(name="click", version="8.1.0", status=HealthStatus.HEALTHY)
-        root = TreeNode(name="flask", version="3.0.0", status=HealthStatus.HEALTHY, children=[child])
+        root = TreeNode(
+            name="flask",
+            version="3.0.0",
+            status=HealthStatus.HEALTHY,
+            children=[child],
+        )
         result = DependencyTreeResult(project_path="/tmp/test", roots=[root])
 
         render_tree_json(result, console=console)
@@ -422,10 +477,30 @@ class TestTreeNodeDepth:
 
     def test_deeply_nested_tree(self) -> None:
         """Test a deeply nested tree structure."""
-        leaf = TreeNode(name="d", version="1.0", status=HealthStatus.HEALTHY, depth=3)
-        c = TreeNode(name="c", version="1.0", status=HealthStatus.HEALTHY, depth=2, children=[leaf])
-        b = TreeNode(name="b", version="1.0", status=HealthStatus.HEALTHY, depth=1, children=[c])
-        a = TreeNode(name="a", version="1.0", status=HealthStatus.HEALTHY, depth=0, children=[b])
+        leaf = TreeNode(
+            name="d", version="1.0", status=HealthStatus.HEALTHY, depth=3
+        )
+        c = TreeNode(
+            name="c",
+            version="1.0",
+            status=HealthStatus.HEALTHY,
+            depth=2,
+            children=[leaf],
+        )
+        b = TreeNode(
+            name="b",
+            version="1.0",
+            status=HealthStatus.HEALTHY,
+            depth=1,
+            children=[c],
+        )
+        a = TreeNode(
+            name="a",
+            version="1.0",
+            status=HealthStatus.HEALTHY,
+            depth=0,
+            children=[b],
+        )
 
         result = DependencyTreeResult(project_path="/tmp/test", roots=[a])
         assert result.max_depth == 4  # 4 levels: a -> b -> c -> d
