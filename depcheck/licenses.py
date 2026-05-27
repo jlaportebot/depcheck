@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -161,7 +160,6 @@ LICENSE_ALIASES: dict[str, str] = {
     "mpl": "MPL-2.0",
     "mpl 2.0": "MPL-2.0",
     "mpl-2.0": "MPL-2.0",
-    "mozilla public license 2.0": "MPL-2.0",
     "cc0": "CC0-1.0",
     "cc0-1.0": "CC0-1.0",
     "unlicense": "Unlicense",
@@ -207,7 +205,12 @@ def normalize_license_id(raw: str) -> str:
             parts = [p.strip() for p in cleaned.split(separator)]
             # For OR, prefer permissive if available
             if separator.strip().upper() == "OR":
-                permissive = [p for p in parts if classify_license(normalize_single_id(p)) == LicenseCategory.PERMISSIVE]
+                permissive = [
+                p
+                for p in parts
+                if classify_license(normalize_single_id(p))
+                == LicenseCategory.PERMISSIVE
+            ]
                 if permissive:
                     cleaned = permissive[0]
                 else:

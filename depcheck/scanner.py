@@ -313,7 +313,8 @@ def check_package_health(
         osv_client: OSV API client.
         check_vulnerabilities: Whether to check for vulnerabilities.
         check_licenses: Whether to check license compliance.
-        allowed_license_categories: List of allowed license categories (e.g., [LicenseCategory.PERMISSIVE]).
+        allowed_license_categories: List of allowed license categories
+        (e.g., [LicenseCategory.PERMISSIVE]).
         denied_licenses: List of specific SPDX IDs to deny.
 
     Returns:
