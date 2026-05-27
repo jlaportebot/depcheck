@@ -31,12 +31,10 @@ from rich.table import Table
 
 from depcheck.models import (
     HealthStatus,
-    PackageReport,
-    ParsedDependency,
     ScanResult,
     Vulnerability,
 )
-from depcheck.scanner import discover_dependencies, scan_project
+from depcheck.scanner import scan_project
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -356,7 +354,10 @@ def to_cyclonedx(sbom: SBOMResult) -> dict[str, Any]:
             }
 
         # Health-based description
-        if comp.health_status != HealthStatus.HEALTHY and comp.health_status != HealthStatus.UNKNOWN:
+        if (
+            comp.health_status != HealthStatus.HEALTHY
+            and comp.health_status != HealthStatus.UNKNOWN
+        ):
             entry["description"] = f"Health status: {comp.health_status.value}"
 
         # Yanked / removed
@@ -506,7 +507,10 @@ def to_spdx(sbom: SBOMResult) -> dict[str, Any]:
         ]
 
         # Health status as a SECURITY reference
-        if comp.health_status != HealthStatus.HEALTHY and comp.health_status != HealthStatus.UNKNOWN:
+        if (
+            comp.health_status != HealthStatus.HEALTHY
+            and comp.health_status != HealthStatus.UNKNOWN
+        ):
             external_refs.append(
                 {
                     "referenceCategory": "SECURITY",

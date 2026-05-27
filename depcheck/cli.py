@@ -457,15 +457,25 @@ def export(
     # Output to stdout
     if fmt == "cyclonedx":
         content = render_cyclonedx(sbom)
-        clean_console = Console(quiet=False, force_terminal=False, no_color=True) if quiet else Console(
-            force_terminal=False, no_color=True
-        )
+        if quiet:
+            clean_console = Console(
+                quiet=False, force_terminal=False, no_color=True
+            )
+        else:
+            clean_console = Console(
+                force_terminal=False, no_color=True
+            )
         clean_console.print(content)
     elif fmt == "spdx":
         content = render_spdx(sbom)
-        clean_console = Console(quiet=False, force_terminal=False, no_color=True) if quiet else Console(
-            force_terminal=False, no_color=True
-        )
+        if quiet:
+            clean_console = Console(
+                quiet=False, force_terminal=False, no_color=True
+            )
+        else:
+            clean_console = Console(
+                force_terminal=False, no_color=True
+            )
         clean_console.print(content)
     elif fmt == "summary":
         if json_output:
