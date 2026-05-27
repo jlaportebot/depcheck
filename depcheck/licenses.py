@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
@@ -412,3 +412,271 @@ def parse_license_from_pypi(info: dict[str, Any]) -> LicenseInfo:
         is_compliant=False,
         compliance_note="License could not be determined",
     )
+
+
+# ---------------------------------------------------------------------------
+# License Policy & Compliance Reporting
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class LicensePolicy:
+    """Declarative allow/deny policy for license compliance.
+
+    Combines category-based allow lists, specific ID deny lists,
+    and category deny lists into a single check.
+
+    Args:
+        allowed_categories: If set, only these categories are allowed.
+        denied_ids: Specific SPDX IDs to deny.
+        denied_categories: Entire categories to deny (e.g., copyleft).
+        default_allow: If True (default), unknown licenses are allowed.
+            If False, unknown licenses are denied (strict mode).
+
+    Usage::
+
+        policy = LicensePolicy(
+            allowed_categories={LicenseCategory.PERMISSIVE},
+            denied_ids={"GPL-3.0"},
+        )
+        result = policy.check("MIT")
+        assert result.is_compliant
+    """
+
+    allowed_categories: set[LicenseCategory] | None = None
+    denied_ids: set[str] | None = None
+    denied_categories: set[LicenseCategory] | None = None
+    default_allow: bool = True
+
+    def check(self, spdx_id: str) -> "_PolicyCheckResult":
+        """Check a single SPDX ID against this policy.
+
+        Args:
+            spdx_id: The SPDX license identifier to check.
+
+        Returns:
+            _PolicyCheckResult with is_compliant and reason.
+        """
+        # 1. Denied IDs take highest priority
+        if self.denied_ids and spdx_id in self.denied_ids:
+            return _PolicyCheckResult(
+                is_compliant=False,
+                reason=f"License {spdx_id} is explicitly denied by policy",
+            )
+
+        # 2. Classify and check denied categories
+        category = classify_license(spdx_id)
+
+        if self.denied_categories and category in self.denied_categories:
+            return _PolicyCheckResult(
+                is_compliant=False,
+                reason=(
+                    f"License {spdx_id} ({category.value}) is in a denied "
+                    f"category by policy"
+                ),
+            )
+
+        # 3. Check allowed categories
+        if self.allowed_categories is not None:
+            if category not in self.allowed_categories:
+                # Special case: unknown/uncategorized
+                if category == LicenseCategory.UNKNOWN:
+                    if not self.default_allow:
+                        return _PolicyCheckResult(
+                            is_compliant=False,
+                            reason=(
+                                f"License {spdx_id} is uncategorized and "
+                                f"strict mode is enabled"
+                            ),
+                        )
+                    # default_allow=True: let uncategorized through
+                    # when allowed_categories is set but they have no
+                    # UNKNOWN in the set — this is a design choice to
+                    # avoid false positives on novel licenses
+                else:
+                    allowed = ", ".join(c.value for c in self.allowed_categories)
+                    return _PolicyCheckResult(
+                        is_compliant=False,
+                        reason=(
+                            f"License {spdx_id} ({category.value}) not in "
+                            f"allowed categories: {allowed}"
+                        ),
+                    )
+
+        # 4. Empty/missing license ID
+        if not spdx_id or spdx_id.upper() in ("UNKNOWN", "NOASSERTION", ""):
+            if not self.default_allow:
+                return _PolicyCheckResult(
+                    is_compliant=False,
+                    reason="License could not be determined (strict mode)",
+                )
+
+        return _PolicyCheckResult(is_compliant=True, reason="")
+
+
+@dataclass
+class _PolicyCheckResult:
+    """Internal result from a policy check."""
+
+    is_compliant: bool
+    reason: str = ""
+
+
+@dataclass
+class PackageComplianceEntry:
+    """Compliance status for a single package.
+
+    Attributes:
+        name: Package name.
+        version: Installed version.
+        license_info: LicenseInfo for this package.
+        is_compliant: Whether the package passes the policy.
+        denial_reason: Why it's non-compliant (empty if compliant).
+    """
+
+    name: str
+    version: str
+    license_info: LicenseInfo
+    is_compliant: bool = True
+    denial_reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        result: dict[str, Any] = {
+            "name": self.name,
+            "version": self.version,
+            "license": self.license_info.spdx_id or "UNKNOWN",
+            "category": self.license_info.category.value,
+            "is_compliant": self.is_compliant,
+        }
+        if not self.is_compliant:
+            result["denial_reason"] = self.denial_reason
+        return result
+
+
+@dataclass
+class ComplianceReport:
+    """Aggregated license compliance report for a project.
+
+    Attributes:
+        packages: List of per-package compliance entries.
+        total: Total number of packages.
+        compliant_count: Number of compliant packages.
+        non_compliant_count: Number of non-compliant packages.
+        uncategorized_count: Number of packages with unknown licenses.
+        policy: The policy used for checking.
+    """
+
+    packages: list[PackageComplianceEntry] = field(default_factory=list)
+    total: int = 0
+    compliant_count: int = 0
+    non_compliant_count: int = 0
+    uncategorized_count: int = 0
+    policy: LicensePolicy | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "total": self.total,
+            "compliant": self.compliant_count,
+            "non_compliant": self.non_compliant_count,
+            "uncategorized": self.uncategorized_count,
+            "packages": [p.to_dict() for p in self.packages],
+        }
+
+
+# ---------------------------------------------------------------------------
+# Compliance report rendering
+# ---------------------------------------------------------------------------
+
+
+def render_compliance_json(report: ComplianceReport) -> None:
+    """Render a compliance report as JSON to stdout.
+
+    Args:
+        report: The compliance report to render.
+    """
+    import json
+
+    print(json.dumps(report.to_dict(), indent=2))
+
+
+def render_compliance_table(
+    report: ComplianceReport, *, console: Any = None
+) -> None:
+    """Render a compliance report as a Rich table.
+
+    Args:
+        report: The compliance report to render.
+        console: Optional Rich Console instance.
+    """
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    if console is None:
+        console = Console()
+
+    console.print()
+    console.print(
+        Panel(
+            "[bold]depcheck license[/bold] — License Compliance Report",
+            border_style="blue",
+        )
+    )
+
+    # Package table
+    table = Table(
+        title="License Compliance",
+        show_header=True,
+        header_style="bold cyan",
+        expand=True,
+    )
+    table.add_column("Package", style="bold", min_width=20)
+    table.add_column("Version", min_width=10)
+    table.add_column("License", min_width=15)
+    table.add_column("Category", min_width=12)
+    table.add_column("Status", min_width=12)
+
+    for entry in report.packages:
+        lic = entry.license_info
+        if entry.is_compliant:
+            status = "[green]✓ Compliant[/green]"
+        else:
+            status = f"[red]✗ {entry.denial_reason}[/red]"
+
+        category_style = {
+            "permissive": "green",
+            "copyleft": "yellow",
+            "public_domain": "green",
+            "proprietary": "red",
+            "restricted": "red",
+            "uncategorized": "dim",
+            "unknown": "dim",
+        }.get(lic.category.value, "white")
+
+        table.add_row(
+            entry.name,
+            entry.version or "unknown",
+            lic.spdx_id or "UNKNOWN",
+            f"[{category_style}]{lic.category.value}[/{category_style}]",
+            status,
+        )
+
+    console.print(table)
+
+    # Summary
+    console.print()
+    parts = [f"[bold]Total:[/bold] {report.total}"]
+    if report.compliant_count:
+        parts.append(f"[green]✓ Compliant: {report.compliant_count}[/green]")
+    if report.non_compliant_count:
+        parts.append(f"[red]✗ Non-compliant: {report.non_compliant_count}[/red]")
+    if report.uncategorized_count:
+        parts.append(f"[dim]? Uncategorized: {report.uncategorized_count}[/dim]")
+
+    border = "red" if report.non_compliant_count > 0 else "green"
+    console.print(
+        Panel("\n".join(parts), title="Summary", border_style=border)
+    )
+    console.print()
