@@ -16,6 +16,7 @@
 - 🚫 **Yanked/removed detection** — identifies packages no longer available on PyPI
 - ⚖️ **License compliance** — classifies licenses (permissive, copyleft, restricted, public domain) and flags non-compliant packages
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
+- 🔄 **Dependency diff** — compare two requirement files or detect lockfile drift (`depcheck diff`)
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
 
 ## Installation
@@ -87,6 +88,47 @@ depcheck scan --check-licenses --fail-on license
 depcheck scan --allow-license permissive --deny-license GPL-3.0
 ```
 
+### Compare dependency files
+
+```bash
+depcheck diff requirements.old.txt requirements.new.txt
+```
+
+### Compare as JSON (CI/CD)
+
+```bash
+depcheck diff --json requirements.old.txt requirements.new.txt
+```
+
+### Detect lockfile drift
+
+```bash
+depcheck diff --drift requirements.txt requirements.lock
+```
+
+### Fail on any change (CI gate)
+
+```bash
+depcheck diff --fail-on-change requirements.old.txt requirements.new.txt
+```
+
+### Show traditional unified diff
+
+```bash
+depcheck diff --unified v1.txt v2.txt
+```
+
+## Diff Change Types
+
+| Change | Symbol | Meaning |
+|--------|--------|---------|
+| Added | `+` | Package exists only in the new file |
+| Removed | `-` | Package exists only in the old file |
+| Upgraded | `↑` | Pinned version increased |
+| Downgraded | `↓` | Pinned version decreased |
+| Specifier changed | `~` | Version specifier changed (e.g., `>=2.0` → `>=3.0`) |
+| Unpinned | `⚠` | Went from pinned version to version range |
+| Pinned | `✓` | Went from version range to pinned version |
 ## Health Status
 
 Each package is assigned a health status with color-coded output:
