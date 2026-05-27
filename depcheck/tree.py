@@ -8,7 +8,6 @@ health status indicators using Rich.
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,11 +15,10 @@ from typing import Any
 from rich.console import Console
 from rich.tree import Tree
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.models import HealthStatus
 from depcheck.osv import OSVClient
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
-    UNMAINTAINED_THRESHOLD_DAYS,
     check_package_health,
     discover_dependencies,
 )
@@ -231,7 +229,9 @@ def resolve_dependency_tree(
         "total_packages": total_resolved,
         "skipped": total_skipped,
         "circular_deps_found": len(result.circular_deps),
-        "max_depth_reached": max(n.depth for n in _flatten_tree(result.roots)) if result.roots else 0,
+        "max_depth_reached": (
+        max(n.depth for n in _flatten_tree(result.roots)) if result.roots else 0
+    ),
     }
 
     return result
@@ -467,7 +467,12 @@ def render_tree(
     console.print()
 
     for root_node in result.roots:
-        _render_node(root_node, console=console, highlight_issues=highlight_issues, max_depth=max_depth)
+        _render_node(
+            root_node,
+            console=console,
+            highlight_issues=highlight_issues,
+            max_depth=max_depth,
+        )
 
     # Summary
     console.print()
@@ -492,7 +497,10 @@ def render_tree(
         summary_parts.append(f"[red]🔄 Circular deps: {len(result.circular_deps)}[/red]")
 
     if result.stats:
-        summary_parts.append(f"[dim]Max depth resolved: {result.stats.get('max_depth_reached', 0)}[/dim]")
+            depth_val = result.stats.get("max_depth_reached", 0)
+            summary_parts.append(
+                f"[dim]Max depth resolved: {depth_val}[/dim]"
+            )
 
     from rich.panel import Panel
 
@@ -569,5 +577,10 @@ def render_tree_json(result: DependencyTreeResult, console: Console | None = Non
     data = result.to_dict()
     json_str = json.dumps(data, indent=2)
     # Use no_color to ensure clean JSON output without ANSI escape codes
-    clean_console = Console(file=console.file, force_terminal=False, no_color=True, legacy_windows=False)
+    clean_console = Console(
+        file=console.file,
+        force_terminal=False,
+        no_color=True,
+        legacy_windows=False,
+    )
     clean_console.print(json_str)
