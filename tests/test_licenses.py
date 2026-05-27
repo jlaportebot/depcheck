@@ -8,7 +8,6 @@ from depcheck.licenses import (
     check_license_compliance,
     classify_license,
     normalize_license_id,
-    normalize_single_id,
     parse_license_from_pypi,
 )
 from depcheck.models import LicenseInfo as ModelLicenseInfo

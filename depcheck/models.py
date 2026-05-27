@@ -46,7 +46,8 @@ class LicenseInfo:
 
     spdx_id: str = ""
     raw_license: str = ""
-    category: str = "unknown"  # permissive, copyleft, proprietary, public_domain, restricted, unknown
+    category: str = "unknown"  # permissive, copyleft, proprietary, ...
+    # public_domain, restricted, unknown
     is_compliant: bool = True
     compliance_note: str = ""
 

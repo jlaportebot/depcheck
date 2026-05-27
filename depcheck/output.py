@@ -118,11 +118,19 @@ def render_table(result: ScanResult, console: Console | None = None) -> None:
 
         # License issues
         if pkg.license_info and not pkg.license_info.is_compliant:
-            lic_color = "red" if pkg.license_info.category in ("restricted", "copyleft") else "yellow"
+            lic_color = (
+                "red"
+                if pkg.license_info.category in ("restricted", "copyleft")
+                else "yellow"
+            )
             lic_text = pkg.license_info.spdx_id or "Unknown"
             issues.append(f"[{lic_color}]⚖ License: {lic_text}[/{lic_color}]")
             if pkg.license_info.compliance_note:
-                issues.append(f"[dim {lic_color}]{pkg.license_info.compliance_note[:60]}[/dim {lic_color}]")
+                issues.append(
+                f"[dim {lic_color}]"
+                f"{pkg.license_info.compliance_note[:60]}"
+                f"[/dim {lic_color}]"
+            )
 
         issues_str = "\n".join(issues) if issues else "[green]OK[/green]"
 
