@@ -30,12 +30,6 @@ from pathlib import Path
 from typing import Any
 
 from depcheck.models import HealthStatus
-from depcheck.osv import OSVClient
-from depcheck.pypi import PyPIClient
-from depcheck.scanner import (
-    check_package_health,
-    discover_dependencies,
-)
 from depcheck.tree import (
     DependencyTreeResult,
     TreeNode,
@@ -126,7 +120,7 @@ class DependencyGraph:
         return {
             "projectPath": self.project_path,
             "nodes": [n.to_dict() for n in self.nodes],
-            "links": [l.to_dict() for l in self.links],
+            "links": [link.to_dict() for link in self.links],
             "filesScanned": self.files_scanned,
             "errors": self.errors,
         }
@@ -458,7 +452,8 @@ def render_graph_html(graph: DependencyGraph) -> str:
   Object.entries(STATUS_LABELS).forEach(([key, label]) => {{
     const item = document.createElement('div');
     item.className = 'legend-item';
-    item.innerHTML = `<span class="legend-dot" style="background:${{STATUS_COLORS[key]}}"></span>${{label}}`;
+    item.innerHTML = `<span class="legend-dot" ` +
+                        `style="background:${{STATUS_COLORS[key]}}"></span>${{label}}`;
     legendEl.appendChild(item);
   }});
 
@@ -468,8 +463,11 @@ def render_graph_html(graph: DependencyGraph) -> str:
     statusCounts[n.status] = (statusCounts[n.status] || 0) + 1;
   }});
   const statsEl = document.getElementById('stats');
-  const parts = Object.entries(STATUS_LABELS).filter(([k]) => statusCounts[k]).map(([k, v]) => `${{v}}: ${{statusCounts[k]}}`);
-  statsEl.textContent = parts.join(' · ') + ` · Total: ${{data.nodes.length}}`;
+const parts = Object.entries(STATUS_LABELS)
+        .filter(([k]) => statusCounts[k])
+        .map(([k, v]) => `${{v}}: ${{statusCounts[k]}}`);
+statsEl.textContent = parts.join(' · ') +
+        ` · Total: ${{data.nodes.length}}`;
 
   const width = window.innerWidth;
   const height = window.innerHeight - 56;
@@ -586,39 +584,68 @@ def render_graph_html(graph: DependencyGraph) -> str:
     const color = STATUS_COLORS[d.status] || STATUS_COLORS.unknown;
     const label = STATUS_LABELS[d.status] || d.status;
 
-    let html = `
-      <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-badge" style="background:${{color}}">${{label}}</span></span></div>
-      <div class="detail-row"><span class="detail-label">Version</span><span class="detail-value">${{d.version || 'unknown'}}</span></div>
-    `;
+let html = `
+    <div class="detail-row">
+      <span class="detail-label">Status</span>
+      <span class="detail-value">
+        <span class="status-badge" style="background:${{color}}">${{label}}</span>
+      </span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Version</span>
+      <span class="detail-value">${{d.version || 'unknown'}}</span>
+    </div>`;
     if (d.latestVersion) {{
-      html += `<div class="detail-row"><span class="detail-label">Latest</span><span class="detail-value">${{d.latestVersion}}</span></div>`;
+      html += `<div class="detail-row">
+      <span class="detail-label">Latest</span>
+      <span class="detail-value">${{d.latestVersion}}</span>
+    </div>`;
     }}
     if (d.license) {{
-      html += `<div class="detail-row"><span class="detail-label">License</span><span class="detail-value">${{d.license}}</span></div>`;
+      html += `<div class="detail-row">
+      <span class="detail-label">License</span>
+      <span class="detail-value">${{d.license}}</span>
+    </div>`;
     }}
     if (d.licenseCategory) {{
-      html += `<div class="detail-row"><span class="detail-label">Category</span><span class="detail-value">${{d.licenseCategory}}</span></div>`;
+      html += `<div class="detail-row">
+      <span class="detail-label">Category</span>
+      <span class="detail-value">${{d.licenseCategory}}</span>
+    </div>`;
     }}
     if (d.licenseCompliant === false) {{
-      html += `<div class="detail-row"><span class="detail-label">Compliant</span><span class="detail-value" style="color:#f44336">No</span></div>`;
+      html += `<div class="detail-row">
+      <span class="detail-label">Compliant</span>
+      <span class="detail-value" style="color:#f44336">No</span>
+    </div>`;
     }}
     if (d.vulnCount > 0) {{
-      html += `<div class="detail-row"><span class="detail-label">Vulnerabilities</span><span class="detail-value" style="color:#f44336">${{d.vulnCount}}</span></div>`;
+      html += `<div class="detail-row">
+      <span class="detail-label">Vulnerabilities</span>
+      <span class="detail-value" style="color:#f44336">${{d.vulnCount}}</span>
+    </div>`;
     }}
-    html += `<div class="detail-row"><span class="detail-label">Depth</span><span class="detail-value">${{d.depth}}</span></div>`;
+    html += `<div class="detail-row">
+      <span class="detail-label">Depth</span>
+      <span class="detail-value">${{d.depth}}</span>
+    </div>`;
 
     // Show dependencies (outgoing edges)
     const deps = data.links.filter(l => l.source === d.id).map(l => l.target);
     if (deps.length) {{
-      html += `<div style="margin-top:12px;font-size:13px;color:#888;">Depends on (${{deps.length}})</div>`;
-      html += `<div style="margin-top:4px;font-size:12px;color:#ccc;line-height:1.8">${{deps.join(', ')}}</div>`;
+html += `<div style="margin-top:12px;font-size:13px;color:#888;">
+      Depends on (${{deps.length}})</div>`;
+html += `<div style="margin-top:4px;font-size:12px;color:#ccc;
+      line-height:1.8">${{deps.join(', ')}}</div>`;
     }}
 
     // Show dependents (incoming edges)
     const dependents = data.links.filter(l => l.target === d.id).map(l => l.source);
     if (dependents.length) {{
-      html += `<div style="margin-top:12px;font-size:13px;color:#888;">Required by (${{dependents.length}})</div>`;
-      html += `<div style="margin-top:4px;font-size:12px;color:#ccc;line-height:1.8">${{dependents.join(', ')}}</div>`;
+html += `<div style="margin-top:12px;font-size:13px;color:#888;">
+      Required by (${{dependents.length}})</div>`;
+html += `<div style="margin-top:4px;font-size:12px;color:#ccc;
+      line-height:1.8">${{dependents.join(', ')}}</div>`;
     }}
 
     content.innerHTML = html;
@@ -655,7 +682,9 @@ def render_graph_html(graph: DependencyGraph) -> str:
 
       node.classed('dimmed', d => !expanded.has(d.id))
           .classed('highlighted', d => matches.has(d.id));
-      link.classed('dimmed', d => !expanded.has(d.source.id || d.source) && !expanded.has(d.target.id || d.target));
+      link.classed('dimmed', d =>
+        !expanded.has(d.source.id || d.source) &&
+        !expanded.has(d.target.id || d.target));
       noResults.style.display = matches.size === 0 ? 'block' : 'none';
     }}, 200);
   }});

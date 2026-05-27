@@ -1049,7 +1049,7 @@ def graph(
 
     if not quiet:
         console.print(f"[green]✓ Dependency graph written to {output}[/green]")
-        console.print(f"  Open in a browser to explore the interactive visualization.")
+        console.print("  Open in a browser to explore the interactive visualization.")
 
 
 if __name__ == "__main__":

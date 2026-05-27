@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.graph import (
+    STATUS_COLORS,
+    STATUS_LABELS,
     DependencyGraph,
     GraphLink,
     GraphNode,
-    generate_graph,
     render_graph_html,
     tree_to_graph,
     write_graph_html,
-    STATUS_COLORS,
-    STATUS_LABELS,
 )
 from depcheck.models import HealthStatus
 from depcheck.tree import DependencyTreeResult, TreeNode
@@ -137,17 +133,23 @@ class TestTreeToGraph:
                     name="requests",
                     version="2.31.0",
                     status=HealthStatus.HEALTHY,
-                    children=[
-                        TreeNode(name="urllib3", version="2.0", status=HealthStatus.HEALTHY, depth=1),
-                        TreeNode(name="certifi", version="2023.7", status=HealthStatus.OUTDATED, depth=1),
-                    ],
+                children=[
+                    TreeNode(
+                        name="urllib3", version="2.0",
+                        status=HealthStatus.HEALTHY, depth=1,
+                    ),
+                    TreeNode(
+                        name="certifi", version="2023.7",
+                        status=HealthStatus.OUTDATED, depth=1,
+                    ),
+                ],
                 ),
             ],
         )
         graph = tree_to_graph(tree)
         assert len(graph.nodes) == 3
         assert len(graph.links) == 2
-        link_pairs = {(l.source, l.target) for l in graph.links}
+        link_pairs = {(lk.source, lk.target) for lk in graph.links}
         assert ("requests", "urllib3") in link_pairs
         assert ("requests", "certifi") in link_pairs
 
@@ -161,7 +163,10 @@ class TestTreeToGraph:
                     version="1.0",
                     status=HealthStatus.HEALTHY,
                     children=[
-                        TreeNode(name="shared", version="1.0", status=HealthStatus.HEALTHY, depth=1),
+                        TreeNode(
+                            name="shared", version="1.0",
+                            status=HealthStatus.HEALTHY, depth=1,
+                        ),
                     ],
                 ),
                 TreeNode(
@@ -169,7 +174,10 @@ class TestTreeToGraph:
                     version="1.0",
                     status=HealthStatus.HEALTHY,
                     children=[
-                        TreeNode(name="shared", version="1.0", status=HealthStatus.HEALTHY, depth=1),
+                        TreeNode(
+                            name="shared", version="1.0",
+                            status=HealthStatus.HEALTHY, depth=1,
+                        ),
                     ],
                 ),
             ],
