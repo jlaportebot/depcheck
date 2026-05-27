@@ -448,7 +448,7 @@ class LicensePolicy:
     denied_categories: set[LicenseCategory] | None = None
     default_allow: bool = True
 
-    def check(self, spdx_id: str) -> "_PolicyCheckResult":
+    def check(self, spdx_id: str) -> _PolicyCheckResult:
         """Check a single SPDX ID against this policy.
 
         Args:

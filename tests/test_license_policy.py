@@ -10,10 +10,8 @@ from depcheck.licenses import (
     LicenseInfo,
     LicensePolicy,
     PackageComplianceEntry,
-    classify_license,
     render_compliance_json,
 )
-
 
 # ---------------------------------------------------------------------------
 # LicensePolicy
