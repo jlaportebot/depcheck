@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime
+import tempfile
 import time
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.models import HealthStatus, LicenseInfo, PackageReport, ScanResult
 from depcheck.watch import (
     DEFAULT_WATCH_PATTERNS,
     ScanRecord,
@@ -22,8 +24,8 @@ from depcheck.watch import (
     render_watch_dashboard,
 )
 
-# --- Fixtures ---
 
+# --- Fixtures ---
 
 @pytest.fixture
 def tmp_project(tmp_path: Path) -> Path:
@@ -76,7 +78,6 @@ def sample_config(tmp_project: Path) -> WatchConfig:
 
 # --- WatchConfig tests ---
 
-
 class TestWatchConfig:
     def test_default_values(self):
         config = WatchConfig()
@@ -111,7 +112,6 @@ class TestWatchConfig:
 
 
 # --- StatusChange tests ---
-
 
 class TestStatusChange:
     def test_worsening_change(self):
@@ -155,8 +155,7 @@ class TestStatusChange:
         assert d["details"] == "version: 2.31.0 → 2.32.0"
 
     def test_severity_ordering(self):
-        """Verify severity ordering: healthy < outdated < unmaintained
-        < yanked < vulnerable < removed."""
+        """Verify severity ordering: healthy < outdated < unmaintained < yanked < vulnerable < removed."""
         changes = [
             ("healthy", "outdated", True),
             ("healthy", "vulnerable", True),
@@ -174,7 +173,6 @@ class TestStatusChange:
 
 
 # --- ScanRecord tests ---
-
 
 class TestScanRecord:
     def test_basic_record(self):
@@ -207,7 +205,6 @@ class TestScanRecord:
 
 
 # --- File discovery tests ---
-
 
 class TestDiscoverWatchedFiles:
     def test_finds_requirements_txt(self, tmp_project: Path):
@@ -253,13 +250,14 @@ class TestDiscoverWatchedFiles:
     def test_deduplication(self, tmp_path: Path):
         """Overlapping patterns should not return duplicate files."""
         (tmp_path / "requirements.txt").write_text("requests\n")
-        files = discover_watched_files(tmp_path, ["requirements.txt", "requirements*.txt"])
+        files = discover_watched_files(
+            tmp_path, ["requirements.txt", "requirements*.txt"]
+        )
         names = [f.name for f in files]
         assert names.count("requirements.txt") == 1
 
 
 # --- File mtime tests ---
-
 
 class TestGetFileMtimes:
     def test_returns_mtimes(self, tmp_project: Path):
@@ -310,7 +308,6 @@ class TestDetectChanges:
 
 
 # --- Scan diff tests ---
-
 
 class TestDiffScanResults:
     def test_no_changes(self, sample_scan_result: ScanResult):
@@ -368,7 +365,10 @@ class TestDiffScanResults:
     def test_removed_package(self, sample_scan_result: ScanResult):
         new_result = ScanResult(
             project_path="/tmp/test_project",
-            packages=[p for p in sample_scan_result.packages if p.name != "click"],
+            packages=[
+                p for p in sample_scan_result.packages
+                if p.name != "click"
+            ],
         )
         changes = diff_scan_results(sample_scan_result, new_result)
         assert len(changes) == 1
@@ -462,25 +462,20 @@ class TestDiffScanResults:
 
 # --- Dashboard rendering tests ---
 
-
 class TestRenderWatchDashboard:
-    def test_renders_without_error(
-        self, sample_config: WatchConfig, sample_scan_result: ScanResult
-    ):
+    def test_renders_without_error(self, sample_config: WatchConfig, sample_scan_result: ScanResult):
         state = WatchState(config=sample_config)
         state.last_scan_result = sample_scan_result
         state.total_scans = 1
         state.last_trigger = "initial"
         state.watched_files = ["requirements.txt", "pyproject.toml"]
-        state.scan_history.append(
-            ScanRecord(
-                timestamp=datetime.datetime.now(),
-                trigger="initial",
-                total_packages=3,
-                issues_count=1,
-                duration_seconds=0.5,
-            )
-        )
+        state.scan_history.append(ScanRecord(
+            timestamp=datetime.datetime.now(),
+            trigger="initial",
+            total_packages=3,
+            issues_count=1,
+            duration_seconds=0.5,
+        ))
         panel = render_watch_dashboard(state)
         assert panel is not None
 
@@ -496,24 +491,21 @@ class TestRenderWatchDashboard:
         state.total_changes_detected = 1
         state.last_trigger = "file_change"
         state.watched_files = ["requirements.txt"]
-        state.scan_history.append(
-            ScanRecord(
-                timestamp=datetime.datetime.now(),
-                trigger="file_change",
-                trigger_file="requirements.txt",
-                total_packages=3,
-                issues_count=1,
-                status_changes=[
-                    StatusChange("requests", "healthy", "vulnerable", "1 vulnerability"),
-                ],
-            )
-        )
+        state.scan_history.append(ScanRecord(
+            timestamp=datetime.datetime.now(),
+            trigger="file_change",
+            trigger_file="requirements.txt",
+            total_packages=3,
+            issues_count=1,
+            status_changes=[
+                StatusChange("requests", "healthy", "vulnerable", "1 vulnerability"),
+            ],
+        ))
         panel = render_watch_dashboard(state, changed_files=["/tmp/requirements.txt"])
         assert panel is not None
 
 
 # --- WatchState tests ---
-
 
 class TestWatchState:
     def test_default_state(self, sample_config: WatchConfig):
@@ -527,21 +519,18 @@ class TestWatchState:
         state = WatchState(config=sample_config)
         sample_config.max_history = 3
         for i in range(5):
-            state.scan_history.append(
-                ScanRecord(
-                    timestamp=datetime.datetime.now(),
-                    trigger="initial",
-                    total_packages=i,
-                    issues_count=0,
-                )
-            )
+            state.scan_history.append(ScanRecord(
+                timestamp=datetime.datetime.now(),
+                trigger="initial",
+                total_packages=i,
+                issues_count=0,
+            ))
             if len(state.scan_history) > sample_config.max_history:
-                state.scan_history = state.scan_history[-sample_config.max_history :]
+                state.scan_history = state.scan_history[-sample_config.max_history:]
         assert len(state.scan_history) == 3
 
 
 # --- Integration: scan + diff ---
-
 
 class TestWatchIntegration:
     def test_scan_record_creation(self, tmp_project: Path):
@@ -569,12 +558,7 @@ class TestWatchIntegration:
 
     def test_file_change_detection(self, tmp_project: Path):
         """Test that file modifications are detected."""
-        from depcheck.watch import (
-            DEFAULT_WATCH_PATTERNS,
-            detect_changes,
-            discover_watched_files,
-            get_file_mtimes,
-        )
+        from depcheck.watch import DEFAULT_WATCH_PATTERNS, discover_watched_files, get_file_mtimes, detect_changes
 
         files = discover_watched_files(tmp_project, DEFAULT_WATCH_PATTERNS)
         old_mtimes = get_file_mtimes(files)
@@ -592,12 +576,10 @@ class TestWatchIntegration:
 
 # --- CLI integration tests ---
 
-
 class TestWatchCLI:
     def test_watch_command_exists(self):
         """Test that the watch command is registered."""
         from click.testing import CliRunner
-
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -608,7 +590,6 @@ class TestWatchCLI:
     def test_watch_help_shows_options(self):
         """Test that all watch options appear in help."""
         from click.testing import CliRunner
-
         from depcheck.cli import main
 
         runner = CliRunner()

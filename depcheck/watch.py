@@ -15,6 +15,7 @@ Features:
 from __future__ import annotations
 
 import datetime
+import os
 import sys
 import time
 from dataclasses import dataclass, field
@@ -27,13 +28,13 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from depcheck.models import HealthStatus, ScanResult
+from depcheck.models import HealthStatus, PackageReport, ScanResult
 from depcheck.scanner import scan_project
 
 try:
     from depcheck.licenses import LicenseCategory
 except ImportError:
-    LicenseCategory: type | None = None  # type: ignore[assignment,misc]
+    LicenseCategory = None  # type: ignore[assignment,misc]
 
 # --- Default watched file patterns ---
 DEFAULT_WATCH_PATTERNS: list[str] = [
@@ -50,7 +51,6 @@ DEFAULT_WATCH_PATTERNS: list[str] = [
 ]
 
 # --- Configuration ---
-
 
 @dataclass
 class WatchConfig:
@@ -86,7 +86,6 @@ class WatchConfig:
 
 
 # --- Data models ---
-
 
 @dataclass
 class ScanRecord:
@@ -168,7 +167,6 @@ class WatchState:
 
 # --- File watching ---
 
-
 def discover_watched_files(project_path: Path, patterns: list[str]) -> list[Path]:
     """Find all files matching the watch patterns in the project directory.
 
@@ -235,7 +233,6 @@ def detect_changes(old_mtimes: dict[str, float], new_mtimes: dict[str, float]) -
 
 # --- Status diff ---
 
-
 def diff_scan_results(old: ScanResult, new: ScanResult) -> list[StatusChange]:
     """Compare two scan results and detect status changes.
 
@@ -248,44 +245,42 @@ def diff_scan_results(old: ScanResult, new: ScanResult) -> list[StatusChange]:
     """
     changes: list[StatusChange] = []
 
-    old_statuses: dict[str, str] = {p.name: p.status.value for p in old.packages}
-    new_statuses: dict[str, str] = {p.name: p.status.value for p in new.packages}
+    old_statuses: dict[str, str] = {
+        p.name: p.status.value for p in old.packages
+    }
+    new_statuses: dict[str, str] = {
+        p.name: p.status.value for p in new.packages
+    }
 
     # Check for status changes in existing packages
     for name, new_status in new_statuses.items():
         old_status = old_statuses.get(name)
         if old_status is None:
-            changes.append(
-                StatusChange(
-                    package_name=name,
-                    old_status="(new)",
-                    new_status=new_status,
-                    details="Package added to dependencies",
-                )
-            )
+            changes.append(StatusChange(
+                package_name=name,
+                old_status="(new)",
+                new_status=new_status,
+                details="Package added to dependencies",
+            ))
         elif old_status != new_status:
             # Build details about the change
             details = _build_change_details(name, old, new)
-            changes.append(
-                StatusChange(
-                    package_name=name,
-                    old_status=old_status,
-                    new_status=new_status,
-                    details=details,
-                )
-            )
+            changes.append(StatusChange(
+                package_name=name,
+                old_status=old_status,
+                new_status=new_status,
+                details=details,
+            ))
 
     # Check for removed packages
     for name, old_status in old_statuses.items():
         if name not in new_statuses:
-            changes.append(
-                StatusChange(
-                    package_name=name,
-                    old_status=old_status,
-                    new_status="(removed)",
-                    details="Package removed from dependencies",
-                )
-            )
+            changes.append(StatusChange(
+                package_name=name,
+                old_status=old_status,
+                new_status="(removed)",
+                details="Package removed from dependencies",
+            ))
 
     return changes
 
@@ -298,9 +293,13 @@ def _build_change_details(name: str, old: ScanResult, new: ScanResult) -> str:
     parts: list[str] = []
     if old_pkg and new_pkg:
         if old_pkg.installed_version != new_pkg.installed_version:
-            parts.append(f"version: {old_pkg.installed_version} → {new_pkg.installed_version}")
+            parts.append(
+                f"version: {old_pkg.installed_version} → {new_pkg.installed_version}"
+            )
         if old_pkg.latest_version != new_pkg.latest_version:
-            parts.append(f"latest: {old_pkg.latest_version} → {new_pkg.latest_version}")
+            parts.append(
+                f"latest: {old_pkg.latest_version} → {new_pkg.latest_version}"
+            )
         old_vuln_count = len(old_pkg.vulnerabilities)
         new_vuln_count = len(new_pkg.vulnerabilities)
         if old_vuln_count != new_vuln_count:
@@ -311,10 +310,7 @@ def _build_change_details(name: str, old: ScanResult, new: ScanResult) -> str:
 
 # --- Scanning ---
 
-
-def run_scan(
-    config: WatchConfig, trigger: str, trigger_file: str = ""
-) -> tuple[ScanResult, ScanRecord]:
+def run_scan(config: WatchConfig, trigger: str, trigger_file: str = "") -> tuple[ScanResult, ScanRecord]:
     """Run a dependency scan and record the result.
 
     Args:
@@ -337,7 +333,8 @@ def run_scan(
 
     duration = time.time() - start
     issues = sum(
-        1 for p in result.packages if p.status not in (HealthStatus.HEALTHY, HealthStatus.UNKNOWN)
+        1 for p in result.packages
+        if p.status not in (HealthStatus.HEALTHY, HealthStatus.UNKNOWN)
     )
 
     record = ScanRecord(
@@ -353,7 +350,6 @@ def run_scan(
 
 
 # --- Rich rendering ---
-
 
 def render_watch_dashboard(state: WatchState, changed_files: list[str] | None = None) -> Panel:
     """Render the live watch dashboard.
@@ -436,13 +432,7 @@ def render_watch_dashboard(state: WatchState, changed_files: list[str] | None = 
         history_lines: list[str] = []
         for record in state.scan_history[-5:]:
             ts = record.timestamp.strftime("%H:%M:%S")
-            trigger_icon = (
-                "📄"
-                if record.trigger == "file_change"
-                else "🚀"
-                if record.trigger == "initial"
-                else "🔄"
-            )
+            trigger_icon = "📄" if record.trigger == "file_change" else "🚀" if record.trigger == "initial" else "🔄"
             history_lines.append(
                 f"{trigger_icon} {ts} — {record.total_packages} pkgs, "
                 f"{record.issues_count} issues ({record.duration_seconds:.1f}s)"
@@ -474,11 +464,7 @@ def render_change_alert(changes: list[StatusChange]) -> Panel | None:
 
     content_parts: list[str] = []
     for change in worsening:
-        name = change.package_name
-        line = (
-            f"[bold red]{name}[/bold red]: "
-            f"{change.old_status} → [bold red]{change.new_status}[/bold red]"
-        )
+        line = f"[bold red]{change.package_name}[/bold red]: {change.old_status} → [bold red]{change.new_status}[/bold red]"
         if change.details:
             line += f"\n  {change.details}"
         content_parts.append(line)
@@ -492,7 +478,6 @@ def render_change_alert(changes: list[StatusChange]) -> Panel | None:
 
 
 # --- Main watch loop ---
-
 
 def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
     """Main watch loop that monitors files and re-scans on changes.
@@ -518,9 +503,7 @@ def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
         console.print(f"[dim]Patterns: {', '.join(config.watch_patterns)}[/dim]")
         sys.exit(1)
 
-    console.print(
-        f"[bold]depcheck watch[/bold] — Monitoring {len(watched)} file(s) in {project_path}"
-    )
+    console.print(f"[bold]depcheck watch[/bold] — Monitoring {len(watched)} file(s) in {project_path}")
     for f in watched:
         console.print(f"  [dim]• {f.relative_to(project_path)}[/dim]")
     console.print()
@@ -533,16 +516,17 @@ def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
     state.last_trigger = "initial"
     state.scan_history.append(record)
     if len(state.scan_history) > config.max_history:
-        state.scan_history = state.scan_history[-config.max_history :]
+        state.scan_history = state.scan_history[-config.max_history:]
 
     # Check exit-on-issue for initial scan
-    if config.exit_on_issue and _should_exit_on_issue(result, config.fail_on):
-        console.print(render_watch_dashboard(state))
-        alert = render_change_alert(record.status_changes)
-        if alert:
-            console.print(alert)
-        _render_scan_issues(result, console)
-        sys.exit(1)
+    if config.exit_on_issue:
+        if _should_exit_on_issue(result, config.fail_on):
+            console.print(render_watch_dashboard(state))
+            alert = render_change_alert(record.status_changes)
+            if alert:
+                console.print(alert)
+            _render_scan_issues(result, console)
+            sys.exit(1)
 
     # Main loop with Live display
     try:
@@ -597,7 +581,7 @@ def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
                     state.last_trigger = "file_change"
                     state.scan_history.append(record)
                     if len(state.scan_history) > config.max_history:
-                        state.scan_history = state.scan_history[-config.max_history :]
+                        state.scan_history = state.scan_history[-config.max_history:]
 
                     # Check exit-on-issue
                     if config.exit_on_issue:
@@ -607,7 +591,7 @@ def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
                             sys.exit(1)
 
                 # Update dashboard
-                live.update(render_watch_dashboard(state, changed_files=changed or None))
+                live.update(render_watch_dashboard(state, changed_files=changed if changed else None))
 
     except KeyboardInterrupt:
         state.is_running = False
@@ -628,13 +612,13 @@ def _should_exit_on_issue(result: ScanResult, fail_on: str | None) -> bool:
     """
     if fail_on is None or fail_on == "any":
         return result.has_issues()
-    if fail_on == "vulnerable":
+    elif fail_on == "vulnerable":
         return result.vulnerable_count > 0
-    if fail_on == "outdated":
+    elif fail_on == "outdated":
         return result.outdated_count > 0
-    if fail_on == "unmaintained":
+    elif fail_on == "unmaintained":
         return result.unmaintained_count > 0
-    if fail_on == "license":
+    elif fail_on == "license":
         return result.license_issues_count > 0
     return False
 
@@ -642,7 +626,8 @@ def _should_exit_on_issue(result: ScanResult, fail_on: str | None) -> bool:
 def _render_scan_issues(result: ScanResult, console: Console) -> None:
     """Render a table of all issues found in the scan."""
     issue_packages = [
-        p for p in result.packages if p.status not in (HealthStatus.HEALTHY, HealthStatus.UNKNOWN)
+        p for p in result.packages
+        if p.status not in (HealthStatus.HEALTHY, HealthStatus.UNKNOWN)
     ]
     if not issue_packages:
         return
