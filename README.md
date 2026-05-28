@@ -139,6 +139,22 @@ depcheck diff --fail-on-change requirements.old.txt requirements.new.txt
 depcheck diff --unified v1.txt v2.txt
 ```
 
+### Watch for dependency changes in real-time
+
+```bash
+# Monitor current directory for dependency file changes
+depcheck watch
+
+# Watch a specific project with custom debounce
+depcheck watch /path/to/project --debounce 5
+
+# CI guard: exit immediately if vulnerabilities detected
+depcheck watch --exit-on-issue --fail-on vulnerable
+
+# Watch with license compliance
+depcheck watch --check-licenses --deny-license GPL-3.0
+```
+
 ### Generate an SBOM (Software Bill of Materials)
 
 ```bash
