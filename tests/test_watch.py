@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import datetime
-import tempfile
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from depcheck.models import HealthStatus, LicenseInfo, PackageReport, ScanResult
+from depcheck.models import HealthStatus, PackageReport, ScanResult
 from depcheck.watch import (
     DEFAULT_WATCH_PATTERNS,
     ScanRecord,
@@ -23,7 +21,6 @@ from depcheck.watch import (
     get_file_mtimes,
     render_watch_dashboard,
 )
-
 
 # --- Fixtures ---
 
@@ -155,7 +152,8 @@ class TestStatusChange:
         assert d["details"] == "version: 2.31.0 → 2.32.0"
 
     def test_severity_ordering(self):
-        """Verify severity ordering: healthy < outdated < unmaintained < yanked < vulnerable < removed."""
+        """Verify severity ordering: healthy < outdated < unmaintained
+    < yanked < vulnerable < removed."""
         changes = [
             ("healthy", "outdated", True),
             ("healthy", "vulnerable", True),
@@ -463,7 +461,9 @@ class TestDiffScanResults:
 # --- Dashboard rendering tests ---
 
 class TestRenderWatchDashboard:
-    def test_renders_without_error(self, sample_config: WatchConfig, sample_scan_result: ScanResult):
+    def test_renders_without_error(
+        self, sample_config: WatchConfig, sample_scan_result: ScanResult
+    ):
         state = WatchState(config=sample_config)
         state.last_scan_result = sample_scan_result
         state.total_scans = 1
@@ -558,7 +558,12 @@ class TestWatchIntegration:
 
     def test_file_change_detection(self, tmp_project: Path):
         """Test that file modifications are detected."""
-        from depcheck.watch import DEFAULT_WATCH_PATTERNS, discover_watched_files, get_file_mtimes, detect_changes
+        from depcheck.watch import (
+            DEFAULT_WATCH_PATTERNS,
+            detect_changes,
+            discover_watched_files,
+            get_file_mtimes,
+        )
 
         files = discover_watched_files(tmp_project, DEFAULT_WATCH_PATTERNS)
         old_mtimes = get_file_mtimes(files)
@@ -580,6 +585,7 @@ class TestWatchCLI:
     def test_watch_command_exists(self):
         """Test that the watch command is registered."""
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -590,6 +596,7 @@ class TestWatchCLI:
     def test_watch_help_shows_options(self):
         """Test that all watch options appear in help."""
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
