@@ -453,8 +453,9 @@ def render_why_table(result: WhyResult, console: Console | None = None) -> None:
         if chain.is_direct:
             continue  # Already shown above
 
+        suffix = "s" if chain.total_links != 1 else ""
         console.print(
-            f"  [bold]Chain {i}[/bold] ({chain.total_links} link{'s' if chain.total_links != 1 else ''})"
+            f" [bold]Chain {i}[/bold] ({chain.total_links} link{suffix})"
         )
         console.print()
 
