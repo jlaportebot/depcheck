@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from depcheck.models import HealthStatus, ParsedDependency
 from depcheck.why import (
     DependencyChain,

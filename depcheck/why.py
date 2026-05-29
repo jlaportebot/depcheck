@@ -15,6 +15,7 @@ from typing import Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from depcheck.models import HealthStatus, ParsedDependency
 from depcheck.osv import OSVClient
@@ -66,7 +67,10 @@ class DependencyChain:
         return {
             "is_direct": self.is_direct,
             "total_links": self.total_links,
-            "path": [{"name": n, "version": v, "status": s.value} for n, v, s in self.path],
+            "path": [
+                {"name": n, "version": v, "status": s.value}
+                for n, v, s in self.path
+            ],
         }
 
 
@@ -208,7 +212,7 @@ def _build_adjacency_map(
                         "python_version",
                         "implementation_name",
                         "extra ==",
-                        "extra ==",
+                        'extra ==',
                     )
                 ):
                     continue
@@ -365,13 +369,7 @@ def resolve_why(
     # If direct dependency, create a single-hop chain
     if result.is_direct:
         chain = DependencyChain(
-            path=[
-                (
-                    target_package,
-                    versions.get(target_package),
-                    statuses.get(target_package, HealthStatus.UNKNOWN),
-                )
-            ],
+            path=[(target_package, versions.get(target_package), statuses.get(target_package, HealthStatus.UNKNOWN))],
             is_direct=True,
         )
         result.chains.append(chain)
@@ -426,9 +424,7 @@ def render_why_table(result: WhyResult, console: Console | None = None) -> None:
         console.print("[dim]Possible reasons:[/dim]")
         console.print("[dim]  • The package is not a dependency (direct or transitive)[/dim]")
         console.print("[dim]  • The package name may be misspelled[/dim]")
-        console.print(
-            "[dim]  • The dependency tree was not fully resolved (try increasing --max-depth)[/dim]"
-        )
+        console.print("[dim]  • The dependency tree was not fully resolved (try increasing --max-depth)[/dim]")
         return
 
     console.print()
@@ -445,7 +441,9 @@ def render_why_table(result: WhyResult, console: Console | None = None) -> None:
             ver = result.chains[0].path[0][1] or "?"
             status = result.chains[0].path[0][2]
             icon, color = _STATUS_STYLES.get(status, ("?", "white"))
-            console.print(f"    Version: {ver}  [{color}]{icon} {status.value}[/{color}]")
+            console.print(
+                f"    Version: {ver}  [{color}]{icon} {status.value}[/{color}]"
+            )
         console.print()
 
     # Render each chain
@@ -453,8 +451,7 @@ def render_why_table(result: WhyResult, console: Console | None = None) -> None:
         if chain.is_direct:
             continue  # Already shown above
 
-        suffix = "s" if chain.total_links != 1 else ""
-        console.print(f" [bold]Chain {i}[/bold] ({chain.total_links} link{suffix})")
+        console.print(f"  [bold]Chain {i}[/bold] ({chain.total_links} link{'s' if chain.total_links != 1 else ''})")
         console.print()
 
         for j, (name, ver, status) in enumerate(chain.path):
@@ -489,9 +486,7 @@ def render_why_table(result: WhyResult, console: Console | None = None) -> None:
             if c.path and not c.is_direct:
                 direct_root_names.add(c.path[0][0])
 
-        console.print(
-            f"  [bold]Summary:[/bold] {total_chains} chain{'s' if total_chains != 1 else ''} found"
-        )
+        console.print(f"  [bold]Summary:[/bold] {total_chains} chain{'s' if total_chains != 1 else ''} found")
         console.print(
             f"  Shortest path: {shortest} link{'s' if shortest != 1 else ''} "
             f"from {', '.join(direct_root_names)}"
