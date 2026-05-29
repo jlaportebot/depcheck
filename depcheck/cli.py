@@ -1078,31 +1078,51 @@ def watch(
 
 @main.command()
 @click.argument(
-    "target_package",
-)
-@click.argument(
     "path",
     default=".",
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
 )
 @click.option(
-    "--json",
-    "output_json",
-    is_flag=True,
-    default=False,
-    help="Output the dependency chains as JSON.",
+    "--output",
+    "-o",
+    "output_path",
+    default=None,
+    type=click.Path(),
+    help="Output HTML file path (default: ./depcheck-graph.html).",
 )
 @click.option(
     "--max-depth",
+    default=3,
     type=int,
-    default=4,
-    help="Maximum depth to resolve in the dependency graph (default: 4).",
+    help="Maximum depth to resolve the dependency tree (default: 3).",
 )
 @click.option(
     "--no-vuln-check",
     is_flag=True,
     default=False,
-    help="Skip vulnerability checking (faster graph resolution).",
+    help="Skip vulnerability checking (faster but less comprehensive).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Check license compliance for each dependency.",
+)
+@click.option(
+    "--allow-license",
+    "allowed_licenses",
+    multiple=True,
+    type=click.Choice(
+        ["permissive", "copyleft", "public_domain"],
+        case_sensitive=False,
+    ),
+    help="Allowed license categories for graph color indicators.",
+)
+@click.option(
+    "--deny-license",
+    "denied_licenses",
+    multiple=True,
+    help="Specific SPDX license IDs to deny. Repeat for multiple.",
 )
 @click.option(
     "--quiet",
@@ -1110,59 +1130,76 @@ def watch(
     default=False,
     help="Suppress all output except errors and exit code.",
 )
-def why(
-    target_package: str,
+def graph(
     path: str,
-    output_json: bool,
+    output_path: str | None,
     max_depth: int,
     no_vuln_check: bool,
+    check_licenses: bool,
+    allowed_licenses: tuple[str, ...],
+    denied_licenses: tuple[str, ...],
     quiet: bool,
 ) -> None:
-    """Trace why a package is in your dependency tree.
+    """Generate an interactive dependency graph as an HTML file.
 
-    Finds all dependency chains from your direct dependencies down to
-    the target package, showing the exact path that pulls it in.
-    Useful for understanding transitive dependencies, debugging bloat,
-    or deciding if a deep dependency is worth the risk.
+    Produces a self-contained HTML file with a D3.js force-directed graph
+    showing your project's dependency tree. Nodes are color-coded by health
+    status: green (healthy), yellow (outdated), red (vulnerable), gray
+    (unmaintained), orange (yanked). The graph supports zoom, pan, search,
+    and click-to-inspect package details.
 
-    TARGET_PACKAGE is the name of the package to trace.
-
-    PATH is the project directory to scan (defaults to current directory).
+    PATH is the project directory to analyze (defaults to current directory).
 
     Examples:
 
     \b
-    depcheck why requests
-    depcheck why urllib3 .
-    depcheck why setuptools /path/to/project
-    depcheck why numpy --json
-    depcheck why pillow --max-depth 6
-    depcheck why certifi --no-vuln-check
+    depcheck graph
+    depcheck graph /path/to/project -o deps.html
+    depcheck graph --max-depth 5 --check-licenses
+    depcheck graph --no-vuln-check --quiet
     """
-    from depcheck.why import render_why_json, render_why_table, resolve_why
+    from depcheck.graph import write_graph_html
+    from depcheck.licenses import LicenseCategory
 
     console = Console(quiet=quiet)
 
-    result = resolve_why(
+    # Parse license policy options
+    allowed_categories: list[LicenseCategory] | None = None
+    if allowed_licenses:
+        category_map = {
+            "permissive": LicenseCategory.PERMISSIVE,
+            "copyleft": LicenseCategory.COPYLEFT,
+            "public_domain": LicenseCategory.PUBLIC_DOMAIN,
+        }
+        allowed_categories = [
+            category_map[cat.lower()]
+            for cat in allowed_licenses
+            if cat.lower() in category_map
+        ]
+
+    denied_list: list[str] | None = None
+    if denied_licenses:
+        denied_list = list(denied_licenses)
+
+    # Enable license check if any license options are specified
+    should_check_licenses = check_licenses or bool(allowed_licenses) or bool(denied_licenses)
+
+    if not quiet:
+        console.print("[bold]Resolving dependency tree...[/bold]")
+
+    output = write_graph_html(
         project_path=path,
-        target_package=target_package,
+        output_path=output_path,
         max_depth=max_depth,
         check_vulnerabilities=not no_vuln_check,
+        check_licenses=should_check_licenses,
+        allowed_license_categories=allowed_categories,
+        denied_licenses=denied_list,
     )
 
-    if result.errors and not result.found:
-        for error in result.errors:
-            console.print(f"[red]Error:[/red] {error}")
-        sys.exit(2)
-
-    if output_json:
-        render_why_json(result, console=Console(quiet=False) if quiet else None)
-    elif not quiet:
-        render_why_table(result, console=console)
-
-    # Exit with code 1 if package not found
-    if not result.found:
-        sys.exit(1)
+    if not quiet:
+        console.print(f"[green]✓ Dependency graph written to {output}[/green]")
+        console.print("  Open in a browser to explore the interactive visualization.")
 
 
 if __name__ == "__main__":
