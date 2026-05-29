@@ -19,6 +19,7 @@
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
 - 🔄 **Dependency diff** — compare two requirement files or detect lockfile drift (`depcheck diff`)
 - 📈 **Outdated analysis** — upgrade path tracking with semver classification, risk assessment, and changelog links (`depcheck outdated`)
+- 🔗 **Dependency chain tracing** — find out why a package is in your project with `depcheck why <package>`
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
 
 ## Installation
@@ -169,6 +170,18 @@ depcheck export --format cyclonedx --check-licenses --output bom.cdx.json
 ```bash
 depcheck export --format cyclonedx --no-vuln-check
 ```
+
+### Trace why a dependency exists
+
+```bash
+depcheck why urllib3
+depcheck why certifi /path/to/project
+depcheck why setuptools --json
+depcheck why pillow --max-depth 6
+depcheck why numpy --no-vuln-check
+```
+
+`depcheck why` resolves the full dependency graph and finds all paths from your direct dependencies to the target package — answering the common question: *why is this package in my project?*
 
 ## Diff Change Types
 
