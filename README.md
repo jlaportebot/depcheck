@@ -19,6 +19,7 @@
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
 - 🔄 **Dependency diff** — compare two requirement files or detect lockfile drift (`depcheck diff`)
 - 📈 **Outdated analysis** — upgrade path tracking with semver classification, risk assessment, and changelog links (`depcheck outdated`)
+- 📊 **Dependency graph** — interactive HTML visualization with D3.js force-directed layout (`depcheck graph`)
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
 
 ## Installation
@@ -89,6 +90,29 @@ depcheck scan --check-licenses --fail-on license
 # Combine license options (specifying --allow-license or --deny-license enables checking automatically)
 depcheck scan --allow-license permissive --deny-license GPL-3.0
 ```
+
+### Dependency graph visualization
+
+```bash
+# Generate an interactive HTML dependency graph
+depcheck graph
+
+# Specify output file and project path
+depcheck graph /path/to/project -o deps.html
+
+# Control tree depth and check licenses
+depcheck graph --max-depth 5 --check-licenses
+
+# Skip vulnerability checks for faster results
+depcheck graph --no-vuln-check
+```
+
+The generated HTML file includes:
+- **D3.js force-directed graph** with nodes colored by health status
+- **Click-to-inspect** any node for version, license, and vulnerability details
+- **Search/filter** packages by name
+- **Zoom and pan** to navigate large dependency trees
+- **Export** as SVG or PNG directly from the browser
 
 ### Compare dependency files
 

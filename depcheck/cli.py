@@ -926,5 +926,131 @@ def audit(
             sys.exit(1)
 
 
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    default=None,
+    type=click.Path(),
+    help="Output HTML file path (default: ./depcheck-graph.html).",
+)
+@click.option(
+    "--max-depth",
+    default=3,
+    type=int,
+    help="Maximum depth to resolve the dependency tree (default: 3).",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster but less comprehensive).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Check license compliance for each dependency.",
+)
+@click.option(
+    "--allow-license",
+    "allowed_licenses",
+    multiple=True,
+    type=click.Choice(
+        ["permissive", "copyleft", "public_domain"],
+        case_sensitive=False,
+    ),
+    help="Allowed license categories for graph color indicators.",
+)
+@click.option(
+    "--deny-license",
+    "denied_licenses",
+    multiple=True,
+    help="Specific SPDX license IDs to deny. Repeat for multiple.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def graph(
+    path: str,
+    output_path: str | None,
+    max_depth: int,
+    no_vuln_check: bool,
+    check_licenses: bool,
+    allowed_licenses: tuple[str, ...],
+    denied_licenses: tuple[str, ...],
+    quiet: bool,
+) -> None:
+    """Generate an interactive dependency graph as an HTML file.
+
+    Produces a self-contained HTML file with a D3.js force-directed graph
+    showing your project's dependency tree. Nodes are color-coded by health
+    status: green (healthy), yellow (outdated), red (vulnerable), gray
+    (unmaintained), orange (yanked). The graph supports zoom, pan, search,
+    and click-to-inspect package details.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck graph
+    depcheck graph /path/to/project -o deps.html
+    depcheck graph --max-depth 5 --check-licenses
+    depcheck graph --no-vuln-check --quiet
+    """
+    from depcheck.graph import write_graph_html
+    from depcheck.licenses import LicenseCategory
+
+    console = Console(quiet=quiet)
+
+    # Parse license policy options
+    allowed_categories: list[LicenseCategory] | None = None
+    if allowed_licenses:
+        category_map = {
+            "permissive": LicenseCategory.PERMISSIVE,
+            "copyleft": LicenseCategory.COPYLEFT,
+            "public_domain": LicenseCategory.PUBLIC_DOMAIN,
+        }
+        allowed_categories = [
+            category_map[cat.lower()]
+            for cat in allowed_licenses
+            if cat.lower() in category_map
+        ]
+
+    denied_list: list[str] | None = None
+    if denied_licenses:
+        denied_list = list(denied_licenses)
+
+    # Enable license check if any license options are specified
+    should_check_licenses = check_licenses or bool(allowed_licenses) or bool(denied_licenses)
+
+    if not quiet:
+        console.print("[bold]Resolving dependency tree...[/bold]")
+
+    output = write_graph_html(
+        project_path=path,
+        output_path=output_path,
+        max_depth=max_depth,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=should_check_licenses,
+        allowed_license_categories=allowed_categories,
+        denied_licenses=denied_list,
+    )
+
+    if not quiet:
+        console.print(f"[green]✓ Dependency graph written to {output}[/green]")
+        console.print("  Open in a browser to explore the interactive visualization.")
+
+
 if __name__ == "__main__":
     main()
