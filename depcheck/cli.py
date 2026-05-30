@@ -1202,5 +1202,501 @@ def graph(
         console.print("  Open in a browser to explore the interactive visualization.")
 
 
+@main.command(name="repomap")
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output the dependency map as JSON.",
+)
+@click.option(
+    "--tree",
+    "output_tree",
+    is_flag=True,
+    default=False,
+    help="Display the dependency map as a tree.",
+)
+@click.option(
+    "--impact",
+    "impact_package",
+    default=None,
+    help="Analyze the impact of removing a specific package.",
+)
+@click.option(
+    "--resolve-depth",
+    type=int,
+    default=2,
+    help="Maximum depth to resolve transitive dependencies (default: 2).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def repomap(
+    path: str,
+    output_json: bool,
+    output_tree: bool,
+    impact_package: str | None,
+    resolve_depth: int,
+    quiet: bool,
+) -> None:
+    """Map dependency relationships and analyze impact of changes.
+
+    Builds a complete dependency map showing which packages depend on which
+    others, identifies critical packages (most depended-upon), orphans
+    (packages nothing depends on), and can analyze the impact of removing
+    a specific package.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck repomap
+    depcheck repomap --tree
+    depcheck repomap --json
+    depcheck repomap --impact requests
+    depcheck repomap --resolve-depth 3
+    """
+    from depcheck.repomap import (
+        build_repomap,
+        render_impact_json,
+        render_impact_table,
+        render_repomap_json,
+        render_repomap_table,
+        render_repomap_tree,
+    )
+
+    console = Console(quiet=quiet)
+
+    if not quiet:
+        console.print("[bold]Building dependency map...[/bold]")
+
+    repo_map = build_repomap(
+        project_path=path,
+        resolve_depth=resolve_depth,
+    )
+
+    if impact_package:
+        impact = repo_map.impact_analysis(impact_package)
+        if output_json:
+            content = render_impact_json(impact)
+            clean_console = Console(
+                quiet=False, force_terminal=False, no_color=True
+            ) if quiet else Console(force_terminal=False, no_color=True)
+            clean_console.print(content)
+        else:
+            render_impact_table(impact, console=console)
+        return
+
+    if output_json:
+        content = render_repomap_json(repo_map)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif output_tree:
+        render_repomap_tree(repo_map, console=console)
+    else:
+        render_repomap_table(repo_map, console=console)
+
+
+@main.command(name="depsize")
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output the size report as JSON.",
+)
+@click.option(
+    "--chart",
+    is_flag=True,
+    default=False,
+    help="Show a text bar chart of package sizes.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Include license compliance info.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def depsize(
+    path: str,
+    output_json: bool,
+    chart: bool,
+    no_vuln_check: bool,
+    check_licenses: bool,
+    quiet: bool,
+) -> None:
+    """Analyze dependency download and install sizes.
+
+    Shows the download size and estimated install size for each
+    dependency, identifies large and bloated packages, and calculates
+    the total dependency footprint. Uses PyPI package file metadata.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck depsize
+    depcheck depsize --json
+    depcheck depsize --chart
+    depcheck depsize /path/to/project
+    """
+    from depcheck.depsize import (
+        build_size_report,
+        render_size_bar_chart,
+        render_size_json,
+        render_size_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    if not quiet:
+        console.print("[bold]Analyzing dependency sizes...[/bold]")
+
+    report = build_size_report(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=check_licenses,
+    )
+
+    if output_json:
+        content = render_size_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif chart:
+        render_size_bar_chart(report, console=console)
+    else:
+        render_size_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output the conflict report as JSON.",
+)
+@click.option(
+    "--resolve-depth",
+    type=int,
+    default=2,
+    help="Maximum depth to resolve transitive dependencies (default: 2).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def conflicts(
+    path: str,
+    output_json: bool,
+    resolve_depth: int,
+    quiet: bool,
+) -> None:
+    """Detect version conflicts between dependencies.
+
+    Analyzes the full dependency tree for version conflicts — cases where
+    different packages require incompatible versions of the same dependency.
+    Reports hard conflicts (no compatible version exists), soft conflicts
+    (narrow compatible range), and warnings about potential issues.
+
+    Also detects circular dependencies.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck conflicts
+    depcheck conflicts --json
+    depcheck conflicts --resolve-depth 3
+    depcheck conflicts /path/to/project
+    """
+    from depcheck.conflicts import (
+        build_conflict_report,
+        render_conflict_json,
+        render_conflict_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    if not quiet:
+        console.print("[bold]Analyzing dependency conflicts...[/bold]")
+
+    report = build_conflict_report(
+        project_path=path,
+        resolve_depth=resolve_depth,
+    )
+
+    if output_json:
+        content = render_conflict_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    else:
+        render_conflict_table(report, console=console)
+
+    # Exit with error if hard conflicts found
+    if report.hard_conflict_count > 0:
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output the pin report as JSON.",
+)
+@click.option(
+    "--generate-constraints",
+    "gen_constraints",
+    is_flag=True,
+    default=False,
+    help="Generate a pip constraints file.",
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_file",
+    default=None,
+    type=click.Path(),
+    help="Output file path (for --generate-constraints).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def pinpoint(
+    path: str,
+    output_json: bool,
+    gen_constraints: bool,
+    output_file: str | None,
+    quiet: bool,
+) -> None:
+    """Analyze version pinning quality and recommend improvements.
+
+    Checks how each dependency is version-pinned (exact, compatible, minimum,
+    range, wildcard, or unpinned) and recommends improvements. Calculates a
+    pinning health score and can generate a pip constraints file.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck pinpoint
+    depcheck pinpoint --json
+    depcheck pinpoint --generate-constraints -o constraints.txt
+    depcheck pinpoint /path/to/project
+    """
+    from depcheck.pinpoint import (
+        build_pin_report,
+        generate_constraints_file,
+        render_pin_json,
+        render_pin_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    if not quiet:
+        console.print("[bold]Analyzing version pinning...[/bold]")
+
+    report = build_pin_report(project_path=path)
+
+    if gen_constraints:
+        constraints = generate_constraints_file(report)
+        if output_file:
+            from pathlib import Path as PPath
+
+            PPath(output_file).write_text(constraints)
+            if not quiet:
+                console.print(
+                    f"[green]✓ Constraints file written to {output_file}[/green]"
+                )
+        else:
+            clean_console = Console(
+                quiet=False, force_terminal=False, no_color=True
+            ) if quiet else Console(force_terminal=False, no_color=True)
+            clean_console.print(constraints)
+        return
+
+    if output_json:
+        content = render_pin_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    else:
+        render_pin_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output the scorecard as JSON.",
+)
+@click.option(
+    "--markdown",
+    is_flag=True,
+    default=False,
+    help="Output the scorecard as Markdown (for CI/CD integration).",
+)
+@click.option(
+    "--badge",
+    is_flag=True,
+    default=False,
+    help="Generate a shields.io badge URL for the scorecard grade.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster but less comprehensive).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Include license compliance checking in the scorecard.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def scorecard(
+    path: str,
+    output_json: bool,
+    markdown: bool,
+    badge: bool,
+    no_vuln_check: bool,
+    check_licenses: bool,
+    quiet: bool,
+) -> None:
+    """Generate a comprehensive dependency health scorecard.
+
+    Combines multiple analysis dimensions (security, freshness, pinning,
+    licenses, size, maintenance) into an overall project health grade
+    from A+ to F. Provides actionable improvement suggestions ranked
+    by impact.
+
+    PATH is the project directory to score (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck scorecard
+    depcheck scorecard --json
+    depcheck scorecard --markdown
+    depcheck scorecard --badge
+    depcheck scorecard --check-licenses
+    """
+    from depcheck.scorecard import (
+        build_scorecard,
+        generate_badge_url,
+        generate_markdown_report,
+        render_scorecard,
+        render_scorecard_json,
+    )
+
+    console = Console(quiet=quiet)
+
+    if not quiet:
+        console.print("[bold]Building dependency health scorecard...[/bold]")
+
+    result = build_scorecard(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=check_licenses,
+    )
+
+    if badge:
+        url = generate_badge_url(result)
+        if not quiet:
+            console.print(f"[bold]Badge URL:[/bold] {url}")
+            console.print(f"[dim]Markdown: ![Score]({url})[/dim]")
+        else:
+            print(url)
+        return
+
+    if markdown:
+        md = generate_markdown_report(result)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(md)
+        return
+
+    if output_json:
+        content = render_scorecard_json(result)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    else:
+        render_scorecard(result, console=console)
+
+    # Exit with error if grade is D or F
+    if result.grade.value in ("D", "F"):
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
