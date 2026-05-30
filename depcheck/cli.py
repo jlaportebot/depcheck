@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -1200,6 +1201,399 @@ def graph(
     if not quiet:
         console.print(f"[green]✓ Dependency graph written to {output}[/green]")
         console.print("  Open in a browser to explore the interactive visualization.")
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output update plan as JSON.",
+)
+@click.option(
+    "--pinned",
+    is_flag=True,
+    default=False,
+    help="Treat all exact-version deps as pinned (affects strategy).",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def update(
+    path: str,
+    output_json: bool,
+    pinned: bool,
+    no_vuln_check: bool,
+    quiet: bool,
+) -> None:
+    """Generate a safe, prioritized update plan for dependencies.
+
+    Analyzes your project's dependencies and produces a step-by-step
+    update plan ordered by priority (security fixes first, then
+    major → minor → patch). Each step includes pip commands, risk
+    assessment, and strategy recommendations.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck update
+    depcheck update --json
+    depcheck update --pinned
+    depcheck update /path/to/project
+    """
+    from depcheck.update import (
+        build_update_plan,
+        render_update_plan_json,
+        render_update_plan_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    result = scan_project(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+    )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Determine pinned packages
+    pinned_set: set[str] | None = None
+    if pinned:
+        pinned_set = {
+            pkg.name for pkg in result.packages
+            if pkg.installed_version and pkg.installed_version != "unknown"
+        }
+
+    plan = build_update_plan(result, pinned_packages=pinned_set)
+
+    if output_json:
+        content = render_update_plan_json(plan)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_update_plan_table(plan, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output isolation report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def isolate(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Analyze which dependencies can be safely removed.
+
+    Scans your project's source code for import statements and
+    cross-references them with declared dependencies to find packages
+    that are unused, transitive-only, or safely removable.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck isolate
+    depcheck isolate --json
+    depcheck isolate /path/to/project
+    """
+    from depcheck.isolate import (
+        analyze_isolation,
+        render_isolation_json,
+        render_isolation_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = analyze_isolation(project_path=Path(path))
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_isolation_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_isolation_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output size report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def sizescore(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Analyze dependency sizes and bloat.
+
+    Checks download/install sizes of your dependencies, detects
+    size trends (bloat vs. lean), suggests lighter alternatives
+    for heavy packages, and computes a size efficiency score.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck sizescore
+    depcheck sizescore --json
+    depcheck sizescore /path/to/project
+    """
+    from depcheck.sizescore import (
+        build_size_report,
+        render_size_json,
+        render_size_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = build_size_report(project_path=path)
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_size_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_size_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--from-commit",
+    "from_commit",
+    default=None,
+    help="Starting git commit (uses oldest if not set).",
+)
+@click.option(
+    "--to-commit",
+    "to_commit",
+    default=None,
+    help="Ending git commit (uses HEAD if not set).",
+)
+@click.option(
+    "--max-commits",
+    type=int,
+    default=20,
+    help="Max commits to scan for dependency changes (default: 20).",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output drift report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def depdrift(
+    path: str,
+    from_commit: str | None,
+    to_commit: str | None,
+    max_commits: int,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Track dependency drift over time via git history.
+
+    Compares your project's dependency files across git commits to
+    detect version drift, package additions/removals, and pin erosion.
+    Computes drift velocity and identifies high-drift packages.
+
+    PATH is the project directory (defaults to current directory).
+    Must be a git repository.
+
+    Examples:
+
+    \b
+    depcheck depdrift
+    depcheck depdrift --json
+    depcheck depdrift --from-commit abc123 --to-commit def456
+    depcheck depdrift --max-commits 50
+    """
+    from depcheck.depdrift import (
+        build_drift_report,
+        render_drift_json,
+        render_drift_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = build_drift_report(
+        project_path=path,
+        from_commit=from_commit,
+        to_commit=to_commit,
+        max_commits=max_commits,
+    )
+
+    if report.errors and not report.entries:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_drift_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_drift_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--target",
+    "target_python",
+    default="3.12",
+    help="Target Python version to check (default: 3.12).",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output compatibility report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def compat(
+    path: str,
+    target_python: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Check Python version compatibility of dependencies.
+
+    Analyzes your project's dependencies for compatibility with a
+    target Python version using PyPI metadata (Requires-Python and
+    classifiers). Identifies packages that will break on upgrade
+    and computes an upgrade readiness score.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck compat
+    depcheck compat --target 3.13
+    depcheck compat --target 3.11 --json
+    depcheck compat /path/to/project
+    """
+    from depcheck.compat import (
+        build_compat_report,
+        render_compat_json,
+        render_compat_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = build_compat_report(
+        project_path=path,
+        target_python=target_python,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_compat_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_compat_table(report, console=console)
+
+    # Exit with error if any packages are incompatible
+    if report.incompatible_count > 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
