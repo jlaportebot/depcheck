@@ -19,6 +19,7 @@
 - 🎨 **Beautiful output** — Rich-powered terminal tables with color-coded health status
 - 🔄 **Dependency diff** — compare two requirement files or detect lockfile drift (`depcheck diff`)
 - 📈 **Outdated analysis** — upgrade path tracking with semver classification, risk assessment, and changelog links (`depcheck outdated`)
+- 🔗 **Dependency chain tracing** — find out why a package is in your project with `depcheck why <package>`
 - 📊 **Dependency graph** — interactive HTML visualization with D3.js force-directed layout (`depcheck graph`)
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
 
@@ -163,6 +164,22 @@ depcheck diff --fail-on-change requirements.old.txt requirements.new.txt
 depcheck diff --unified v1.txt v2.txt
 ```
 
+### Watch for dependency changes in real-time
+
+```bash
+# Monitor current directory for dependency file changes
+depcheck watch
+
+# Watch a specific project with custom debounce
+depcheck watch /path/to/project --debounce 5
+
+# CI guard: exit immediately if vulnerabilities detected
+depcheck watch --exit-on-issue --fail-on vulnerable
+
+# Watch with license compliance
+depcheck watch --check-licenses --deny-license GPL-3.0
+```
+
 ### Generate an SBOM (Software Bill of Materials)
 
 ```bash
@@ -177,6 +194,18 @@ depcheck export --format cyclonedx --check-licenses --output bom.cdx.json
 ```bash
 depcheck export --format cyclonedx --no-vuln-check
 ```
+
+### Trace why a dependency exists
+
+```bash
+depcheck why urllib3
+depcheck why certifi /path/to/project
+depcheck why setuptools --json
+depcheck why pillow --max-depth 6
+depcheck why numpy --no-vuln-check
+```
+
+`depcheck why` resolves the full dependency graph and finds all paths from your direct dependencies to the target package — answering the common question: *why is this package in my project?*
 
 ## Diff Change Types
 
