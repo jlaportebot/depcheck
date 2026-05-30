@@ -13,17 +13,18 @@ import datetime
 import enum
 import json
 import re
-import tomllib
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
+from rich.panel import Panel
 
-from depcheck.models import HealthStatus, PackageReport
-from depcheck.scanner import scan_project
+from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.scanner import scan_project, discover_dependencies
+from depcheck.pypi import PyPIClient
 
 # Package name regex (PEP 503)
 _PKG_RE = re.compile(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)")
@@ -154,9 +155,7 @@ class PolicyReport:
         """
         if self.total_packages == 0:
             return 100.0
-        failing_pkgs = len(
-            set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR)
-        )
+        failing_pkgs = len(set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR))
         return round((1 - failing_pkgs / self.total_packages) * 100, 1)
 
     def to_dict(self) -> dict[str, Any]:
@@ -203,8 +202,8 @@ class PolicyConfig:
                         category=RuleCategory.LICENSE,
                         severity=RuleSeverity(license_config.get("severity", "error")),
                         description="License compliance policy",
-                        allow_licenses=allow_list or None,
-                        deny_licenses=deny_list or None,
+                        allow_licenses=allow_list if allow_list else None,
+                        deny_licenses=deny_list if deny_list else None,
                         deny_copyleft=deny_copyleft,
                         strict_unknown=strict_unknown,
                     )
@@ -287,7 +286,7 @@ class PolicyConfig:
                         name="maintenance-policy",
                         category=RuleCategory.MAINTENANCE,
                         severity=RuleSeverity(maint_config.get("severity", "warning")),
-                        description=f"Dependencies must have been updated in the last {min_days} days",  # noqa: E501
+                        description=f"Dependencies must have been updated in the last {min_days} days",
                         min_maintained_days=min_days,
                     )
                 )
@@ -349,6 +348,14 @@ class PolicyConfig:
         except (OSError, UnicodeDecodeError):
             return None
 
+        if sys.version_info >= (3, 11):
+            import tomllib
+        else:
+            try:
+                import tomli as tomllib  # type: ignore[no-redef]
+            except ImportError:
+                return None
+
         try:
             data = tomllib.loads(content)
         except Exception:
@@ -360,10 +367,6 @@ class PolicyConfig:
 
         return cls.from_dict(policy_data)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {"rules": [r.to_dict() for r in self.rules]}
-
 
 # ─── Rule Evaluation ───────────────────────────────────────────────────────
 
@@ -372,7 +375,9 @@ class PolicyConfig:
 _SEV_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "UNKNOWN": 0}
 
 
-def _evaluate_license_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_license_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate a license policy rule against a package."""
     if pkg.license_info is None:
         if rule.strict_unknown:
@@ -392,7 +397,8 @@ def _evaluate_license_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
 
     # Check deny list
     if rule.deny_licenses and any(
-        d.upper() == spdx or d.lower() == category for d in rule.deny_licenses
+        d.upper() == spdx or d.lower() == category
+        for d in rule.deny_licenses
     ):
         return Violation(
             rule_name=rule.name,
@@ -418,7 +424,8 @@ def _evaluate_license_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
 
     # Check allow list (if specified, only these are allowed)
     if rule.allow_licenses and not any(
-        a.upper() == spdx or a.lower() == category for a in rule.allow_licenses
+        a.upper() == spdx or a.lower() == category
+        for a in rule.allow_licenses
     ):
         return Violation(
             rule_name=rule.name,
@@ -433,7 +440,9 @@ def _evaluate_license_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
     return None
 
 
-def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_age_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate an age policy rule against a package."""
     if rule.max_age_days is None:
         return None
@@ -442,10 +451,10 @@ def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None
         return None  # Can't determine age
 
     try:
-        last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-            tzinfo=datetime.UTC
-        )
-        days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
+        last_release = datetime.datetime.strptime(
+            pkg.last_release_date, "%Y-%m-%d"
+        ).replace(tzinfo=datetime.timezone.utc)
+        days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
         if days_since > rule.max_age_days:
             return Violation(
@@ -463,7 +472,9 @@ def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None
     return None
 
 
-def _evaluate_pinning_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_pinning_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate a version pinning rule against a package."""
     if not rule.require_pinned:
         return None
@@ -482,14 +493,15 @@ def _evaluate_pinning_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
     return None
 
 
-def _evaluate_version_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_version_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate minimum/maximum version rules."""
     if rule.require_version_min:
         min_ver = rule.require_version_min.get(pkg.name)
         if min_ver:
             try:
                 from packaging.version import Version
-
                 if Version(pkg.installed_version) < Version(min_ver):
                     return Violation(
                         rule_name=rule.name,
@@ -508,7 +520,6 @@ def _evaluate_version_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
         if max_ver:
             try:
                 from packaging.version import Version
-
                 if Version(pkg.installed_version) > Version(max_ver):
                     return Violation(
                         rule_name=rule.name,
@@ -525,7 +536,9 @@ def _evaluate_version_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
     return None
 
 
-def _evaluate_vulnerability_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_vulnerability_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate a vulnerability policy rule against a package."""
     if not rule.max_severity or not pkg.vulnerabilities:
         return None
@@ -541,14 +554,16 @@ def _evaluate_vulnerability_rule(rule: PolicyRule, pkg: PackageReport) -> Violat
                 version=pkg.installed_version,
                 severity=rule.severity,
                 category=rule.category,
-                message=f"Vulnerability {vuln.vuln_id} ({vuln.severity}) at or above threshold {rule.max_severity}",  # noqa: E501
+                message=f"Vulnerability {vuln.vuln_id} ({vuln.severity}) at or above threshold {rule.max_severity}",
                 remediation=f"Update {pkg.name} to a patched version",
             )
 
     return None
 
 
-def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_maintenance_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate a maintenance policy rule against a package."""
     if rule.min_maintained_days is None:
         return None
@@ -560,16 +575,16 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message="Package appears unmaintained",
+            message=f"Package appears unmaintained",
             remediation=f"Consider replacing {pkg.name} with an actively-maintained alternative",
         )
 
     if pkg.last_release_date:
         try:
-            last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.UTC
-            )
-            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
+            last_release = datetime.datetime.strptime(
+                pkg.last_release_date, "%Y-%m-%d"
+            ).replace(tzinfo=datetime.timezone.utc)
+            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
             if days_since > rule.min_maintained_days:
                 return Violation(
@@ -578,7 +593,7 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
                     version=pkg.installed_version,
                     severity=rule.severity,
                     category=rule.category,
-                    message=f"Last release {days_since} days ago (policy: {rule.min_maintained_days})",  # noqa: E501
+                    message=f"Last release {days_since} days ago (policy: {rule.min_maintained_days})",
                     remediation=f"Find an alternative to {pkg.name} or verify maintenance",
                 )
         except (ValueError, TypeError):
@@ -587,7 +602,9 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
     return None
 
 
-def _evaluate_package_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
+def _evaluate_package_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> Violation | None:
     """Evaluate a package allowlist/denylist rule."""
     if rule.deny_packages and pkg.name in rule.deny_packages:
         return Violation(
@@ -596,7 +613,7 @@ def _evaluate_package_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message="Package is on the deny list",
+            message=f"Package is on the deny list",
             remediation=f"Remove {pkg.name} from your dependencies",
         )
 
@@ -607,14 +624,16 @@ def _evaluate_package_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | 
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message="Package not on the allow list",
+            message=f"Package not on the allow list",
             remediation=f"Remove {pkg.name} or add it to the allow list",
         )
 
     return None
 
 
-def _evaluate_rule(rule: PolicyRule, pkg: PackageReport) -> list[Violation]:
+def _evaluate_rule(
+    rule: PolicyRule, pkg: PackageReport
+) -> list[Violation]:
     """Evaluate a single policy rule against a package.
 
     Returns a list of violations (may be empty).
@@ -764,7 +783,7 @@ def render_policy_table(report: PolicyReport, console: Console | None = None) ->
         f"Status: {status}\n"
         f"Compliance Score: [bold]{report.compliance_score}%[/bold]\n"
         f"Total packages: {report.total_packages}\n"
-        f"Errors: {report.error_count}  Warnings: {report.warning_count}  Info: {report.info_count}\n"  # noqa: E501
+        f"Errors: {report.error_count}  Warnings: {report.warning_count}  Info: {report.info_count}\n"
         f"Pass: {report.pass_count}  Fail: {report.fail_count}\n"
         f"Active rules: {len(report.rules)}"
     )
@@ -802,10 +821,8 @@ def render_policy_table(report: PolicyReport, console: Console | None = None) ->
         sorted_violations = sorted(
             report.violations,
             key=lambda v: (
-                0
-                if v.severity == RuleSeverity.ERROR
-                else 1
-                if v.severity == RuleSeverity.WARNING
+                0 if v.severity == RuleSeverity.ERROR
+                else 1 if v.severity == RuleSeverity.WARNING
                 else 2
             ),
         )

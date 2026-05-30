@@ -15,11 +15,13 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
+from rich.panel import Panel
+from rich.columns import Columns
 
 from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
+
 
 # ─── Enums ─────────────────────────────────────────────────────────────────
 
@@ -152,9 +154,7 @@ class RiskEntry:
             "composite_score": round(self.composite_score, 4),
             "severity": self.severity.value,
             "dimension_scores": [ds.to_dict() for ds in self.dimension_scores],
-            "top_risk_dimension": self.top_risk_dimension.value
-            if self.top_risk_dimension
-            else None,
+            "top_risk_dimension": self.top_risk_dimension.value if self.top_risk_dimension else None,
             "remediation": self.remediation.value,
             "remediation_details": self.remediation_details,
             "is_direct": self.is_direct,
@@ -251,9 +251,7 @@ def _score_vulnerability(pkg: PackageReport) -> DimensionScore:
 
     # Normalize: 1 vuln with CRITICAL → 1.0, more vulns cap at 1.0
     score = min(total_weight / 1.0, 1.0)
-    patch_status = (
-        f", {patchable_count} patchable" if patchable_count > 0 else ", no patches available"
-    )
+    patch_status = f", {patchable_count} patchable" if patchable_count > 0 else ", no patches available"
 
     return DimensionScore(
         dimension=RiskDimension.VULNERABILITY,
@@ -282,10 +280,10 @@ def _score_maintenance(pkg: PackageReport) -> DimensionScore:
     age_risk = 0.0
     if pkg.last_release_date:
         try:
-            last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.UTC
-            )
-            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
+            last_release = datetime.datetime.strptime(
+                pkg.last_release_date, "%Y-%m-%d"
+            ).replace(tzinfo=datetime.timezone.utc)
+            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
             if days_since > 730:  # 2+ years
                 age_risk = 0.8
@@ -322,7 +320,6 @@ def _score_age(pkg: PackageReport) -> DimensionScore:
     Based on: how far behind the latest version the installed
     version is, and whether the package is significantly outdated.
     """
-    factors: list[str] = []
     if pkg.status == HealthStatus.OUTDATED:
         score = 0.5
         details = "Installed version is not the latest"
@@ -404,10 +401,10 @@ def _score_license(pkg: PackageReport) -> DimensionScore:
 
     # License risk by category
     license_risk: dict[str, float] = {
-        "permissive": 0.0,  # MIT, Apache-2.0, BSD
+        "permissive": 0.0,     # MIT, Apache-2.0, BSD
         "weak_copyleft": 0.4,  # LGPL, MPL
-        "copyleft": 0.8,  # GPL, AGPL
-        "proprietary": 0.9,  # Proprietary
+        "copyleft": 0.8,       # GPL, AGPL
+        "proprietary": 0.9,    # Proprietary
         "public_domain": 0.0,  # Unlicense, CC0
         "unknown": 0.5,
     }
@@ -440,13 +437,14 @@ def _classify_severity(score: float) -> RiskSeverity:
     """Classify a composite score into a severity level."""
     if score >= SEVERITY_THRESHOLDS[RiskSeverity.CRITICAL]:
         return RiskSeverity.CRITICAL
-    if score >= SEVERITY_THRESHOLDS[RiskSeverity.HIGH]:
+    elif score >= SEVERITY_THRESHOLDS[RiskSeverity.HIGH]:
         return RiskSeverity.HIGH
-    if score >= SEVERITY_THRESHOLDS[RiskSeverity.MEDIUM]:
+    elif score >= SEVERITY_THRESHOLDS[RiskSeverity.MEDIUM]:
         return RiskSeverity.MEDIUM
-    if score >= SEVERITY_THRESHOLDS[RiskSeverity.LOW]:
+    elif score >= SEVERITY_THRESHOLDS[RiskSeverity.LOW]:
         return RiskSeverity.LOW
-    return RiskSeverity.MINIMAL
+    else:
+        return RiskSeverity.MINIMAL
 
 
 def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
@@ -473,10 +471,7 @@ def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
         None,
     )
     if license_score and license_score.score >= 0.8:
-        return (
-            RemediationAction.AUDIT,
-            "Audit license compliance; consider a permissively-licensed alternative",
-        )
+        return RemediationAction.AUDIT, "Audit license compliance; consider a permissively-licensed alternative"
 
     # Check for outdated with moderate vulnerability
     if vuln_score and vuln_score.score >= 0.3:
@@ -484,10 +479,7 @@ def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
 
     # Check for unmaintained
     if maint_score and maint_score.score >= 0.5:
-        return (
-            RemediationAction.MONITOR,
-            "Monitor for updates; consider alternatives if no activity soon",
-        )
+        return RemediationAction.MONITOR, "Monitor for updates; consider alternatives if no activity soon"
 
     # Check for any low-level risk
     if entry.composite_score >= 0.2:
@@ -631,7 +623,7 @@ def assess_risks(
     max_score = max(scores) if scores else 0.0
 
     # Filter by minimum severity
-    {
+    min_rank = {
         RiskSeverity.CRITICAL: 4,
         RiskSeverity.HIGH: 3,
         RiskSeverity.MEDIUM: 2,
@@ -694,11 +686,7 @@ def render_risks_table(report: RiskReport, console: Console | None = None) -> No
     console.print(f"\n[bold]Risk Assessment: {report.project_path}[/bold]\n")
 
     # Summary panel
-    status = (
-        "[red]⚠ AT RISK[/red]"
-        if report.critical_count + report.high_count > 0
-        else "[green]✓ LOW RISK[/green]"
-    )
+    status = "[red]⚠ AT RISK[/red]" if report.critical_count + report.high_count > 0 else "[green]✓ LOW RISK[/green]"
     border = "red" if report.critical_count > 0 else "yellow" if report.high_count > 0 else "green"
 
     summary = (
@@ -729,11 +717,11 @@ def render_risks_table(report: RiskReport, console: Console | None = None) -> No
         for entry in report.entries:
             # Get individual dimension scores
             dim_map = {ds.dimension: ds for ds in entry.dimension_scores}
-            vuln_s = f"{dim_map.get(RiskDimension.VULNERABILITY, DimensionScore(RiskDimension.VULNERABILITY, 0, 0)).score:.1f}"  # noqa: E501
-            maint_s = f"{dim_map.get(RiskDimension.MAINTENANCE, DimensionScore(RiskDimension.MAINTENANCE, 0, 0)).score:.1f}"  # noqa: E501
-            age_s = f"{dim_map.get(RiskDimension.AGE, DimensionScore(RiskDimension.AGE, 0, 0)).score:.1f}"  # noqa: E501
-            pop_s = f"{dim_map.get(RiskDimension.POPULARITY, DimensionScore(RiskDimension.POPULARITY, 0, 0)).score:.1f}"  # noqa: E501
-            lic_s = f"{dim_map.get(RiskDimension.LICENSE, DimensionScore(RiskDimension.LICENSE, 0, 0)).score:.1f}"  # noqa: E501
+            vuln_s = f"{dim_map.get(RiskDimension.VULNERABILITY, DimensionScore(RiskDimension.VULNERABILITY, 0, 0)).score:.1f}"
+            maint_s = f"{dim_map.get(RiskDimension.MAINTENANCE, DimensionScore(RiskDimension.MAINTENANCE, 0, 0)).score:.1f}"
+            age_s = f"{dim_map.get(RiskDimension.AGE, DimensionScore(RiskDimension.AGE, 0, 0)).score:.1f}"
+            pop_s = f"{dim_map.get(RiskDimension.POPULARITY, DimensionScore(RiskDimension.POPULARITY, 0, 0)).score:.1f}"
+            lic_s = f"{dim_map.get(RiskDimension.LICENSE, DimensionScore(RiskDimension.LICENSE, 0, 0)).score:.1f}"
 
             risk_table.add_row(
                 entry.package,
