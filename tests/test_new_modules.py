@@ -6,30 +6,70 @@ Comprehensive test suite covering core logic, edge cases, and rendering.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
-import pytest
-
-from depcheck.models import HealthStatus, ParsedDependency, PackageReport, ScanResult, Vulnerability
-
-
-# ===== Update Module Tests =====
-
+from depcheck.compat import (
+    CompatInfo,
+    CompatReport,
+    check_breaking_on_upgrade,
+    check_version_compatibility,
+    extract_python_classifiers,
+    parse_requires_python,
+    render_compat_json,
+    render_compat_table,
+)
+from depcheck.depdrift import (
+    DriftEntry,
+    DriftReport,
+    DriftSnapshot,
+    build_drift_report,
+    compare_snapshots,
+    compute_drift_velocity,
+    identify_high_drift_packages,
+    render_drift_json,
+    render_drift_table,
+)
+from depcheck.isolate import (
+    STDLIB_MODULES,
+    IsolationInfo,
+    IsolationReport,
+    analyze_isolation,
+    assess_removal_risk,
+    compute_isolation_score,
+    get_import_name,
+    render_isolation_json,
+    render_isolation_table,
+    scan_imports_in_file,
+    scan_project_imports,
+)
+from depcheck.models import HealthStatus, PackageReport, ParsedDependency, ScanResult, Vulnerability
+from depcheck.outdated import RiskLevel, UpgradeLevel
+from depcheck.sizescore import (
+    LIGHTER_ALTERNATIVES,
+    SizeInfo,
+    SizeReport,
+    analyze_size_trend,
+    classify_size,
+    compute_size_score,
+    format_size,
+    render_size_json,
+    render_size_table,
+)
 from depcheck.update import (
+    UpdatePlan,
     UpdatePriority,
     UpdateStep,
     UpdateStrategy,
-    UpdatePlan,
+    assess_breaking_change_risk,
+    build_update_plan,
     determine_update_priority,
     determine_update_strategy,
-    assess_breaking_change_risk,
     estimate_update_time,
-    build_update_plan,
-    render_update_plan_table,
     render_update_plan_json,
+    render_update_plan_table,
 )
-from depcheck.outdated import RiskLevel, UpgradeLevel
+
+# ===== Update Module Tests =====
 
 
 def _make_pkg_report(
@@ -311,8 +351,17 @@ class TestBuildUpdatePlan:
         assert plan.needs_update_count == 0
 
     def test_vulnerable_packages_get_critical_priority(self):
-        vuln = Vulnerability(vuln_id="CVE-2023-1234", summary="Test vuln", severity="high", url="https://example.com")
-        pkg = _make_pkg_report("vuln-pkg", "1.0.0", "1.0.1", status=HealthStatus.VULNERABLE, vulnerabilities=[vuln])
+        vuln = Vulnerability(
+            vuln_id="CVE-2023-1234",
+            summary="Test vuln",
+            severity="high",
+            url="https://example.com",
+        )
+        pkg = _make_pkg_report(
+            "vuln-pkg", "1.0.0", "1.0.1",
+            status=HealthStatus.VULNERABLE,
+            vulnerabilities=[vuln],
+        )
         result = ScanResult(project_path=".", packages=[pkg], errors=[])
         plan = build_update_plan(result)
         critical_steps = [s for s in plan.steps if s.priority == UpdatePriority.CRITICAL]
@@ -336,20 +385,6 @@ class TestUpdatePlanRender:
 
 
 # ===== Isolate Module Tests =====
-
-from depcheck.isolate import (
-    IsolationInfo,
-    IsolationReport,
-    get_import_name,
-    scan_imports_in_file,
-    scan_project_imports,
-    compute_isolation_score,
-    assess_removal_risk,
-    analyze_isolation,
-    render_isolation_table,
-    render_isolation_json,
-    STDLIB_MODULES,
-)
 
 
 class TestGetImportName:
@@ -583,18 +618,6 @@ class TestIsolationRender:
 
 # ===== SizeScore Module Tests =====
 
-from depcheck.sizescore import (
-    SizeInfo,
-    SizeReport,
-    classify_size,
-    compute_size_score,
-    analyze_size_trend,
-    format_size,
-    render_size_table,
-    render_size_json,
-    LIGHTER_ALTERNATIVES,
-)
-
 
 class TestClassifySize:
     """Tests for classify_size."""
@@ -754,18 +777,6 @@ class TestSizeRender:
 
 # ===== DepDrift Module Tests =====
 
-from depcheck.depdrift import (
-    DriftEntry,
-    DriftReport,
-    DriftSnapshot,
-    compare_snapshots,
-    compute_drift_velocity,
-    identify_high_drift_packages,
-    build_drift_report,
-    render_drift_table,
-    render_drift_json,
-)
-
 
 class TestDriftSnapshot:
     """Tests for DriftSnapshot dataclass."""
@@ -899,7 +910,10 @@ class TestComputeDriftVelocity:
         assert abs(vel - 1.0) < 0.01
 
     def test_multiple_changes(self):
-        entries = [DriftEntry(name="a", change_type="added"), DriftEntry(name="b", change_type="upgraded")]
+        entries = [
+            DriftEntry(name="a", change_type="added"),
+            DriftEntry(name="b", change_type="upgraded"),
+        ]
         vel = compute_drift_velocity(entries, 14)
         assert abs(vel - 1.0) < 0.01
 
@@ -1002,17 +1016,6 @@ class TestDriftRender:
 
 
 # ===== Compat Module Tests =====
-
-from depcheck.compat import (
-    CompatInfo,
-    CompatReport,
-    parse_requires_python,
-    extract_python_classifiers,
-    check_version_compatibility,
-    check_breaking_on_upgrade,
-    render_compat_table,
-    render_compat_json,
-)
 
 
 class TestParseRequiresPython:
