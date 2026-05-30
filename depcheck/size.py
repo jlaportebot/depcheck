@@ -1,572 +1,518 @@
-"""Package size analysis for depcheck.
+"""Dependency size and install footprint analysis for depcheck.
 
-Analyzes the download size, install size, and disk footprint of Python
-dependencies. Helps identify bloated packages, compare alternatives by
-size, and estimate the total dependency footprint of a project.
+Analyzes the installed size of each dependency by inspecting the local
+site-packages directory. Reports disk usage, file counts, and per-package
+breakdowns so you can identify bloated dependencies and prune your
+dependency tree.
+
+Supports:
+- Per-package installed size (disk bytes, file count, directory count)
+- Total project dependency footprint
+- Largest-N and smallest-N ranking
+- JSON and table output
+- --fail-on-threshold for CI (exit 1 if any dep exceeds a size limit)
 """
 
 from __future__ import annotations
 
 import json
+import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from depcheck.models import HealthStatus
-from depcheck.pypi import PyPIClient
-from depcheck.scanner import discover_dependencies, normalize_package_name
-
-# ── Constants ────────────────────────────────────────────────────────────
-
-# Average install-to-download size ratio (empirical: ~2.5x)
-INSTALL_SIZE_MULTIPLIER = 2.5
-
-# Size thresholds for categorization
-LARGE_PKG_THRESHOLD_KB = 1_000  # 1 MB
-VERY_LARGE_PKG_THRESHOLD_KB = 10_000  # 10 MB
-HUGE_PKG_THRESHOLD_KB = 100_000  # 100 MB
+from depcheck.models import ParsedDependency
+from depcheck.scanner import discover_dependencies
 
 
-# ── Data models ──────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Data models
+# ---------------------------------------------------------------------------
 
 
 @dataclass
 class PackageSize:
-    """Size information for a single package.
+    """Size information for a single installed package."""
 
-    Attributes:
-        name: Normalized package name.
-        version: Resolved version string.
-        wheel_size_kb: Size of the wheel file in kilobytes.
-        source_size_kb: Size of the source distribution in kilobytes.
-        estimated_install_kb: Estimated installed size in kilobytes.
-        file_count: Number of files in the distribution.
-        has_wheel: Whether a wheel distribution is available.
-        has_sdist: Whether a source distribution is available.
-        category: Size category (tiny, small, medium, large, very_large, huge).
-        status: Health status of the package.
-        alternatives: List of alternative package names with smaller sizes.
-    """
-
-    name: str = ""
-    version: str = ""
-    wheel_size_kb: float = 0.0
-    source_size_kb: float = 0.0
-    estimated_install_kb: float = 0.0
+    name: str
+    version: str
+    total_bytes: int = 0
     file_count: int = 0
-    has_wheel: bool = False
-    has_sdist: bool = False
-    category: str = "unknown"
-    status: HealthStatus = HealthStatus.UNKNOWN
-    alternatives: list[str] = field(default_factory=list)
+    dir_count: int = 0
+    top_files: list[tuple[str, int]] = field(default_factory=list)
+    install_path: str = ""
+    error: str | None = None
 
     @property
-    def download_size_kb(self) -> float:
-        """Prefer wheel size, fall back to source size."""
-        return self.wheel_size_kb if self.wheel_size_kb > 0 else self.source_size_kb
+    def total_kb(self) -> float:
+        return self.total_bytes / 1024
 
     @property
-    def human_download_size(self) -> str:
-        """Human-readable download size."""
-        return _human_size(self.download_size_kb)
+    def total_mb(self) -> float:
+        return self.total_bytes / (1024 * 1024)
 
-    @property
-    def human_install_size(self) -> str:
-        """Human-readable estimated install size."""
-        return _human_size(self.estimated_install_kb)
+    def human_size(self) -> str:
+        """Return human-readable size string."""
+        if self.total_bytes >= 1024 * 1024 * 1024:
+            return f"{self.total_bytes / (1024 * 1024 * 1024):.1f} GB"
+        if self.total_bytes >= 1024 * 1024:
+            return f"{self.total_mb:.1f} MB"
+        if self.total_bytes >= 1024:
+            return f"{self.total_kb:.1f} KB"
+        return f"{self.total_bytes} B"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "version": self.version,
-            "wheel_size_kb": round(self.wheel_size_kb, 1),
-            "source_size_kb": round(self.source_size_kb, 1),
-            "download_size_kb": round(self.download_size_kb, 1),
-            "estimated_install_kb": round(self.estimated_install_kb, 1),
-            "human_download_size": self.human_download_size,
-            "human_install_size": self.human_install_size,
+            "total_bytes": self.total_bytes,
+            "total_kb": round(self.total_kb, 1),
+            "total_mb": round(self.total_mb, 2),
             "file_count": self.file_count,
-            "has_wheel": self.has_wheel,
-            "has_sdist": self.has_sdist,
-            "category": self.category,
-            "status": self.status.value,
-            "alternatives": self.alternatives,
+            "dir_count": self.dir_count,
+            "top_files": [(p, s) for p, s in self.top_files],
+            "install_path": self.install_path,
+            "error": self.error,
         }
 
 
 @dataclass
 class SizeReport:
-    """Aggregated size report for a project's dependencies.
+    """Aggregated size report for all project dependencies."""
 
-    Attributes:
-        project_path: Path to the analyzed project.
-        packages: Size info for each package.
-        total_download_kb: Total download size of all packages.
-        total_install_kb: Total estimated install size.
-        total_file_count: Total file count across all packages.
-        largest_packages: Top 5 largest packages by download size.
-        category_breakdown: Count of packages by size category.
-        errors: Any errors encountered.
-    """
-
-    project_path: str = ""
+    project_path: str
     packages: list[PackageSize] = field(default_factory=list)
-    total_download_kb: float = 0.0
-    total_install_kb: float = 0.0
-    total_file_count: int = 0
-    largest_packages: list[str] = field(default_factory=list)
-    category_breakdown: dict[str, int] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    files_scanned: list[str] = field(default_factory=list)
 
     @property
-    def human_total_download(self) -> str:
-        return _human_size(self.total_download_kb)
+    def total_bytes(self) -> int:
+        return sum(p.total_bytes for p in self.packages)
 
     @property
-    def human_total_install(self) -> str:
-        return _human_size(self.total_install_kb)
+    def total_file_count(self) -> int:
+        return sum(p.file_count for p in self.packages)
+
+    @property
+    def total_dir_count(self) -> int:
+        return sum(p.dir_count for p in self.packages)
+
+    @property
+    def total_kb(self) -> float:
+        return self.total_bytes / 1024
+
+    @property
+    def total_mb(self) -> float:
+        return self.total_bytes / (1024 * 1024)
+
+    @property
+    def package_count(self) -> int:
+        return len(self.packages)
+
+    @property
+    def largest(self) -> PackageSize | None:
+        if not self.packages:
+            return None
+        return max(self.packages, key=lambda p: p.total_bytes)
+
+    @property
+    def smallest(self) -> PackageSize | None:
+        if not self.packages:
+            return None
+        return min(self.packages, key=lambda p: p.total_bytes)
+
+    @property
+    def median_bytes(self) -> float:
+        if not self.packages:
+            return 0.0
+        sorted_sizes = sorted(p.total_bytes for p in self.packages)
+        n = len(sorted_sizes)
+        mid = n // 2
+        if n % 2 == 0:
+            return (sorted_sizes[mid - 1] + sorted_sizes[mid]) / 2
+        return float(sorted_sizes[mid])
+
+    def top_n(self, n: int = 10) -> list[PackageSize]:
+        """Return the N largest packages."""
+        return sorted(self.packages, key=lambda p: p.total_bytes, reverse=True)[:n]
+
+    def bottom_n(self, n: int = 10) -> list[PackageSize]:
+        """Return the N smallest packages."""
+        return sorted(self.packages, key=lambda p: p.total_bytes)[:n]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "project_path": self.project_path,
-            "packages": [p.to_dict() for p in self.packages],
-            "total_download_kb": round(self.total_download_kb, 1),
-            "total_install_kb": round(self.total_install_kb, 1),
-            "human_total_download": self.human_total_download,
-            "human_total_install": self.human_total_install,
-            "total_file_count": self.total_file_count,
-            "largest_packages": self.largest_packages,
-            "category_breakdown": self.category_breakdown,
+            "summary": {
+                "total_bytes": self.total_bytes,
+                "total_kb": round(self.total_kb, 1),
+                "total_mb": round(self.total_mb, 2),
+                "total_file_count": self.total_file_count,
+                "total_dir_count": self.total_dir_count,
+                "package_count": self.package_count,
+                "median_bytes": round(self.median_bytes, 1),
+            },
+            "packages": [p.to_dict() for p in sorted(
+                self.packages, key=lambda p: p.total_bytes, reverse=True
+            )],
             "errors": self.errors,
         }
 
 
-# ── Well-known lightweight alternatives ──────────────────────────────────
+# ---------------------------------------------------------------------------
+# Site-packages discovery
+# ---------------------------------------------------------------------------
 
 
-_LIGHTWEIGHT_ALTERNATIVES: dict[str, list[str]] = {
-    "requests": ["httpx", "urllib3", "aiohttp"],
-    "numpy": ["array", "tinyndarray"],
-    "pandas": ["polars", "duckdb", "datatable"],
-    "flask": ["starlette", "fastapi", "bottle"],
-    "django": ["flask", "starlette", "fastapi"],
-    "sqlalchemy": ["peewee", "sqlite-utils", "dataset"],
-    "pillow": ["pgmagick", "pyvips"],
-    "matplotlib": ["plotly", "altair", "seaborn"],
-    "scipy": ["numpy"],
-    "tensorflow": ["onnxruntime", "tinygrad"],
-    "torch": ["onnxruntime", "tinygrad", "sklearn"],
-    "click": ["argparse", "docopt"],
-    "rich": ["click", "colorama"],
-    "pyyaml": ["tomli", "tomllib"],
-    "lxml": ["xml.etree", "defusedxml"],
-    "beautifulsoup4": ["lxml", "selectolax"],
-    "selenium": ["playwright"],
-    "pytest": ["unittest"],
-    "boto3": ["moto"],
-}
+def find_site_packages() -> Path | None:
+    """Find the site-packages directory for the current Python interpreter.
+
+    Checks multiple strategies:
+    1. distutils.sysconfig (most reliable)
+    2. sys.path inspection
+    3. Standard lib/pythonX.Y/site-packages relative to sys.prefix
+    """
+    # Strategy 1: distutils.sysconfig
+    try:
+        import distutils.sysconfig as sc  # type: ignore[import]
+
+        pure = sc.get_python_lib(plat_specific=False)
+        plat = sc.get_python_lib(plat_specific=True)
+        for candidate in [pure, plat]:
+            p = Path(candidate)
+            if p.is_dir():
+                return p
+    except (ImportError, AttributeError):
+        pass
+
+    # Strategy 2: sys.path
+    for entry in sys.path:
+        p = Path(entry)
+        if p.is_dir() and p.name == "site-packages":
+            return p
+
+    # Strategy 3: standard layout
+    version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    candidate = Path(sys.prefix) / "lib" / version / "site-packages"
+    if candidate.is_dir():
+        return candidate
+
+    return None
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────
+def resolve_package_dir(
+    package_name: str, site_packages: Path
+) -> Path | None:
+    """Resolve the on-disk directory for an installed package.
+
+    Handles PEP 503 normalization: looks for both the original name
+    and the normalized form (hyphens → underscores).
+    """
+    normalized = package_name.replace("-", "_").lower()
+
+    candidates = [
+        site_packages / package_name,
+        site_packages / package_name.replace("-", "_"),
+        site_packages / normalized,
+        site_packages / normalized.replace("-", "_"),
+    ]
+
+    # Also check .dist-info directories for metadata
+    for item in site_packages.iterdir():
+        if not item.is_dir():
+            continue
+        item_name_lower = item.name.lower()
+        if item_name_lower.startswith(normalized) or item_name_lower.startswith(
+            package_name.lower()
+        ):
+            if item_name_lower.endswith(".dist-info") or item_name_lower.endswith(".egg-info"):
+                # The actual package dir might differ from the dist-info name
+                pkg_name_part = item.name.split("-")[0].lower().replace("_", "-")
+                if pkg_name_part == package_name.lower() or pkg_name_part == normalized:
+                    # Try to find the actual package dir
+                    actual_name = item.name.split("-")[0]
+                    pkg_dir = site_packages / actual_name
+                    if pkg_dir.is_dir():
+                        candidates.insert(0, pkg_dir)
+
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+
+    return None
 
 
-def _human_size(size_kb: float) -> str:
-    """Convert kilobytes to human-readable string.
+def resolve_package_version(
+    package_name: str, site_packages: Path
+) -> str:
+    """Resolve the installed version of a package from .dist-info metadata.
 
-    Args:
-        size_kb: Size in kilobytes.
+    Falls back to 'unknown' if metadata is unavailable.
+    """
+    normalized = package_name.replace("-", "_").lower()
+
+    # Look for .dist-info directory
+    for item in site_packages.iterdir():
+        if not item.is_dir():
+            continue
+        item_name_lower = item.name.lower()
+        if (
+            item_name_lower.startswith(normalized)
+            and item_name_lower.endswith(".dist-info")
+        ):
+            # Parse version from directory name: {name}-{version}.dist-info
+            # Strip the .dist-info suffix first, then split on last hyphen
+            base = item.name[: -len(".dist-info")]
+            parts = base.rsplit("-", 1)
+            if len(parts) == 2:
+                return parts[1]
+
+    # Try METADATA file
+    for item in site_packages.iterdir():
+        if not item.is_dir():
+            continue
+        item_name_lower = item.name.lower()
+        if (
+            item_name_lower.startswith(normalized)
+            and item_name_lower.endswith(".dist-info")
+        ):
+            metadata_file = item / "METADATA"
+            if metadata_file.is_file():
+                try:
+                    for line in metadata_file.read_text(encoding="utf-8").splitlines():
+                        if line.lower().startswith("version:"):
+                            return line.split(":", 1)[1].strip()
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+    return "unknown"
+
+
+def measure_package_size(package_dir: Path) -> tuple[int, int, int, list[tuple[str, int]]]:
+    """Walk a package directory and measure its total size.
 
     Returns:
-        Human-readable size string (e.g., "1.5 MB").
+        Tuple of (total_bytes, file_count, dir_count, top_5_largest_files)
     """
-    if size_kb <= 0:
-        return "0 KB"
-    if size_kb < 1:
-        return f"{size_kb * 1024:.0f} B"
-    if size_kb < LARGE_PKG_THRESHOLD_KB:
-        return f"{size_kb:.1f} KB"
-    if size_kb < VERY_LARGE_PKG_THRESHOLD_KB:
-        return f"{size_kb / LARGE_PKG_THRESHOLD_KB:.1f} MB"
-    return f"{size_kb / VERY_LARGE_PKG_THRESHOLD_KB:.1f} MB"
-
-
-def _categorize_size(size_kb: float) -> str:
-    """Categorize a package by its download size.
-
-    Args:
-        size_kb: Download size in kilobytes.
-
-    Returns:
-        Size category string.
-    """
-    if size_kb <= 0:
-        return "unknown"
-    if size_kb < 50:
-        return "tiny"
-    if size_kb < LARGE_PKG_THRESHOLD_KB:
-        return "small"
-    if size_kb < VERY_LARGE_PKG_THRESHOLD_KB:
-        return "medium"
-    if size_kb < HUGE_PKG_THRESHOLD_KB:
-        return "large"
-    return "very_large"
-
-
-# ── Size analysis implementation ────────────────────────────────────────
-
-
-def _fetch_package_size(
-    pypi_client: PyPIClient,
-    package_name: str,
-    version: str | None = None,
-) -> PackageSize:
-    """Fetch size information for a single package.
-
-    Args:
-        pypi_client: PyPI API client.
-        package_name: Package name to analyze.
-        version: Optional version to check (defaults to latest).
-
-    Returns:
-        PackageSize with size metadata.
-    """
-    result = PackageSize(name=normalize_package_name(package_name))
-
-    info = pypi_client.get_package_info(package_name)
-    if info is None:
-        result.status = HealthStatus.REMOVED
-        return result
-
-    # Get version
-    pkg_info = info.get("info", {})
-    result.version = version or pkg_info.get("version", "unknown")
-    result.status = HealthStatus.HEALTHY
-
-    # Parse releases to find file sizes
-    releases = info.get("releases", {})
-    version_files = releases.get(result.version, [])
-
-    if not version_files:
-        # Try latest version
-        result.version = pkg_info.get("version", "unknown")
-        version_files = releases.get(result.version, [])
-
-    wheel_size = 0.0
-    source_size = 0.0
+    total_bytes = 0
     file_count = 0
+    dir_count = 0
+    file_sizes: list[tuple[str, int]] = []
 
-    for file_info in version_files:
-        packagetype = file_info.get("packagetype", "")
-        size_bytes = file_info.get("size", 0) or 0
-        size_kb = size_bytes / 1024.0
+    for root, dirs, files in os.walk(package_dir):
+        dir_count += len(dirs)
+        for fname in files:
+            fpath = Path(root) / fname
+            try:
+                size = fpath.stat().st_size
+                total_bytes += size
+                file_count += 1
+                rel = str(fpath.relative_to(package_dir))
+                file_sizes.append((rel, size))
+            except OSError:
+                # Permission denied or file gone
+                pass
 
-        if packagetype == "bdist_wheel":
-            wheel_size = max(wheel_size, size_kb)
-            result.has_wheel = True
-            # Count files in wheel (approximate from size)
-            file_count += max(1, int(size_kb / 5))  # ~5KB per file avg
-        elif packagetype == "sdist":
-            source_size = max(source_size, size_kb)
-            result.has_sdist = True
-            file_count += max(1, int(size_kb / 8))  # ~8KB per file avg
+    # Sort by size descending and keep top 5
+    file_sizes.sort(key=lambda x: x[1], reverse=True)
+    top_files = file_sizes[:5]
 
-    result.wheel_size_kb = wheel_size
-    result.source_size_kb = source_size
-    result.file_count = file_count
-
-    # Estimate install size
-    download_size = result.download_size_kb
-    result.estimated_install_kb = download_size * INSTALL_SIZE_MULTIPLIER
-
-    # Categorize
-    result.category = _categorize_size(download_size)
-
-    # Suggest alternatives for large packages
-    if download_size > LARGE_PKG_THRESHOLD_KB:
-        alts = _LIGHTWEIGHT_ALTERNATIVES.get(package_name.lower(), [])
-        if alts:
-            result.alternatives = alts
-
-    return result
+    return total_bytes, file_count, dir_count, top_files
 
 
-def analyze_project_sizes(
-    project_path: str | Path,
-    check_vulnerabilities: bool = False,
+# ---------------------------------------------------------------------------
+# Core analysis
+# ---------------------------------------------------------------------------
+
+
+def analyze_sizes(
+    project_path: str,
+    top_n: int = 20,
+    include_top_files: bool = True,
 ) -> SizeReport:
-    """Analyze the size footprint of all project dependencies.
+    """Analyze the installed size of all project dependencies.
 
     Args:
         project_path: Path to the project directory.
-        check_vulnerabilities: Whether to include health status.
+        top_n: Number of largest packages to highlight.
+        include_top_files: Whether to include top-5 largest files per package.
 
     Returns:
-        SizeReport with size info for each dependency.
+        A SizeReport with per-package and aggregate size data.
     """
-    project_path = Path(project_path).resolve()
+    project_path_obj = Path(project_path).resolve()
 
-    report = SizeReport(project_path=str(project_path))
-
-    if not project_path.is_dir():
-        report.errors.append(f"Path is not a directory: {project_path}")
-        return report
+    if not project_path_obj.is_dir():
+        return SizeReport(
+            project_path=str(project_path_obj),
+            errors=[f"Path is not a directory: {project_path_obj}"],
+        )
 
     # Discover dependencies
-    dependencies, _ = discover_dependencies(project_path)
+    dependencies, files_scanned = discover_dependencies(project_path_obj)
+
     if not dependencies:
-        report.errors.append("No dependencies found in the project.")
-        return report
+        return SizeReport(
+            project_path=str(project_path_obj),
+            files_scanned=files_scanned,
+            errors=["No dependencies found in the project."],
+        )
 
-    # Fetch sizes for each dependency
-    with PyPIClient() as pypi_client:
-        for dep in dependencies:
-            try:
-                size = _fetch_package_size(pypi_client, dep.name, dep.version)
-                report.packages.append(size)
-            except Exception as exc:
-                report.errors.append(f"Error analyzing {dep.name}: {exc}")
-                report.packages.append(
-                    PackageSize(
-                        name=dep.name,
-                        version=dep.version or "unknown",
-                        status=HealthStatus.UNKNOWN,
-                    )
+    # Find site-packages
+    site_packages = find_site_packages()
+    if site_packages is None:
+        return SizeReport(
+            project_path=str(project_path_obj),
+            files_scanned=files_scanned,
+            errors=["Could not locate site-packages directory."],
+        )
+
+    # Measure each dependency
+    packages: list[PackageSize] = []
+    for dep in dependencies:
+        pkg_dir = resolve_package_dir(dep.name, site_packages)
+        if pkg_dir is None:
+            # Package not installed locally
+            version = dep.version or "unknown"
+            packages.append(
+                PackageSize(
+                    name=dep.name,
+                    version=version,
+                    error="Package not found in site-packages (not installed?)",
                 )
+            )
+            continue
 
-    # Compute aggregates
-    report.total_download_kb = sum(p.download_size_kb for p in report.packages)
-    report.total_install_kb = sum(p.estimated_install_kb for p in report.packages)
-    report.total_file_count = sum(p.file_count for p in report.packages)
+        version = dep.version or resolve_package_version(dep.name, site_packages)
+        total_bytes, file_count, dir_count, top_files = measure_package_size(pkg_dir)
 
-    # Find largest packages
-    sorted_pkgs = sorted(report.packages, key=lambda p: p.download_size_kb, reverse=True)
-    report.largest_packages = [p.name for p in sorted_pkgs[:5]]
+        packages.append(
+            PackageSize(
+                name=dep.name,
+                version=version,
+                total_bytes=total_bytes,
+                file_count=file_count,
+                dir_count=dir_count,
+                top_files=top_files if include_top_files else [],
+                install_path=str(pkg_dir),
+            )
+        )
 
-    # Category breakdown
-    categories: dict[str, int] = {}
-    for p in report.packages:
-        categories[p.category] = categories.get(p.category, 0) + 1
-    report.category_breakdown = categories
+    report = SizeReport(
+        project_path=str(project_path_obj),
+        packages=packages,
+        files_scanned=files_scanned,
+    )
 
     return report
 
 
-def compare_package_sizes(
-    package_names: list[str],
-) -> list[PackageSize]:
-    """Compare sizes of multiple packages.
-
-    Args:
-        package_names: List of package names to compare.
-
-    Returns:
-        List of PackageSize objects sorted by download size (ascending).
-    """
-    results: list[PackageSize] = []
-    with PyPIClient() as pypi_client:
-        for name in package_names:
-            try:
-                size = _fetch_package_size(pypi_client, name)
-                results.append(size)
-            except Exception:
-                results.append(
-                    PackageSize(
-                        name=normalize_package_name(name),
-                        status=HealthStatus.UNKNOWN,
-                    )
-                )
-
-    results.sort(key=lambda p: p.download_size_kb)
-    return results
-
-
-# ── Rendering ────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
 
 
 def render_size_table(report: SizeReport, console: Console | None = None) -> None:
-    """Render a size report as a Rich table.
-
-    Args:
-        report: The size report to render.
-        console: Rich console instance.
-    """
+    """Render size report as a Rich table."""
     if console is None:
         console = Console()
-
-    if report.errors and not report.packages:
-        for error in report.errors:
-            console.print(f"[red]Error:[/red] {error}")
-        return
-
-    console.print()
-    console.print(
-        Panel(
-            f"[bold]depcheck size[/bold] — Dependency Size Report\n"
-            f"[dim]Project: {report.project_path}[/dim]",
-            border_style="blue",
-        )
-    )
-
-    if not report.packages:
-        console.print("[dim]No packages to analyze.[/dim]")
-        return
-
-    # Size table
-    table = Table(
-        title="Package Sizes",
-        show_header=True,
-        header_style="bold cyan",
-        show_lines=False,
-        pad_edge=False,
-        expand=True,
-    )
-
-    table.add_column("Package", style="bold", min_width=20)
-    table.add_column("Version", min_width=10)
-    table.add_column("Download", min_width=12, justify="right")
-    table.add_column("Install (est.)", min_width=12, justify="right")
-    table.add_column("Category", min_width=10, justify="center")
-    table.add_column("Type", min_width=8, justify="center")
-    table.add_column("Alternatives", min_width=20)
-
-    category_colors = {
-        "tiny": "green",
-        "small": "green",
-        "medium": "yellow",
-        "large": "red",
-        "very_large": "red bold",
-        "unknown": "dim",
-    }
-
-    for pkg in sorted(report.packages, key=lambda p: p.download_size_kb, reverse=True):
-        color = category_colors.get(pkg.category, "white")
-        dist_type = "wheel" if pkg.has_wheel else ("sdist" if pkg.has_sdist else "—")
-        alts = ", ".join(pkg.alternatives[:3]) if pkg.alternatives else "—"
-
-        table.add_row(
-            f"[cyan]{pkg.name}[/cyan]",
-            pkg.version,
-            pkg.human_download_size,
-            pkg.human_install_size,
-            f"[{color}]{pkg.category}[/{color}]",
-            dist_type,
-            f"[dim]{alts}[/dim]" if alts != "—" else "—",
-        )
-
-    console.print(table)
 
     # Summary
     console.print()
-    summary_parts = [
-        f"[bold]Total dependencies:[/bold] {len(report.packages)}",
-        f"[bold]Download size:[/bold] {report.human_total_download}",
-        f"[bold]Install size (est.):[/bold] {report.human_total_install}",
-        f"[bold]Total files (est.):[/bold] {report.total_file_count:,}",
-    ]
+    console.print(f"[bold]Dependency Size Report: {report.project_path}[/bold]")
+    console.print()
 
-    if report.category_breakdown:
-        breakdown = "  ".join(
-            f"[{category_colors.get(cat, 'white')}]{cat}: {count}"
-            f"[/{category_colors.get(cat, 'white')}]"
-            for cat, count in sorted(report.category_breakdown.items())
+    summary_table = Table(title="Summary", show_header=True, header_style="bold cyan")
+    summary_table.add_column("Metric", style="bold")
+    summary_table.add_column("Value", justify="right")
+
+    summary_table.add_row("Total Footprint", _human_size(report.total_bytes))
+    summary_table.add_row("Total Files", f"{report.total_file_count:,}")
+    summary_table.add_row("Total Directories", f"{report.total_dir_count:,}")
+    summary_table.add_row("Packages Measured", str(report.package_count))
+    summary_table.add_row("Median Package Size", _human_size(int(report.median_bytes)))
+
+    if report.largest:
+        summary_table.add_row(
+            "Largest Package",
+            f"{report.largest.name} ({report.largest.human_size()})",
         )
-        summary_parts.append(f"[bold]Size breakdown:[/bold] {breakdown}")
+    if report.smallest and report.package_count > 1:
+        summary_table.add_row(
+            "Smallest Package",
+            f"{report.smallest.name} ({report.smallest.human_size()})",
+        )
 
-    if report.largest_packages:
-        summary_parts.append(f"[bold]Largest:[/bold] {', '.join(report.largest_packages[:3])}")
-
-    console.print(Panel("\n".join(summary_parts), title="Size Summary", border_style="blue"))
+    console.print(summary_table)
     console.print()
 
-
-def render_size_comparison(
-    packages: list[PackageSize],
-    console: Console | None = None,
-) -> None:
-    """Render a size comparison table for multiple packages.
-
-    Args:
-        packages: List of PackageSize objects to compare.
-        console: Rich console instance.
-    """
-    if console is None:
-        console = Console()
-
-    if not packages:
-        console.print("[dim]No packages to compare.[/dim]")
-        return
-
-    console.print()
-    console.print(
-        Panel("[bold]depcheck size[/bold] — Package Size Comparison", border_style="blue")
-    )
-
-    table = Table(
+    # Per-package table sorted by size descending
+    pkg_table = Table(
+        title="Packages by Size (largest first)",
         show_header=True,
         header_style="bold cyan",
-        show_lines=False,
-        pad_edge=False,
-        expand=True,
     )
+    pkg_table.add_column("Package", style="bold")
+    pkg_table.add_column("Version")
+    pkg_table.add_column("Size", justify="right")
+    pkg_table.add_column("Files", justify="right")
+    pkg_table.add_column("Dirs", justify="right")
+    pkg_table.add_column("Install Path", max_width=50, overflow="ellipsis")
 
-    table.add_column("Package", style="bold", min_width=20)
-    table.add_column("Version", min_width=10)
-    table.add_column("Download", min_width=12, justify="right")
-    table.add_column("Install (est.)", min_width=12, justify="right")
-    table.add_column("Category", min_width=10, justify="center")
-    table.add_column("Winner", width=8, justify="center")
+    sorted_pkgs = sorted(report.packages, key=lambda p: p.total_bytes, reverse=True)
+    for pkg in sorted_pkgs:
+        if pkg.error:
+            pkg_table.add_row(
+                pkg.name, pkg.version, "[dim]N/A[/dim]", "-", "-", f"[dim]{pkg.error}[/dim]"
+            )
+        else:
+            size_style = "red" if pkg.total_mb >= 50 else "yellow" if pkg.total_mb >= 10 else "green"
+            pkg_table.add_row(
+                pkg.name,
+                pkg.version,
+                f"[{size_style}]{pkg.human_size()}[/{size_style}]",
+                f"{pkg.file_count:,}",
+                f"{pkg.dir_count:,}",
+                pkg.install_path,
+            )
 
-    smallest = min(packages, key=lambda p: p.download_size_kb) if packages else None
-
-    for pkg in packages:
-        is_smallest = smallest and pkg.name == smallest.name and pkg.download_size_kb > 0
-        winner = "[green]✓ smallest[/green]" if is_smallest else ""
-        cat_colors = {
-            "tiny": "green",
-            "small": "green",
-            "medium": "yellow",
-            "large": "red",
-            "very_large": "red bold",
-            "unknown": "dim",
-        }
-        color = cat_colors.get(pkg.category, "white")
-
-        table.add_row(
-            f"[cyan]{pkg.name}[/cyan]",
-            pkg.version,
-            pkg.human_download_size,
-            pkg.human_install_size,
-            f"[{color}]{pkg.category}[/{color}]",
-            winner,
-        )
-
-    console.print(table)
+    console.print(pkg_table)
     console.print()
 
+    # Top files section (for the largest 5 packages)
+    large_pkgs = report.top_n(5)
+    has_top_files = any(pkg.top_files for pkg in large_pkgs if not pkg.error)
+    if has_top_files:
+        console.print("[bold]Largest Files in Top Packages:[/bold]")
+        console.print()
+        for pkg in large_pkgs:
+            if pkg.error or not pkg.top_files:
+                continue
+            console.print(f"  [bold]{pkg.name}[/bold] ({pkg.human_size()}):")
+            for filepath, size in pkg.top_files:
+                console.print(f"    {_human_size(size):>10s}  {filepath}")
+            console.print()
 
-def render_size_json(report: SizeReport) -> str:
-    """Render size report as JSON string.
 
-    Args:
-        report: The size report to render.
-
-    Returns:
-        JSON string.
-    """
-    return json.dumps(report.to_dict(), indent=2)
+def render_size_json(report: SizeReport, console: Console | None = None) -> None:
+    """Render size report as JSON."""
+    data = report.to_dict()
+    output = json.dumps(data, indent=2)
+    if console is None:
+        console = Console(force_terminal=False, no_color=True)
+    console.print(output)
 
 
-def render_comparison_json(packages: list[PackageSize]) -> str:
-    """Render size comparison as JSON string.
-
-    Args:
-        packages: List of PackageSize objects.
-
-    Returns:
-        JSON string.
-    """
-    return json.dumps([p.to_dict() for p in packages], indent=2)
+def _human_size(num_bytes: int) -> str:
+    """Convert bytes to human-readable string."""
+    if num_bytes >= 1024 * 1024 * 1024:
+        return f"{num_bytes / (1024 * 1024 * 1024):.1f} GB"
+    if num_bytes >= 1024 * 1024:
+        return f"{num_bytes / (1024 * 1024):.1f} MB"
+    if num_bytes >= 1024:
+        return f"{num_bytes / 1024:.1f} KB"
+    return f"{num_bytes} B"

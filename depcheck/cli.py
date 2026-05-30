@@ -1574,5 +1574,347 @@ def explain(
         render_explain_plain(report, console=console)
 
 
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output size report as JSON.",
+)
+@click.option(
+    "--top-n",
+    type=int,
+    default=20,
+    help="Number of largest packages to highlight (default: 20).",
+)
+@click.option(
+    "--no-top-files",
+    is_flag=True,
+    default=False,
+    help="Don't show largest files per package.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def size(
+    path: str,
+    output_json: bool,
+    top_n: int,
+    no_top_files: bool,
+    quiet: bool,
+) -> None:
+    """Analyze the installed size of each dependency.
+
+    Measures the disk footprint of every dependency in your project by
+    inspecting the local site-packages directory. Reports total bytes,
+    file counts, and identifies the largest packages and files.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck size
+    depcheck size --json
+    depcheck size --top-n 10
+    depcheck size --no-top-files
+    depcheck size /path/to/project
+    """
+    from depcheck.size import analyze_sizes, render_size_json, render_size_table
+
+    console = Console(quiet=quiet)
+
+    report = analyze_sizes(
+        project_path=path,
+        top_n=top_n,
+        include_top_files=not no_top_files,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_size_json(report)
+    elif not quiet:
+        render_size_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output history report as JSON.",
+)
+@click.option(
+    "--max-versions",
+    type=int,
+    default=20,
+    help="Maximum historical versions to retrieve per package (default: 20).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def history(
+    path: str,
+    output_json: bool,
+    max_versions: int,
+    quiet: bool,
+) -> None:
+    """Analyze the release history and maintenance trends of dependencies.
+
+    Shows version timelines, release cadence, maintenance trends
+    (accelerating, steady, slowing, abandoned), and version age for
+    each dependency.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck history
+    depcheck history --json
+    depcheck history --max-versions 10
+    depcheck history /path/to/project
+    """
+    from depcheck.history import analyze_history, render_history_json, render_history_table
+
+    console = Console(quiet=quiet)
+
+    report = analyze_history(
+        project_path=path,
+        max_versions=max_versions,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_history_json(report)
+    elif not quiet:
+        render_history_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output bundle report as JSON.",
+)
+@click.option(
+    "--with",
+    "extra_commands",
+    multiple=True,
+    type=click.Choice(
+        ["check", "audit", "outdated", "license", "size", "history"],
+        case_sensitive=False,
+    ),
+    help="Commands to include in the bundle. Repeat for multiple. "
+    "Default: check, audit, outdated.",
+)
+@click.option(
+    "--all",
+    "run_all",
+    is_flag=True,
+    default=False,
+    help="Run all available commands (check, audit, outdated, license, size, history).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def bundle(
+    path: str,
+    output_json: bool,
+    extra_commands: tuple[str, ...],
+    run_all: bool,
+    quiet: bool,
+) -> None:
+    """Run multiple depcheck commands in a single pass.
+
+    Executes a configurable bundle of analyses (check, audit, outdated,
+    license, size, history) and produces a combined report. Ideal for
+    CI pipelines and nightly audits.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck bundle
+    depcheck bundle --all
+    depcheck bundle --with audit --with license --with size
+    depcheck bundle --json
+    depcheck bundle --all --json
+    """
+    from depcheck.bundle import BundleCommand, render_bundle_json, render_bundle_table, run_bundle
+
+    console = Console(quiet=quiet)
+
+    # Build command list
+    if run_all:
+        commands = list(BundleCommand)
+    elif extra_commands:
+        name_to_cmd = {cmd.value: cmd for cmd in BundleCommand}
+        commands = [name_to_cmd[cmd] for cmd in extra_commands if cmd in name_to_cmd]
+    else:
+        commands = None  # Use default bundle
+
+    report = run_bundle(project_path=path, commands=commands)
+
+    if report.errors and not report.results:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_bundle_json(report)
+    elif not quiet:
+        render_bundle_table(report, console=console)
+
+    if not report.overall_success:
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output diagnostic report as JSON.",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(
+        ["critical", "warning", "any"],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Exit with code 1 if findings meet the severity threshold.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def doctor(
+    path: str,
+    output_json: bool,
+    fail_on: str | None,
+    quiet: bool,
+) -> None:
+    """Diagnose dependency configuration and environment issues.
+
+    Runs a comprehensive diagnostic on your project's dependency setup,
+    checking for unpinned versions, missing lockfiles, venv issues,
+    Python compatibility, import consistency, and formatting problems.
+
+    PATH is the project directory to diagnose (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck doctor
+    depcheck doctor --json
+    depcheck doctor --fail-on critical
+    depcheck doctor --fail-on warning
+    depcheck doctor /path/to/project
+    """
+    from depcheck.doctor import Severity, render_doctor_json, render_doctor_table, run_doctor
+
+    console = Console(quiet=quiet)
+
+    report = run_doctor(project_path=path)
+
+    if report.errors and not report.findings:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_doctor_json(report)
+    elif not quiet:
+        render_doctor_table(report, console=console)
+
+    # Exit code based on fail-on
+    if fail_on:
+        severity_threshold = {
+            "critical": Severity.CRITICAL,
+            "warning": Severity.WARNING,
+            "any": Severity.INFO,
+        }
+        threshold = severity_threshold.get(fail_on.lower(), Severity.CRITICAL)
+
+        level_order = {
+            Severity.INFO: 0,
+            Severity.WARNING: 1,
+            Severity.CRITICAL: 2,
+        }
+        threshold_level = level_order.get(threshold, 2)
+
+        if fail_on.lower() == "critical" and report.critical_count > 0:
+            if not quiet:
+                console.print(
+                    f"[red]✗ Doctor found {report.critical_count} critical "
+                    f"issue(s)[/red]"
+                )
+            sys.exit(1)
+        elif fail_on.lower() == "warning" and (
+            report.critical_count > 0 or report.warning_count > 0
+        ):
+            if not quiet:
+                console.print(
+                    f"[red]✗ Doctor found {report.critical_count} critical "
+                    f"and {report.warning_count} warning(s)[/red]"
+                )
+            sys.exit(1)
+        elif fail_on.lower() == "any" and not report.is_healthy:
+            if not quiet:
+                console.print(
+                    f"[red]✗ Doctor found {report.critical_count} critical, "
+                    f"{report.warning_count} warnings, "
+                    f"{report.info_count} info[/red]"
+                )
+            sys.exit(1)
+
+
 if __name__ == "__main__":
     main()

@@ -1,591 +1,407 @@
-"""Tests for depcheck size module."""
+"""Tests for depcheck.size — dependency size/footprint analysis."""
 
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from depcheck.models import HealthStatus
+import pytest
+
+from depcheck.models import ParsedDependency
 from depcheck.size import (
     PackageSize,
     SizeReport,
-    _categorize_size,
-    _fetch_package_size,
-    _human_size,
-    analyze_project_sizes,
-    compare_package_sizes,
-    render_comparison_json,
-    render_size_comparison,
+    analyze_sizes,
+    find_site_packages,
+    measure_package_size,
     render_size_json,
     render_size_table,
+    resolve_package_dir,
+    resolve_package_version,
+    _human_size,
 )
 
-# ── Human size tests ─────────────────────────────────────────────────────
 
-
-class TestHumanSize:
-    """Tests for _human_size helper."""
-
-    def test_zero(self) -> None:
-        assert _human_size(0) == "0 KB"
-
-    def test_bytes(self) -> None:
-        assert _human_size(0.5) == "512 B"
-
-    def test_kilobytes(self) -> None:
-        assert _human_size(500) == "500.0 KB"
-
-    def test_megabytes(self) -> None:
-        # 5000 KB = 5.0 MB
-        assert _human_size(5000) == "5.0 MB"
-
-    def test_large_megabytes(self) -> None:
-        # 50000 KB is in the very_large range: 50000/10000 = 5.0 MB
-        # (Note: the code divides by VERY_LARGE_PKG_THRESHOLD_KB for this range)
-        assert _human_size(50_000) == "5.0 MB"
-
-    def test_very_large_megabytes(self) -> None:
-        # 100000 KB / 10000 = 10.0 MB (uses VERY_LARGE scale)
-        assert _human_size(100_000) == "10.0 MB"
-
-    def test_negative_returns_zero(self) -> None:
-        assert _human_size(-1) == "0 KB"
-
-    def test_just_under_1mb(self) -> None:
-        assert _human_size(999) == "999.0 KB"
-
-    def test_exactly_1mb(self) -> None:
-        # 1000 KB = 1.0 MB
-        assert _human_size(1000) == "1.0 MB"
-
-    def test_10mb(self) -> None:
-        # 10000 KB is in the very_large range: 10000/10000 = 1.0 MB
-        # (Note: >= VERY_LARGE_PKG_THRESHOLD_KB uses /10000 division)
-        assert _human_size(10_000) == "1.0 MB"
-
-    def test_one_kb(self) -> None:
-        assert _human_size(1) == "1.0 KB"
-
-
-class TestCategorizeSize:
-    """Tests for _categorize_size helper."""
-
-    def test_tiny(self) -> None:
-        assert _categorize_size(10) == "tiny"
-
-    def test_small(self) -> None:
-        assert _categorize_size(500) == "small"
-
-    def test_medium(self) -> None:
-        assert _categorize_size(5000) == "medium"
-
-    def test_large(self) -> None:
-        assert _categorize_size(50_000) == "large"
-
-    def test_very_large(self) -> None:
-        assert _categorize_size(200_000) == "very_large"
-
-    def test_zero(self) -> None:
-        assert _categorize_size(0) == "unknown"
-
-    def test_negative(self) -> None:
-        assert _categorize_size(-1) == "unknown"
-
-    def test_boundary_tiny(self) -> None:
-        assert _categorize_size(49) == "tiny"
-
-    def test_boundary_small(self) -> None:
-        assert _categorize_size(50) == "small"
-
-    def test_boundary_medium(self) -> None:
-        assert _categorize_size(1000) == "medium"
-
-    def test_boundary_large(self) -> None:
-        assert _categorize_size(10_000) == "large"
-
-    def test_boundary_very_large(self) -> None:
-        assert _categorize_size(100_000) == "very_large"
-
-
-# ── PackageSize data model tests ────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# PackageSize unit tests
+# ---------------------------------------------------------------------------
 
 
 class TestPackageSize:
-    """Tests for PackageSize dataclass."""
+    """Tests for the PackageSize dataclass."""
 
-    def test_download_size_prefers_wheel(self) -> None:
-        pkg = PackageSize(wheel_size_kb=100, source_size_kb=200)
-        assert pkg.download_size_kb == 100
+    def test_total_kb(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", total_bytes=2048)
+        assert pkg.total_kb == 2.0
 
-    def test_download_size_falls_back_to_source(self) -> None:
-        pkg = PackageSize(wheel_size_kb=0.0, source_size_kb=200)
-        assert pkg.download_size_kb == 200
+    def test_total_mb(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", total_bytes=1048576)
+        assert pkg.total_mb == 1.0
 
-    def test_download_size_zero(self) -> None:
-        pkg = PackageSize()
-        assert pkg.download_size_kb == 0.0
+    def test_human_size_bytes(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", total_bytes=512)
+        assert pkg.human_size() == "512 B"
 
-    def test_human_download_size(self) -> None:
-        pkg = PackageSize(wheel_size_kb=5000)
-        assert pkg.human_download_size == "5.0 MB"
+    def test_human_size_kb(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", total_bytes=2048)
+        assert pkg.human_size() == "2.0 KB"
 
-    def test_human_install_size(self) -> None:
-        pkg = PackageSize(wheel_size_kb=1000, estimated_install_kb=2500)
-        assert pkg.human_install_size == "2.5 MB"
+    def test_human_size_mb(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", total_bytes=5 * 1024 * 1024)
+        assert pkg.human_size() == "5.0 MB"
+
+    def test_human_size_gb(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", total_bytes=2 * 1024 * 1024 * 1024)
+        assert pkg.human_size() == "2.0 GB"
 
     def test_to_dict(self) -> None:
         pkg = PackageSize(
-            name="test-pkg",
-            version="1.0.0",
-            wheel_size_kb=500,
-            source_size_kb=400,
-            estimated_install_kb=1250,
-            category="small",
-            has_wheel=True,
-            has_sdist=True,
+            name="foo", version="1.0", total_bytes=1024,
+            file_count=5, dir_count=2, top_files=[("bar.py", 500)],
+            install_path="/lib/foo",
         )
         d = pkg.to_dict()
-        assert d["name"] == "test-pkg"
-        assert d["version"] == "1.0.0"
-        assert d["wheel_size_kb"] == 500
-        assert d["category"] == "small"
-        assert d["has_wheel"] is True
-        assert d["has_sdist"] is True
+        assert d["name"] == "foo"
+        assert d["total_bytes"] == 1024
+        assert d["total_kb"] == 1.0
+        assert d["file_count"] == 5
+        assert d["dir_count"] == 2
+        assert len(d["top_files"]) == 1
 
-    def test_defaults(self) -> None:
-        pkg = PackageSize()
-        assert pkg.name == ""
-        assert pkg.alternatives == []
-        assert pkg.file_count == 0
-        assert pkg.wheel_size_kb == 0.0
-        assert pkg.source_size_kb == 0.0
-
-    def test_status_default(self) -> None:
-        pkg = PackageSize()
-        assert pkg.status == HealthStatus.UNKNOWN
+    def test_to_dict_with_error(self) -> None:
+        pkg = PackageSize(name="foo", version="1.0", error="not installed")
+        d = pkg.to_dict()
+        assert d["error"] == "not installed"
+        assert d["total_bytes"] == 0
 
 
-# ── SizeReport data model tests ──────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# SizeReport unit tests
+# ---------------------------------------------------------------------------
 
 
 class TestSizeReport:
-    """Tests for SizeReport dataclass."""
+    """Tests for the SizeReport dataclass."""
 
-    def test_human_total_download(self) -> None:
-        # 10000 KB is in very_large range: 10000/10000 = 1.0 MB
-        report = SizeReport(total_download_kb=10_000)
-        assert report.human_total_download == "1.0 MB"
+    def _make_report(self) -> SizeReport:
+        pkgs = [
+            PackageSize(name="a", version="1.0", total_bytes=100, file_count=2, dir_count=1),
+            PackageSize(name="b", version="2.0", total_bytes=300, file_count=5, dir_count=2),
+            PackageSize(name="c", version="3.0", total_bytes=200, file_count=3, dir_count=1),
+        ]
+        return SizeReport(project_path="/tmp/test", packages=pkgs)
 
-    def test_human_total_install(self) -> None:
-        # 25000 KB is in very_large range: 25000/10000 = 2.5 MB
-        report = SizeReport(total_install_kb=25_000)
-        assert report.human_total_install == "2.5 MB"
+    def test_total_bytes(self) -> None:
+        report = self._make_report()
+        assert report.total_bytes == 600
+
+    def test_total_file_count(self) -> None:
+        report = self._make_report()
+        assert report.total_file_count == 10
+
+    def test_total_dir_count(self) -> None:
+        report = self._make_report()
+        assert report.total_dir_count == 4
+
+    def test_total_kb(self) -> None:
+        report = self._make_report()
+        assert report.total_kb == pytest.approx(600 / 1024)
+
+    def test_total_mb(self) -> None:
+        report = self._make_report()
+        assert report.total_mb == pytest.approx(600 / (1024 * 1024))
+
+    def test_package_count(self) -> None:
+        report = self._make_report()
+        assert report.package_count == 3
+
+    def test_largest(self) -> None:
+        report = self._make_report()
+        assert report.largest is not None
+        assert report.largest.name == "b"
+
+    def test_smallest(self) -> None:
+        report = self._make_report()
+        assert report.smallest is not None
+        assert report.smallest.name == "a"
+
+    def test_median_bytes_odd(self) -> None:
+        report = self._make_report()  # 100, 200, 300
+        assert report.median_bytes == 200.0
+
+    def test_median_bytes_even(self) -> None:
+        pkgs = [
+            PackageSize(name="a", version="1.0", total_bytes=100),
+            PackageSize(name="b", version="2.0", total_bytes=200),
+            PackageSize(name="c", version="3.0", total_bytes=300),
+            PackageSize(name="d", version="4.0", total_bytes=400),
+        ]
+        report = SizeReport(project_path="/tmp", packages=pkgs)
+        assert report.median_bytes == 250.0
+
+    def test_median_bytes_empty(self) -> None:
+        report = SizeReport(project_path="/tmp")
+        assert report.median_bytes == 0.0
+
+    def test_top_n(self) -> None:
+        report = self._make_report()
+        top2 = report.top_n(2)
+        assert len(top2) == 2
+        assert top2[0].name == "b"
+        assert top2[1].name == "c"
+
+    def test_bottom_n(self) -> None:
+        report = self._make_report()
+        bot2 = report.bottom_n(2)
+        assert len(bot2) == 2
+        assert bot2[0].name == "a"
+        assert bot2[1].name == "c"
+
+    def test_largest_empty(self) -> None:
+        report = SizeReport(project_path="/tmp")
+        assert report.largest is None
+
+    def test_smallest_empty(self) -> None:
+        report = SizeReport(project_path="/tmp")
+        assert report.smallest is None
 
     def test_to_dict(self) -> None:
-        report = SizeReport(
-            project_path="/tmp/test",
-            total_download_kb=5000,
-            total_install_kb=12500,
-            total_file_count=100,
-            category_breakdown={"small": 3, "medium": 1},
-        )
+        report = self._make_report()
         d = report.to_dict()
         assert d["project_path"] == "/tmp/test"
-        assert d["total_download_kb"] == 5000
-        assert d["total_file_count"] == 100
-        assert d["category_breakdown"]["small"] == 3
-
-    def test_empty_report(self) -> None:
-        report = SizeReport()
-        assert report.human_total_download == "0 KB"
-        assert report.packages == []
-        assert report.errors == []
+        assert d["summary"]["total_bytes"] == 600
+        assert d["summary"]["package_count"] == 3
+        assert len(d["packages"]) == 3
+        # Packages sorted by size descending
+        assert d["packages"][0]["name"] == "b"
 
 
-# ── Fetch package size tests ─────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Site-packages discovery tests
+# ---------------------------------------------------------------------------
 
 
-class TestFetchPackageSize:
-    """Tests for _fetch_package_size."""
+class TestFindSitePackages:
+    """Tests for find_site_packages."""
 
-    def _make_pypi_info(self, name: str = "test-pkg", version: str = "1.0.0") -> dict:
-        return {
-            "info": {
-                "name": name,
-                "version": version,
-                "license": "MIT",
-            },
-            "releases": {
-                "1.0.0": [
-                    {
-                        "packagetype": "bdist_wheel",
-                        "size": 100_000,  # ~97.7 KB
-                        "upload_time_iso_8601": "2024-06-15T10:00:00Z",
-                        "yanked": False,
-                    },
-                    {
-                        "packagetype": "sdist",
-                        "size": 80_000,  # ~78.1 KB
-                        "upload_time_iso_8601": "2024-06-15T10:00:00Z",
-                        "yanked": False,
-                    },
-                ],
-            },
-        }
+    def test_finds_site_packages(self) -> None:
+        """find_site_packages should return a Path or None."""
+        result = find_site_packages()
+        if result is not None:
+            assert isinstance(result, Path)
+            assert result.is_dir()
 
-    def test_fetch_success(self) -> None:
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = self._make_pypi_info()
-
-        result = _fetch_package_size(mock_client, "test-pkg")
-        assert result.name == "test-pkg"
-        assert result.version == "1.0.0"
-        assert result.has_wheel is True
-        assert result.has_sdist is True
-        assert result.wheel_size_kb > 0
-        assert result.source_size_kb > 0
-        assert result.estimated_install_kb > 0
-        assert result.status == HealthStatus.HEALTHY
-
-    def test_fetch_not_found(self) -> None:
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = None
-
-        result = _fetch_package_size(mock_client, "nonexistent")
-        assert result.name == "nonexistent"
-        assert result.status == HealthStatus.REMOVED
-
-    def test_fetch_wheel_only(self) -> None:
-        info = {
-            "info": {"name": "wheel-only", "version": "2.0.0", "license": "MIT"},
-            "releases": {
-                "2.0.0": [
-                    {
-                        "packagetype": "bdist_wheel",
-                        "size": 200_000,
-                        "upload_time_iso_8601": "2024-06-15T10:00:00Z",
-                        "yanked": False,
-                    },
-                ],
-            },
-        }
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = info
-
-        result = _fetch_package_size(mock_client, "wheel-only")
-        assert result.has_wheel is True
-        assert result.has_sdist is False
-        assert result.wheel_size_kb > 0
-        assert result.source_size_kb == 0
-
-    def test_fetch_suggests_alternatives_for_large(self) -> None:
-        info = {
-            "info": {"name": "requests", "version": "2.31.0", "license": "Apache-2.0"},
-            "releases": {
-                "2.31.0": [
-                    {
-                        "packagetype": "bdist_wheel",
-                        "size": 2_000_000,  # ~1953 KB > 1000 threshold
-                        "upload_time_iso_8601": "2024-01-15T10:00:00Z",
-                        "yanked": False,
-                    },
-                ],
-            },
-        }
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = info
-
-        result = _fetch_package_size(mock_client, "requests")
-        assert result.alternatives  # Should suggest alternatives
-        assert "httpx" in result.alternatives
-
-    def test_fetch_no_alternatives_for_small(self) -> None:
-        info = {
-            "info": {"name": "tiny-pkg", "version": "0.1.0", "license": "MIT"},
-            "releases": {
-                "0.1.0": [
-                    {
-                        "packagetype": "bdist_wheel",
-                        "size": 10_000,  # ~9.8 KB — tiny
-                        "upload_time_iso_8601": "2024-06-15T10:00:00Z",
-                        "yanked": False,
-                    },
-                ],
-            },
-        }
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = info
-
-        result = _fetch_package_size(mock_client, "tiny-pkg")
-        assert result.alternatives == []
-        assert result.category == "tiny"
-
-    def test_fetch_estimates_install_size(self) -> None:
-        info = {
-            "info": {"name": "mid-pkg", "version": "1.0.0", "license": "MIT"},
-            "releases": {
-                "1.0.0": [
-                    {
-                        "packagetype": "bdist_wheel",
-                        "size": 500_000,  # ~488 KB
-                        "upload_time_iso_8601": "2024-06-15T10:00:00Z",
-                        "yanked": False,
-                    },
-                ],
-            },
-        }
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = info
-
-        result = _fetch_package_size(mock_client, "mid-pkg")
-        # Install size should be ~2.5x download size
-        expected_install = result.download_size_kb * 2.5
-        assert abs(result.estimated_install_kb - expected_install) < 0.1
-
-    def test_fetch_no_releases(self) -> None:
-        info = {
-            "info": {"name": "no-releases", "version": "0.0.0", "license": "MIT"},
-            "releases": {},
-        }
-        mock_client = MagicMock()
-        mock_client.get_package_info.return_value = info
-
-        result = _fetch_package_size(mock_client, "no-releases")
-        assert result.name == "no-releases"
-        assert result.version == "0.0.0"
-        assert result.wheel_size_kb == 0.0
-        assert result.has_wheel is False
+    def test_result_name(self) -> None:
+        """If found, the result should be named site-packages or dist-packages."""
+        result = find_site_packages()
+        if result is not None:
+            assert result.name in ("site-packages", "dist-packages")
 
 
-# ── Analyze project sizes tests ──────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Package resolution tests
+# ---------------------------------------------------------------------------
 
 
-class TestAnalyzeProjectSizes:
-    """Tests for analyze_project_sizes."""
+class TestResolvePackageDir:
+    """Tests for resolve_package_dir."""
+
+    def test_finds_installed_package(self, tmp_path: Path) -> None:
+        site = tmp_path / "site-packages"
+        site.mkdir()
+        pkg_dir = site / "requests"
+        pkg_dir.mkdir()
+
+        result = resolve_package_dir("requests", site)
+        assert result is not None
+        assert result.name == "requests"
+
+    def test_normalizes_hyphens(self, tmp_path: Path) -> None:
+        site = tmp_path / "site-packages"
+        site.mkdir()
+        # Package installed with underscores
+        pkg_dir = site / "my_package"
+        pkg_dir.mkdir()
+
+        result = resolve_package_dir("my-package", site)
+        assert result is not None
+
+    def test_returns_none_for_missing(self, tmp_path: Path) -> None:
+        site = tmp_path / "site-packages"
+        site.mkdir()
+
+        result = resolve_package_dir("nonexistent-pkg", site)
+        assert result is None
+
+
+class TestResolvePackageVersion:
+    """Tests for resolve_package_version."""
+
+    def test_reads_from_dist_info(self, tmp_path: Path) -> None:
+        site = tmp_path / "site-packages"
+        site.mkdir()
+        dist_info = site / "requests-2.31.0.dist-info"
+        dist_info.mkdir()
+
+        result = resolve_package_version("requests", site)
+        assert result == "2.31.0"
+
+    def test_returns_unknown_for_missing(self, tmp_path: Path) -> None:
+        site = tmp_path / "site-packages"
+        site.mkdir()
+
+        result = resolve_package_version("nonexistent", site)
+        assert result == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# measure_package_size tests
+# ---------------------------------------------------------------------------
+
+
+class TestMeasurePackageSize:
+    """Tests for measure_package_size."""
+
+    def test_measures_directory(self, tmp_path: Path) -> None:
+        pkg_dir = tmp_path / "mypkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("# init")
+        (pkg_dir / "module.py").write_text("x = 1")
+
+        total, files, dirs, top = measure_package_size(pkg_dir)
+        assert total > 0
+        assert files == 2
+        assert dirs == 0
+        assert len(top) <= 5
+
+    def test_measures_nested_dirs(self, tmp_path: Path) -> None:
+        pkg_dir = tmp_path / "mypkg"
+        pkg_dir.mkdir()
+        sub = pkg_dir / "sub"
+        sub.mkdir()
+        (sub / "deep.py").write_text("y = 2")
+
+        total, files, dirs, top = measure_package_size(pkg_dir)
+        assert total > 0
+        assert files == 1
+        assert dirs == 1
+
+    def test_empty_directory(self, tmp_path: Path) -> None:
+        pkg_dir = tmp_path / "empty"
+        pkg_dir.mkdir()
+
+        total, files, dirs, top = measure_package_size(pkg_dir)
+        assert total == 0
+        assert files == 0
+        assert dirs == 0
+        assert top == []
+
+    def test_top_files_sorted_by_size(self, tmp_path: Path) -> None:
+        pkg_dir = tmp_path / "mypkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "small.py").write_text("x")
+        (pkg_dir / "large.py").write_text("x" * 1000)
+        (pkg_dir / "medium.py").write_text("x" * 100)
+
+        total, files, dirs, top = measure_package_size(pkg_dir)
+        assert len(top) == 3
+        assert top[0][1] >= top[1][1] >= top[2][1]
+
+
+# ---------------------------------------------------------------------------
+# analyze_sizes integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestAnalyzeSizes:
+    """Integration tests for analyze_sizes."""
 
     def test_invalid_path(self) -> None:
-        report = analyze_project_sizes("/nonexistent/path/xyz")
+        report = analyze_sizes("/nonexistent/path")
         assert len(report.errors) > 0
 
     def test_no_dependencies(self, tmp_path: Path) -> None:
-        report = analyze_project_sizes(str(tmp_path))
-        assert len(report.errors) > 0
-        assert any("No dependencies" in e for e in report.errors)
+        # Empty project with no dependency files
+        report = analyze_sizes(str(tmp_path))
+        assert len(report.errors) > 0 or report.package_count == 0
 
-    @patch("depcheck.size._fetch_package_size")
-    @patch("depcheck.size.discover_dependencies")
-    def test_with_dependencies(
-        self, mock_discover: MagicMock, mock_fetch: MagicMock, tmp_path: Path
-    ) -> None:
-        from depcheck.models import ParsedDependency
+    def test_with_requirements(self, tmp_path: Path) -> None:
+        req = tmp_path / "requirements.txt"
+        req.write_text("click==8.0\nrequests==2.31.0\n")
 
-        mock_discover.return_value = (
-            [
-                ParsedDependency(name="flask", version="3.0.0"),
-                ParsedDependency(name="click", version="8.1.0"),
-            ],
-            ["pyproject.toml"],
-        )
-        mock_fetch.side_effect = [
-            PackageSize(
-                name="flask",
-                version="3.0.0",
-                wheel_size_kb=500,
-                estimated_install_kb=1250,
-                category="small",
-            ),
-            PackageSize(
-                name="click",
-                version="8.1.0",
-                wheel_size_kb=200,
-                estimated_install_kb=500,
-                category="tiny",
-            ),
-        ]
-        report = analyze_project_sizes(str(tmp_path))
-        assert len(report.packages) == 2
-        assert report.total_download_kb == 700
-        assert report.total_install_kb == 1750
+        with patch("depcheck.size.find_site_packages", return_value=None):
+            report = analyze_sizes(str(tmp_path))
+            # When site_packages is None, we get an error
+            # but the dependencies should have been discovered
+            assert report.package_count == 0  # error path returns early
+            assert len(report.errors) > 0
 
-    @patch("depcheck.size._fetch_package_size")
-    @patch("depcheck.size.discover_dependencies")
-    def test_category_breakdown(
-        self, mock_discover: MagicMock, mock_fetch: MagicMock, tmp_path: Path
-    ) -> None:
-        from depcheck.models import ParsedDependency
+    def test_with_mocked_site_packages(self, tmp_path: Path) -> None:
+        req = tmp_path / "requirements.txt"
+        req.write_text("mypkg==1.0\n")
 
-        mock_discover.return_value = (
-            [ParsedDependency(name="a"), ParsedDependency(name="b"), ParsedDependency(name="c")],
-            ["pyproject.toml"],
-        )
-        mock_fetch.side_effect = [
-            PackageSize(
-                name="a",
-                wheel_size_kb=10,
-                estimated_install_kb=25,
-                category="tiny",
-            ),
-            PackageSize(
-                name="b",
-                wheel_size_kb=500,
-                estimated_install_kb=1250,
-                category="small",
-            ),
-            PackageSize(
-                name="c",
-                wheel_size_kb=5000,
-                estimated_install_kb=12500,
-                category="medium",
-            ),
-        ]
+        site = tmp_path / "site-packages"
+        site.mkdir()
+        pkg_dir = site / "mypkg"
+        pkg_dir.mkdir()
+        (pkg_dir / "__init__.py").write_text("x = 1")
+        dist_info = site / "mypkg-1.0.dist-info"
+        dist_info.mkdir()
 
-        report = analyze_project_sizes(str(tmp_path))
-        assert report.category_breakdown.get("tiny") == 1
-        assert report.category_breakdown.get("small") == 1
-        assert report.category_breakdown.get("medium") == 1
-
-    @patch("depcheck.size._fetch_package_size")
-    @patch("depcheck.size.discover_dependencies")
-    def test_largest_packages(
-        self, mock_discover: MagicMock, mock_fetch: MagicMock, tmp_path: Path
-    ) -> None:
-        from depcheck.models import ParsedDependency
-
-        mock_discover.return_value = (
-            [ParsedDependency(name="small"), ParsedDependency(name="big")],
-            ["pyproject.toml"],
-        )
-        mock_fetch.side_effect = [
-            PackageSize(
-                name="small",
-                wheel_size_kb=100,
-                estimated_install_kb=250,
-                category="small",
-            ),
-            PackageSize(
-                name="big",
-                wheel_size_kb=50000,
-                estimated_install_kb=125000,
-                category="large",
-            ),
-        ]
-
-        report = analyze_project_sizes(str(tmp_path))
-        assert report.largest_packages[0] == "big"
-
-    @patch("depcheck.size._fetch_package_size")
-    @patch("depcheck.size.discover_dependencies")
-    def test_error_handling_for_fetch(
-        self, mock_discover: MagicMock, mock_fetch: MagicMock, tmp_path: Path
-    ) -> None:
-        from depcheck.models import ParsedDependency
-
-        mock_discover.return_value = (
-            [ParsedDependency(name="good"), ParsedDependency(name="bad")],
-            ["pyproject.toml"],
-        )
-
-        def fetch_side_effect(client, name, version=None):
-            if name == "bad":
-                raise RuntimeError("API error")
-            return PackageSize(name="good", wheel_size_kb=100, category="tiny")
-
-        mock_fetch.side_effect = fetch_side_effect
-
-        report = analyze_project_sizes(str(tmp_path))
-        # Should have error for bad package and still include good
-        assert any("bad" in e for e in report.errors)
-        assert len(report.packages) == 2
+        with patch("depcheck.size.find_site_packages", return_value=site), \
+             patch("depcheck.size.resolve_package_dir", return_value=pkg_dir), \
+             patch("depcheck.size.resolve_package_version", return_value="1.0"):
+            report = analyze_sizes(str(tmp_path))
+            assert report.package_count == 1
+            pkg = report.packages[0]
+            assert pkg.name == "mypkg"
+            assert pkg.total_bytes > 0
+            assert pkg.file_count == 1
 
 
-# ── Compare package sizes tests ──────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Rendering tests
+# ---------------------------------------------------------------------------
 
 
-class TestComparePackageSizes:
-    """Tests for compare_package_sizes."""
+class TestHumanSize:
+    """Tests for the _human_size helper."""
 
-    @patch("depcheck.size._fetch_package_size")
-    def test_compare_sorts_by_size(self, mock_fetch: MagicMock) -> None:
-        mock_fetch.side_effect = [
-            PackageSize(name="big", wheel_size_kb=5000, category="medium"),
-            PackageSize(name="tiny", wheel_size_kb=50, category="tiny"),
-            PackageSize(name="mid", wheel_size_kb=500, category="small"),
-        ]
+    def test_bytes(self) -> None:
+        assert _human_size(512) == "512 B"
 
-        results = compare_package_sizes(["big", "tiny", "mid"])
-        assert len(results) == 3
-        assert results[0].name == "tiny"
-        assert results[1].name == "mid"
-        assert results[2].name == "big"
+    def test_kb(self) -> None:
+        assert _human_size(2048) == "2.0 KB"
 
-    @patch("depcheck.size._fetch_package_size")
-    def test_compare_handles_errors(self, mock_fetch: MagicMock) -> None:
-        def fetch_side_effect(client, name, version=None):
-            if name == "bad":
-                raise Exception("API error")
-            return PackageSize(name="good", wheel_size_kb=100)
+    def test_mb(self) -> None:
+        assert _human_size(5 * 1024 * 1024) == "5.0 MB"
 
-        mock_fetch.side_effect = fetch_side_effect
-
-        results = compare_package_sizes(["good", "bad"])
-        assert len(results) == 2
-        # Error packages have download_size_kb=0, so they sort first
-        assert results[0].name == "bad"
-        assert results[0].status == HealthStatus.UNKNOWN
-        assert results[1].name == "good"
-
-    @patch("depcheck.size._fetch_package_size")
-    def test_compare_empty_list(self, mock_fetch: MagicMock) -> None:
-        results = compare_package_sizes([])
-        assert results == []
-        mock_fetch.assert_not_called()
-
-
-# ── Rendering tests ──────────────────────────────────────────────────────
+    def test_gb(self) -> None:
+        assert _human_size(3 * 1024 * 1024 * 1024) == "3.0 GB"
 
 
 class TestRenderSizeTable:
     """Tests for render_size_table."""
 
-    def test_renders_report(self) -> None:
+    def test_renders_without_error(self) -> None:
         from io import StringIO
-
         from rich.console import Console
 
         report = SizeReport(
             project_path="/tmp/test",
             packages=[
-                PackageSize(
-                    name="test-pkg",
-                    version="1.0.0",
-                    wheel_size_kb=5000,
-                    estimated_install_kb=12500,
-                    category="medium",
-                    has_wheel=True,
-                ),
+                PackageSize(name="a", version="1.0", total_bytes=100, file_count=2),
             ],
-            total_download_kb=5000,
-            total_install_kb=12500,
-            category_breakdown={"medium": 1},
-            largest_packages=["test-pkg"],
         )
-
         console = Console(file=StringIO(), width=120)
         render_size_table(report, console=console)
+        # Should not raise
 
-    def test_renders_errors_only(self) -> None:
+    def test_renders_empty_report(self) -> None:
         from io import StringIO
-
-        from rich.console import Console
-
-        report = SizeReport(errors=["Something went wrong"])
-        console = Console(file=StringIO(), width=120)
-        render_size_table(report, console=console)
-
-    def test_renders_empty_packages(self) -> None:
-        from io import StringIO
-
         from rich.console import Console
 
         report = SizeReport(project_path="/tmp/test")
@@ -596,70 +412,19 @@ class TestRenderSizeTable:
 class TestRenderSizeJson:
     """Tests for render_size_json."""
 
-    def test_valid_json(self) -> None:
+    def test_produces_valid_json(self) -> None:
+        from io import StringIO
+        from rich.console import Console
+
         report = SizeReport(
             project_path="/tmp/test",
-            total_download_kb=1000,
-        )
-        json_str = render_size_json(report)
-        data = json.loads(json_str)
-        assert data["project_path"] == "/tmp/test"
-        assert data["total_download_kb"] == 1000
-
-    def test_includes_packages(self) -> None:
-        report = SizeReport(
             packages=[
-                PackageSize(name="pkg1", wheel_size_kb=100),
-            ]
+                PackageSize(name="a", version="1.0", total_bytes=100, file_count=2),
+            ],
         )
-        json_str = render_size_json(report)
-        data = json.loads(json_str)
-        assert len(data["packages"]) == 1
-
-
-class TestRenderComparisonJson:
-    """Tests for render_comparison_json."""
-
-    def test_valid_json(self) -> None:
-        packages = [
-            PackageSize(name="pkg1", wheel_size_kb=100),
-            PackageSize(name="pkg2", wheel_size_kb=500),
-        ]
-        json_str = render_comparison_json(packages)
-        data = json.loads(json_str)
-        assert len(data) == 2
-        assert data[0]["name"] == "pkg1"
-
-
-class TestRenderSizeComparison:
-    """Tests for render_size_comparison."""
-
-    def test_renders_comparison(self) -> None:
-        from io import StringIO
-
-        from rich.console import Console
-
-        packages = [
-            PackageSize(name="small", wheel_size_kb=100, category="tiny", has_wheel=True),
-            PackageSize(name="big", wheel_size_kb=5000, category="medium", has_wheel=True),
-        ]
-
-        console = Console(file=StringIO(), width=120)
-        render_size_comparison(packages, console=console)
-
-    def test_empty_comparison(self) -> None:
-        from io import StringIO
-
-        from rich.console import Console
-
-        console = Console(file=StringIO(), width=120)
-        render_size_comparison([], console=console)
-
-    def test_single_package(self) -> None:
-        from io import StringIO
-
-        from rich.console import Console
-
-        packages = [PackageSize(name="only", wheel_size_kb=500, category="small", has_wheel=True)]
-        console = Console(file=StringIO(), width=120)
-        render_size_comparison(packages, console=console)
+        buf = StringIO()
+        console = Console(file=buf, width=1000, force_terminal=False, no_color=True)
+        render_size_json(report, console=console)
+        data = json.loads(buf.getvalue())
+        assert "summary" in data
+        assert "packages" in data
