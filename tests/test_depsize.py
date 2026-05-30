@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
-from dataclasses import dataclass
+
+import pytest
 
 from depcheck.depsize import (
     BLOAT_THRESHOLD_MB,
-    LARGE_PACKAGE_THRESHOLD_MB,
     INSTALL_SIZE_MULTIPLIER,
+    LARGE_PACKAGE_THRESHOLD_MB,
     PackageSize,
     SizeReport,
     _format_size,
@@ -20,7 +20,6 @@ from depcheck.depsize import (
     render_size_json,
     render_size_table,
 )
-
 
 # ── PackageSize Tests ────────────────────────────────────────────────────
 
@@ -312,7 +311,7 @@ class TestBuildSizeReport:
     @patch("depcheck.depsize.PyPIClient")
     def test_build_report(self, mock_pypi_cls: MagicMock, mock_scan: MagicMock) -> None:
         """Test building a size report."""
-        from depcheck.models import PackageReport, ScanResult, HealthStatus
+        from depcheck.models import PackageReport, ScanResult
 
         mock_scan.return_value = ScanResult(
             project_path="/test",
@@ -347,7 +346,7 @@ class TestBuildSizeReport:
     @patch("depcheck.depsize.PyPIClient")
     def test_totals_calculation(self, mock_pypi_cls: MagicMock, mock_scan: MagicMock) -> None:
         """Test that totals are calculated correctly."""
-        from depcheck.models import PackageReport, ScanResult, HealthStatus
+        from depcheck.models import PackageReport, ScanResult
 
         mock_scan.return_value = ScanResult(
             project_path="/test",
@@ -398,7 +397,9 @@ class TestSizeRendering:
     """Tests for size report rendering functions."""
 
     def test_render_size_json(self) -> None:
-        report = SizeReport(project_path="/test", total_download_bytes=1000, total_install_bytes=2500)
+        report = SizeReport(
+            project_path="/test", total_download_bytes=1000, total_install_bytes=2500
+        )
         report.packages = [PackageSize(name="a", download_size_bytes=1000, install_size_bytes=2500)]
 
         result = render_size_json(report)
@@ -406,20 +407,30 @@ class TestSizeRendering:
         assert parsed["project_path"] == "/test"
 
     def test_render_size_table_no_crash(self) -> None:
-        from rich.console import Console
         from io import StringIO
 
-        report = SizeReport(project_path="/test", total_download_bytes=5000, total_install_bytes=12500)
+        from rich.console import Console
+
+        report = SizeReport(
+            project_path="/test", total_download_bytes=5000, total_install_bytes=12500
+        )
         report.packages = [
-            PackageSize(name="a", version="1.0", download_size_bytes=5000, install_size_bytes=12500, file_type="wheel"),
+            PackageSize(
+                name="a",
+                version="1.0",
+                download_size_bytes=5000,
+                install_size_bytes=12500,
+                file_type="wheel",
+            ),
         ]
 
         console = Console(file=StringIO(), width=120)
         render_size_table(report, console=console)
 
     def test_render_size_bar_chart_no_crash(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = SizeReport(project_path="/test")
         report.packages = [
@@ -431,8 +442,9 @@ class TestSizeRendering:
         render_size_bar_chart(report, console=console)
 
     def test_render_size_bar_chart_empty(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = SizeReport(project_path="/test")
         console = Console(file=StringIO(), width=120)

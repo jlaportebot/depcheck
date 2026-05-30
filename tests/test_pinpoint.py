@@ -3,25 +3,22 @@
 from __future__ import annotations
 
 import json
-import pytest
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+from depcheck.models import ParsedDependency
 from depcheck.pinpoint import (
-    PinStyle,
-    PinRecommendation,
     PinInfo,
+    PinRecommendation,
     PinReport,
+    PinStyle,
     _detect_pin_style,
     _extract_pinned_version,
     _generate_recommendation,
     generate_constraints_file,
-    build_pin_report,
     render_pin_json,
     render_pin_table,
 )
-from depcheck.models import ParsedDependency
-
 
 # ── PinStyle Detection Tests ─────────────────────────────────────────────
 
@@ -437,8 +434,9 @@ class TestPinRendering:
         assert parsed["project_path"] == "/test"
 
     def test_render_pin_table_no_crash(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = PinReport(
             project_path="/test",
@@ -457,8 +455,9 @@ class TestPinRendering:
         render_pin_table(report, console=console)
 
     def test_render_pin_table_with_recommendations(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = PinReport(project_path="/test", total_dependencies=2, health_score=50.0)
         rec_pin = PinInfo(

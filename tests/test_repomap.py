@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
-from dataclasses import dataclass
 
+from depcheck.models import ParsedDependency
 from depcheck.repomap import (
     DependencyNode,
     ImpactReport,
     RepoMap,
     _calculate_metrics,
     _extract_package_name,
-    _parse_project_deps,
     build_repomap,
     render_impact_json,
     render_impact_table,
@@ -21,8 +19,6 @@ from depcheck.repomap import (
     render_repomap_table,
     render_repomap_tree,
 )
-from depcheck.models import ParsedDependency
-
 
 # ── DependencyNode Tests ─────────────────────────────────────────────────
 
@@ -319,7 +315,6 @@ class TestBuildRepomap:
         def mock_info(name: str) -> dict:
             if name == "requests":
                 return {
-                    "info": {"version": "2.31.0"},
                     "releases": {},
                     "info_detail": {},
                     "info": {
@@ -372,6 +367,7 @@ class TestRendering:
     def test_render_repomap_table_no_crash(self) -> None:
         """Test that render_repomap_table doesn't crash."""
         from io import StringIO
+
         from rich.console import Console
 
         rm = RepoMap(project_path="/test", total_packages=1, max_depth=0)
@@ -387,6 +383,7 @@ class TestRendering:
     def test_render_repomap_tree_no_crash(self) -> None:
         """Test that render_repomap_tree doesn't crash."""
         from io import StringIO
+
         from rich.console import Console
 
         rm = RepoMap(project_path="/test", total_packages=1, max_depth=0)
@@ -401,6 +398,7 @@ class TestRendering:
     def test_render_impact_table_no_crash(self) -> None:
         """Test that render_impact_table doesn't crash."""
         from io import StringIO
+
         from rich.console import Console
 
         impact = ImpactReport(
@@ -418,6 +416,7 @@ class TestRendering:
     def test_render_impact_table_no_impact(self) -> None:
         """Test rendering impact table with zero impact."""
         from io import StringIO
+
         from rich.console import Console
 
         impact = ImpactReport(package="safe-pkg")
@@ -453,7 +452,9 @@ class TestRepoMapIntegration:
         rm = RepoMap(project_path="/test")
         # Both flask and requests depend on urllib3
         rm.nodes["flask"] = DependencyNode(name="flask", direct=True)
-        rm.nodes["requests"] = DependencyNode(name="requests", direct=True, dependencies=["urllib3"])
+        rm.nodes["requests"] = DependencyNode(
+            name="requests", direct=True, dependencies=["urllib3"]
+        )
         rm.nodes["urllib3"] = DependencyNode(name="urllib3", dependents=["requests"])
 
         # Removing urllib3 only directly affects requests

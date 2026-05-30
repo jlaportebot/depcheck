@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from depcheck.conflicts import (
-    ConflictSeverity,
-    ConflictResult,
     ConflictReport,
+    ConflictResult,
+    ConflictSeverity,
     VersionConstraint,
     _classify_conflict,
     _detect_circular_deps,
@@ -19,7 +18,6 @@ from depcheck.conflicts import (
     render_conflict_table,
 )
 from depcheck.repomap import DependencyNode, RepoMap
-
 
 # ── VersionConstraint Tests ──────────────────────────────────────────────
 
@@ -39,7 +37,9 @@ class TestVersionConstraint:
         assert vc.source == "transitive"
 
     def test_to_dict(self) -> None:
-        vc = VersionConstraint(package="flask", target="werkzeug", specifier=">=2.0", source="direct")
+        vc = VersionConstraint(
+            package="flask", target="werkzeug", specifier=">=2.0", source="direct"
+        )
         d = vc.to_dict()
         assert d["package"] == "flask"
         assert d["target"] == "werkzeug"
@@ -197,7 +197,9 @@ class TestClassifyConflict:
             VersionConstraint(package="a", target="pkg", specifier=">=1.0"),
             VersionConstraint(package="b", target="pkg", specifier="<5.0"),
         ]
-        severity, suggestion = _classify_conflict(constraints, compatible_versions=["1.0", "2.0", "3.0", "4.0"])
+        severity, suggestion = _classify_conflict(
+            constraints, compatible_versions=["1.0", "2.0", "3.0", "4.0"]
+        )
         assert severity == ConflictSeverity.WARNING
 
 
@@ -316,8 +318,9 @@ class TestConflictRendering:
         assert parsed["summary"]["hard_conflicts"] == 1
 
     def test_render_conflict_table_no_crash(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = ConflictReport(project_path="/test", total_packages_analyzed=5)
         report.conflicts = [
@@ -337,16 +340,18 @@ class TestConflictRendering:
         render_conflict_table(report, console=console)
 
     def test_render_conflict_table_no_conflicts(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = ConflictReport(project_path="/test", total_packages_analyzed=5)
         console = Console(file=StringIO(), width=140)
         render_conflict_table(report, console=console)
 
     def test_render_with_circular_deps(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         report = ConflictReport(project_path="/test")
         report.circular_deps = [["a", "b", "a"]]

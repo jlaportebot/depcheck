@@ -3,30 +3,30 @@
 from __future__ import annotations
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from depcheck.scorecard import (
-    Grade,
-    CategoryScore,
-    ScoreCategory,
-    ScorecardResult,
-    _calculate_grade,
     _GRADE_THRESHOLDS,
     DEFAULT_WEIGHTS,
-    _score_security,
+    CategoryScore,
+    Grade,
+    ScorecardResult,
+    ScoreCategory,
+    _calculate_grade,
     _score_freshness,
-    _score_pinning,
     _score_licenses,
-    _score_size,
     _score_maintenance,
+    _score_pinning,
+    _score_security,
+    _score_size,
     build_scorecard,
     generate_badge_url,
     generate_markdown_report,
     render_scorecard,
     render_scorecard_json,
 )
-
 
 # ── Grade Tests ──────────────────────────────────────────────────────────
 
@@ -406,8 +406,8 @@ class TestBuildScorecard:
         mock_size: MagicMock,
         mock_pin: MagicMock,
     ) -> None:
-        from depcheck.models import PackageReport, ScanResult
         from depcheck.depsize import SizeReport
+        from depcheck.models import PackageReport, ScanResult
         from depcheck.pinpoint import PinReport
 
         mock_scan.return_value = ScanResult(
@@ -449,8 +449,9 @@ class TestScorecardRendering:
         assert parsed["grade"] == "A"
 
     def test_render_scorecard_table_no_crash(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         result = ScorecardResult(
             project_path="/test",
@@ -479,8 +480,9 @@ class TestScorecardRendering:
         render_scorecard(result, console=console)
 
     def test_render_scorecard_perfect(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         result = ScorecardResult(
             project_path="/test",
@@ -500,8 +502,9 @@ class TestScorecardRendering:
         render_scorecard(result, console=console)
 
     def test_render_scorecard_failing(self) -> None:
-        from rich.console import Console
         from io import StringIO
+
+        from rich.console import Console
 
         result = ScorecardResult(
             project_path="/test",
