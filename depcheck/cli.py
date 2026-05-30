@@ -1916,5 +1916,507 @@ def doctor(
             sys.exit(1)
 
 
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output budget report as JSON.",
+)
+@click.option(
+    "--per-dep-limit",
+    type=int,
+    default=None,
+    help="Maximum allowed dependencies per single dependency.",
+)
+@click.option(
+    "--transitive-limit",
+    type=int,
+    default=None,
+    help="Maximum allowed total transitive dependencies.",
+)
+@click.option(
+    "--depth-limit",
+    type=int,
+    default=None,
+    help="Maximum allowed dependency depth.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def budget(
+    path: str,
+    output_json: bool,
+    per_dep_limit: int | None,
+    transitive_limit: int | None,
+    depth_limit: int | None,
+    quiet: bool,
+) -> None:
+    """Analyse dependency budget and cost metrics.
+
+    Shows per-dependency transitive counts, depth, and estimated risk
+    for every direct dependency. Use limits to fail CI when budgets
+    are exceeded.
+
+    PATH is the project directory to analyse (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck budget
+    depcheck budget --per-dep-limit 20
+    depcheck budget --transitive-limit 200 --depth-limit 5
+    depcheck budget --json
+    """
+    from depcheck.budget import (
+        BudgetConfig,
+        BudgetReport,
+        check_budget,
+        render_budget_json,
+        render_budget_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    config = BudgetConfig(
+        total=transitive_limit,
+        direct=per_dep_limit,
+        transitive=transitive_limit,
+        dev=None,
+        optional=None,
+    )
+
+    report = check_budget(project_path=path, config=config)
+
+    if report.errors and not report.categories:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_budget_json(report)
+    elif not quiet:
+        render_budget_table(report, console=console)
+
+    if not report.is_within_budget:
+        if not quiet:
+            console.print(
+                f"[red]✗ Budget exceeded: {len(report.over_budget_categories)} "
+                f"limit(s) violated[/red]"
+            )
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output risk report as JSON.",
+)
+@click.option(
+    "--severity-threshold",
+    type=click.Choice(["low", "medium", "high", "critical"]),
+    default="medium",
+    help="Minimum severity to include in output.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def risks(
+    path: str,
+    output_json: bool,
+    severity_threshold: str,
+    quiet: bool,
+) -> None:
+    """Assess multi-dimensional risk scores for dependencies.
+
+    Evaluates each dependency across vulnerability, maintenance, age,
+    popularity, and license risk dimensions. Produces a composite
+    risk score and remediation priority list.
+
+    PATH is the project directory to analyse (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck risks
+    depcheck risks --severity-threshold high
+    depcheck risks --json
+    """
+    from depcheck.risks import (
+        RiskSeverity,
+        assess_risks,
+        render_risks_json,
+        render_risks_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    severity_map = {
+        "low": RiskSeverity.LOW,
+        "medium": RiskSeverity.MEDIUM,
+        "high": RiskSeverity.HIGH,
+        "critical": RiskSeverity.CRITICAL,
+    }
+    threshold = severity_map.get(severity_threshold, RiskSeverity.MEDIUM)
+
+    report = assess_risks(project_path=path, min_severity=threshold)
+
+    if report.errors and not report.entries:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_risks_json(report)
+    elif not quiet:
+        render_risks_table(report, console=console)
+
+    if report.critical_count > 0:
+        if not quiet:
+            console.print(
+                f"[red]✗ {report.critical_count} critical-risk "
+                f"dependencies found[/red]"
+            )
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output advisory report as JSON.",
+)
+@click.option(
+    "--source",
+    type=click.Choice(["osv", "pypa", "github", "all"]),
+    default="all",
+    help="Advisory source to query.",
+)
+@click.option(
+    "--severity",
+    type=click.Choice(["critical", "high", "medium", "low"]),
+    default=None,
+    help="Filter advisories by minimum severity.",
+)
+@click.option(
+    "--patched-only",
+    is_flag=True,
+    default=False,
+    help="Only show advisories with a known fix.",
+)
+@click.option(
+    "--unpatched-only",
+    is_flag=True,
+    default=False,
+    help="Only show advisories without a known fix.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def advisories(
+    path: str,
+    output_json: bool,
+    source: str,
+    severity: str | None,
+    patched_only: bool,
+    unpatched_only: bool,
+    quiet: bool,
+) -> None:
+    """Check security advisories for project dependencies.
+
+    Queries multiple advisory databases (OSV, PyPA, GitHub) for
+    known vulnerabilities affecting your dependencies. Shows
+    severity, affected versions, and available fixes.
+
+    PATH is the project directory to check (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck advisories
+    depcheck advisories --source osv
+    depcheck advisories --severity high
+    depcheck advisories --unpatched-only
+    depcheck advisories --json
+    """
+    from depcheck.advisories import (
+        AdvisorySource,
+        render_advisories_json,
+        render_advisories_table,
+        run_advisories,
+        search_advisories,
+    )
+
+    console = Console(quiet=quiet)
+
+    source_map = {
+        "osv": [AdvisorySource.OSV],
+        "pypa": [AdvisorySource.PYPA],
+        "github": [AdvisorySource.GITHUB],
+        "all": [AdvisorySource.OSV, AdvisorySource.PYPA, AdvisorySource.GITHUB],
+    }
+    sources = source_map.get(source, source_map["all"])
+
+    report = run_advisories(
+        project_path=path,
+        check_vulnerabilities=True,
+        sources=sources,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Apply filters if specified
+    if severity or patched_only or unpatched_only:
+        for pkg_summary in report.packages:
+            filtered = pkg_summary.advisories
+            if severity:
+                filtered = [a for a in filtered if a.severity.upper() >= severity.upper()]
+            if patched_only:
+                filtered = [a for a in filtered if a.is_patchable]
+            if unpatched_only:
+                filtered = [a for a in filtered if not a.is_patchable]
+            pkg_summary.advisories = filtered
+            pkg_summary.total_advisories = len(filtered)
+
+    if output_json:
+        render_advisories_json(report)
+    elif not quiet:
+        render_advisories_table(report, console=console)
+
+    if report.total_critical > 0:
+        if not quiet:
+            console.print(
+                f"[red]✗ {report.total_critical} critical advisories "
+                f"found[/red]"
+            )
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["ascii", "dot", "mermaid", "json"]),
+    default="ascii",
+    help="Output format for the dependency graph.",
+)
+@click.option(
+    "--max-depth",
+    type=int,
+    default=4,
+    help="Maximum depth for transitive dependency resolution.",
+)
+@click.option(
+    "--subgraph",
+    default=None,
+    help="Extract subgraph rooted at this package name.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def graph(
+    path: str,
+    fmt: str,
+    max_depth: int,
+    subgraph: str | None,
+    quiet: bool,
+) -> None:
+    """Visualise the dependency graph.
+
+    Builds and analyses the full dependency graph, detecting cycles,
+    diamond dependencies, and computing centrality metrics. Supports
+    multiple output formats for integration with visualisation tools.
+
+    PATH is the project directory to analyse (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck graph
+    depcheck graph --format dot > deps.dot
+    depcheck graph --format mermaid > deps.mmd
+    depcheck graph --subgraph requests
+    depcheck graph --max-depth 2 --format json
+    """
+    from depcheck.graph import (
+        DependencyGraph,
+        GraphFormat,
+        build_dependency_graph,
+        extract_subgraph,
+        render_graph,
+    )
+
+    console = Console(quiet=quiet)
+
+    full_graph = build_dependency_graph(
+        project_path=path,
+        max_depth=max_depth,
+    )
+
+    if full_graph.errors and not full_graph.nodes:
+        for error in full_graph.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Extract subgraph if requested
+    target_graph = full_graph
+    if subgraph:
+        target_graph = extract_subgraph(full_graph, root=subgraph, max_depth=max_depth)
+        if target_graph.errors:
+            for error in target_graph.errors:
+                console.print(f"[red]Error:[/red] {error}")
+            sys.exit(2)
+
+    fmt_map = {
+        "ascii": GraphFormat.ASCII,
+        "dot": GraphFormat.DOT,
+        "mermaid": GraphFormat.MERMAID,
+        "json": GraphFormat.JSON,
+    }
+    graph_fmt = fmt_map.get(fmt, GraphFormat.ASCII)
+
+    if not quiet:
+        render_graph(target_graph, fmt=graph_fmt, console=console)
+
+    if len(full_graph.cycles) > 0:
+        if not quiet and graph_fmt == GraphFormat.JSON:
+            pass  # Cycles shown in JSON output
+        elif not quiet:
+            console.print(
+                f"\n[yellow]⚠ {len(full_graph.cycles)} dependency "
+                f"cycle(s) detected[/yellow]"
+            )
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output policy report as JSON.",
+)
+@click.option(
+    "--no-vulns",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checks during policy evaluation.",
+)
+@click.option(
+    "--no-licenses",
+    is_flag=True,
+    default=False,
+    help="Skip license checks during policy evaluation.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def policy(
+    path: str,
+    output_json: bool,
+    no_vulns: bool,
+    no_licenses: bool,
+    quiet: bool,
+) -> None:
+    """Evaluate dependency policies and check compliance.
+
+    Loads policy rules from [tool.depcheck.policy] in pyproject.toml
+    and evaluates them against your project's dependencies. Reports
+    violations by severity (error, warning, info) with remediation
+    guidance. Exits with code 1 if any error-severity rules are
+    violated.
+
+    PATH is the project directory to check (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck policy
+    depcheck policy --json
+    depcheck policy --no-vulns
+    """
+    from depcheck.policy import (
+        PolicyConfig,
+        evaluate_policy,
+        render_policy_json,
+        render_policy_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = evaluate_policy(
+        project_path=path,
+        check_vulnerabilities=not no_vulns,
+        check_licenses=not no_licenses,
+    )
+
+    if report.errors and not report.violations and report.total_packages == 0:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_policy_json(report)
+    elif not quiet:
+        render_policy_table(report, console=console)
+
+    if not report.is_compliant:
+        if not quiet:
+            console.print(
+                f"[red]✗ Policy non-compliant: {report.error_count} "
+                f"error(s), compliance score {report.compliance_score}%[/red]"
+            )
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
