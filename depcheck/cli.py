@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 
 import click
@@ -1163,6 +1164,414 @@ def why(
     # Exit with code 1 if package not found
     if not result.found:
         sys.exit(1)
+
+
+@main.command(name="check")
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output health report as JSON.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Include license compliance in the health check.",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(
+        ["critical", "high", "medium", "low", "any"],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Exit with code 1 if overall grade meets or falls below threshold.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def check(
+    path: str,
+    output_json: bool,
+    no_vuln_check: bool,
+    check_licenses: bool,
+    fail_on: str | None,
+    quiet: bool,
+) -> None:
+    """Run a comprehensive health check with overall score and grades.
+
+    Combines vulnerability, freshness, license, maintenance, transitive
+    depth, and outdated analysis into a single 0–100 health score with
+    per-category letter grades (A–F).
+
+    PATH is the project directory to check (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck check
+    depcheck check --json
+    depcheck check --fail-on high
+    depcheck check /path/to/project
+    """
+    from depcheck.check import Grade, HealthReport, run_check, render_check_json, render_check_table
+
+    console = Console(quiet=quiet)
+
+    report = run_check(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=check_licenses,
+    )
+
+    if report.errors and not report.categories:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_check_json(report)
+    elif not quiet:
+        render_check_table(report, console=console)
+
+    # Exit code based on grade threshold
+    if fail_on:
+        grade_order = {
+            Grade.A: 0,
+            Grade.B: 1,
+            Grade.C: 2,
+            Grade.D: 3,
+            Grade.F: 4,
+        }
+        threshold_map = {
+            "critical": Grade.F,
+            "high": Grade.D,
+            "medium": Grade.C,
+            "low": Grade.B,
+            "any": Grade.A,
+        }
+        threshold = threshold_map.get(fail_on.lower(), Grade.F)
+        if grade_order.get(report.overall_grade, 4) >= grade_order.get(threshold, 4):
+            if not quiet:
+                console.print(
+                    f"[red]✗ Health check failed: grade {report.overall_grade.value} "
+                    f"meets or exceeds --fail-on {fail_on} threshold[/red]"
+                )
+            sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output lockfile analysis as JSON.",
+)
+@click.option(
+    "--audit",
+    "run_audit_flag",
+    is_flag=True,
+    default=False,
+    help="Run pip-audit for vulnerability scanning (requires pip-audit installed).",
+)
+@click.option(
+    "--diff",
+    "diff_target",
+    type=click.Path(exists=True),
+    default=None,
+    help="Compare lockfile against another lockfile to show diff.",
+)
+@click.option(
+    "--freeze",
+    is_flag=True,
+    default=False,
+    help="Generate a pip freeze output for the current environment.",
+)
+@click.option(
+    "--output",
+    "output_file",
+    type=click.Path(dir_okay=False, writable=True),
+    default=None,
+    help="Write freeze output to file (use with --freeze).",
+)
+@click.option(
+    "--fail-on-unpinned",
+    is_flag=True,
+    default=False,
+    help="Exit with code 1 if any unpinned dependencies are found.",
+)
+@click.option(
+    "--fail-on-drift",
+    is_flag=True,
+    default=False,
+    help="Exit with code 1 if any version drift is detected.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def lockfile(
+    path: str,
+    output_json: bool,
+    run_audit_flag: bool,
+    diff_target: str | None,
+    freeze: bool,
+    output_file: str | None,
+    fail_on_unpinned: bool,
+    fail_on_drift: bool,
+    quiet: bool,
+) -> None:
+    """Analyze lockfiles for unpinned deps, drift, and hash issues.
+
+    Finds and analyzes all lockfile types in your project: requirements.txt,
+    Pipfile.lock, and poetry.lock. Detects unpinned dependencies, version
+    drift from manifests, missing hashes, and (optionally) runs pip-audit.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck lockfile
+    depcheck lockfile --json
+    depcheck lockfile --audit
+    depcheck lockfile --freeze
+    depcheck lockfile --freeze --output requirements.lock
+    depcheck lockfile --diff requirements.old.txt
+    depcheck lockfile --fail-on-unpinned
+    """
+    from pathlib import Path
+
+    from depcheck.lockfile import (
+        PipAuditResult,
+        analyze_project_lockfiles,
+        diff_lockfiles,
+        find_lockfiles,
+        generate_freeze,
+        render_lockfile_diff_table,
+        render_lockfile_json,
+        render_lockfile_table,
+        render_pip_audit_table,
+        run_pip_audit,
+    )
+
+    console = Console(quiet=quiet)
+
+    # Freeze mode
+    if freeze:
+        content = generate_freeze(project_path=path, output_path=output_file)
+        if not output_file and not quiet:
+            console.print(content)
+        if output_file and not quiet:
+            console.print(f"[green]Freeze written to {output_file}[/green]")
+        return
+
+    # Diff mode
+    if diff_target:
+        project = Path(path).resolve()
+        lockfiles = find_lockfiles(project)
+        if not lockfiles:
+            console.print("[red]No lockfiles found in project[/red]")
+            sys.exit(1)
+
+        target_path = Path(diff_target).resolve()
+        # Use the first lockfile found as the "old" side
+        old_path = lockfiles[0]
+        result = diff_lockfiles(old_path, target_path)
+        if output_json:
+            console.print(json.dumps(result.to_dict(), indent=2))
+        elif not quiet:
+            render_lockfile_diff_table(result, console=console)
+        if result.has_changes and fail_on_drift:
+            sys.exit(1)
+        return
+
+    # Normal analysis mode
+    reports = analyze_project_lockfiles(project_path=path)
+
+    if not reports:
+        if not quiet:
+            console.print("[yellow]No lockfiles found in project.[/yellow]")
+            console.print("[dim]Create a requirements.txt with pinned versions, or use --freeze to generate one.[/dim]")
+        sys.exit(0)
+
+    if output_json:
+        render_lockfile_json(reports)
+    elif not quiet:
+        render_lockfile_table(reports, console=console)
+
+    # pip-audit integration
+    if run_audit_flag:
+        # Find the first requirements-style lockfile to audit
+        req_path: Path | None = None
+        for lf in find_lockfiles(Path(path).resolve()):
+            if lf.name.endswith(".txt"):
+                req_path = lf
+                break
+
+        audit_result = run_pip_audit(req_path)
+        if not quiet:
+            render_pip_audit_table(audit_result, console=console)
+
+    # Exit codes
+    for report in reports:
+        if fail_on_unpinned and report.unpinned:
+            if not quiet:
+                console.print(f"[red]✗ Unpinned dependencies found in {report.path}[/red]")
+            sys.exit(1)
+        if fail_on_drift and report.drift:
+            if not quiet:
+                console.print(f"[red]✗ Version drift detected in {report.path}[/red]")
+            sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(
+        ["plain", "markdown", "json", "ai"],
+        case_sensitive=False,
+    ),
+    default="plain",
+    help="Output format (default: plain). 'ai' is compact for LLM context windows.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster explanations).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Include license compliance info in explanations.",
+)
+@click.option(
+    "--filter",
+    "filter_status",
+    type=click.Choice(
+        ["vulnerable", "outdated", "unmaintained", "at-risk", "all"],
+        case_sensitive=False,
+    ),
+    default="all",
+    help="Filter to only show packages with the specified status.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def explain(
+    path: str,
+    fmt: str,
+    no_vuln_check: bool,
+    check_licenses: bool,
+    filter_status: str,
+    quiet: bool,
+) -> None:
+    """Explain what each dependency does and its health status.
+
+    Generates human-readable explanations for every dependency in
+    your project, including what the package provides, its ecosystem
+    role, alternatives, and actionable risk items.
+
+    PATH is the project directory to explain (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck explain
+    depcheck explain --format markdown
+    depcheck explain --format json
+    depcheck explain --format ai
+    depcheck explain --filter at-risk
+    depcheck explain --filter vulnerable
+    depcheck explain --check-licenses
+    """
+    from depcheck.explain import (
+        ExplainReport,
+        OutputFormat,
+        explain_project,
+        render_explain_ai,
+        render_explain_json,
+        render_explain_markdown,
+        render_explain_plain,
+    )
+    from depcheck.models import HealthStatus
+
+    console = Console(quiet=quiet)
+
+    report = explain_project(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=check_licenses,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Apply filter
+    if filter_status != "all":
+        if filter_status == "at-risk":
+            report.packages = [
+                p for p in report.packages
+                if p.is_vulnerable or p.is_outdated or p.is_unmaintained
+            ]
+        else:
+            status_map = {
+                "vulnerable": HealthStatus.VULNERABLE,
+                "outdated": HealthStatus.OUTDATED,
+                "unmaintained": HealthStatus.UNMAINTAINED,
+            }
+            target_status = status_map.get(filter_status)
+            if target_status:
+                report.packages = [
+                    p for p in report.packages if p.status == target_status
+                ]
+
+    fmt_lower = fmt.lower()
+    if fmt_lower == "json":
+        render_explain_json(report)
+    elif fmt_lower == "markdown":
+        render_explain_markdown(report, console=console)
+    elif fmt_lower == "ai":
+        render_explain_ai(report)
+    else:
+        render_explain_plain(report, console=console)
 
 
 if __name__ == "__main__":
