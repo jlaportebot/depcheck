@@ -11,19 +11,17 @@ Analyzes the download/install size of dependencies and their impact:
 
 from __future__ import annotations
 
-import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import httpx
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
-from depcheck.scanner import discover_dependencies, normalize_package_name
+from depcheck.scanner import discover_dependencies
 
 # Size categories in KB
 SIZE_CATEGORIES = {
@@ -496,7 +494,11 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
         console.print()
         console.print(f"[red]⚠ {len(bloated)} package(s) show growing size trends (bloat):[/red]")
         for p in bloated:
-            alts = f" — alternatives: {', '.join(p.lighter_alternatives)}" if p.lighter_alternatives else ""
+            alts = (
+    f" — alternatives: {', '.join(p.lighter_alternatives)}"
+    if p.lighter_alternatives
+    else ""
+)
             console.print(f"  • {p.name} ({format_size(p.total_size_kb)}){alts}")
 
 

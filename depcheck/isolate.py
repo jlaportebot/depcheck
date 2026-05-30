@@ -12,7 +12,6 @@ the project. Identifies:
 from __future__ import annotations
 
 import ast
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -138,7 +137,6 @@ PACKAGE_TO_IMPORT = {
     "jinja2": "jinja2",
     "werkzeug": "werkzeug",
     "marshmallow": "marshmallow",
-    "celery": "celery",
     "redis": "redis",
     "psycopg2": "psycopg2",
     "pymongo": "pymongo",
@@ -353,7 +351,7 @@ def analyze_isolation(
 
     # Analyze each package
     report = IsolationReport(total_packages=len(dependencies))
-    dep_names = {normalize_package_name(d.name) for d in dependencies}
+    {normalize_package_name(d.name) for d in dependencies}
 
     for dep in dependencies:
         import_name = get_import_name(dep.name)
@@ -483,7 +481,10 @@ def render_isolation_table(report: IsolationReport, console: Console | None = No
         names = " ".join(p.name for p in removable)
         console.print(f"  [dim]$[/dim] pip uninstall {names}")
         console.print()
-        console.print("[dim]Note: Review before removing — some packages may be used at runtime.[/dim]")
+        console.print(
+    "[dim]Note: Review before removing —"
+    " some packages may be used at runtime.[/dim]"
+)
 
 
 def render_isolation_json(report: IsolationReport) -> str:

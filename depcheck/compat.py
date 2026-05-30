@@ -19,12 +19,11 @@ from typing import Any
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress
 from rich.table import Table
 
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
-from depcheck.scanner import discover_dependencies, normalize_package_name
+from depcheck.scanner import discover_dependencies
 
 
 @dataclass
@@ -207,7 +206,7 @@ def check_version_compatibility(
         return True, "No version constraint specified"
 
     target_parts = target_version.split(".")
-    target_tuple = tuple(int(x) for x in target_parts)
+    tuple(int(x) for x in target_parts)
 
     # Check Requires-Python specifier
     if requires_python:
@@ -450,7 +449,13 @@ def render_compat_table(report: CompatReport, console: Console | None = None) ->
 
     summary = f"{py_str}: " + ", ".join(parts)
     score_pct = f"{report.readiness_score * 100:.0f}%"
-    score_color = "green" if report.readiness_score >= 0.9 else "yellow" if report.readiness_score >= 0.7 else "red"
+    score_color = (
+    "green"
+    if report.readiness_score >= 0.9
+    else "yellow"
+    if report.readiness_score >= 0.7
+    else "red"
+)
     summary += f" • Readiness: [{score_color}]{score_pct}[/{score_color}]"
 
     console.print()
@@ -485,7 +490,10 @@ def render_compat_table(report: CompatReport, console: Console | None = None) ->
     breaking = [p for p in report.packages if p.breaking_on_upgrade]
     if breaking:
         console.print()
-        console.print(f"[red bold]⚠ {len(breaking)} package(s) will break on Python {report.target_python}:[/red bold]")
+        console.print(
+    f"[red bold]⚠ {len(breaking)} package(s) will break"
+    f" on Python {report.target_python}:[/red bold]"
+)
         for p in breaking:
             console.print(f"  • {p.name}: {p.upgrade_note}")
 

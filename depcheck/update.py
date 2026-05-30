@@ -12,7 +12,6 @@ Produces a step-by-step update plan with commands and risk annotations.
 
 from __future__ import annotations
 
-import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -361,7 +360,7 @@ def build_update_plan(
         if strategy == UpdateStrategy.REVIEW:
             pre_cmd = f"# Review {changelog or 'changelog'} before updating"
         if is_vulnerable:
-            post_cmd = f"# Verify fix: depcheck scan ."
+            post_cmd = "# Verify fix: depcheck scan ."
 
         step = UpdateStep(
             name=pkg.name,

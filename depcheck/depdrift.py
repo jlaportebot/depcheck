@@ -12,7 +12,6 @@ at different points (e.g., git commits, tags). Detects:
 from __future__ import annotations
 
 import datetime
-import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,8 +23,6 @@ from rich.table import Table
 
 from depcheck.models import ParsedDependency
 from depcheck.scanner import (
-    discover_dependencies,
-    normalize_package_name,
     parse_pyproject_toml,
     parse_requirements_txt,
 )
