@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -1200,6 +1201,402 @@ def graph(
     if not quiet:
         console.print(f"[green]✓ Dependency graph written to {output}[/green]")
         console.print("  Open in a browser to explore the interactive visualization.")
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--strategy",
+    type=click.Choice(["newest", "oldest", "minimum_compatible"], case_sensitive=False),
+    default="newest",
+    help="Resolution strategy for picking versions (default: newest).",
+)
+@click.option(
+    "--format",
+    "lockfile_format",
+    type=click.Choice(["depcheck", "pip", "pipenv", "poetry"], case_sensitive=False),
+    default="depcheck",
+    help="Lockfile output format (default: depcheck).",
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    default=None,
+    type=click.Path(),
+    help="Write lockfile to file instead of stdout.",
+)
+@click.option(
+    "--python-version",
+    default="3.12",
+    help="Python version for compatibility filtering (default: 3.12).",
+)
+@click.option(
+    "--allow-prerelease",
+    is_flag=True,
+    default=False,
+    help="Include pre-release versions in resolution.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output resolution results as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def resolve(
+    path: str,
+    strategy: str,
+    lockfile_format: str,
+    output_path: str | None,
+    python_version: str,
+    allow_prerelease: bool,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Resolve all dependencies into a compatible version set.
+
+    Performs constraint solving across the full dependency graph to find
+    a set of package versions that satisfies all requirements. Generates
+    a lockfile in your preferred format.
+
+    PATH is the project directory to resolve (defaults to current directory).
+
+    Examples:
+
+    \\b
+    depcheck resolve
+    depcheck resolve --strategy oldest
+    depcheck resolve --format pip --output requirements.lock
+    depcheck resolve --format poetry --output poetry.lock
+    depcheck resolve --json
+    depcheck resolve --allow-prerelease
+    """
+    from depcheck.resolve import (
+        LockfileFormat,
+        ResolutionStrategy,
+        generate_lockfile,
+        render_resolve_json,
+        render_resolve_table,
+        resolve_project,
+    )
+
+    console = Console(quiet=quiet)
+
+    strategy_map = {
+        "newest": ResolutionStrategy.NEWEST,
+        "oldest": ResolutionStrategy.OLDEST,
+        "minimum_compatible": ResolutionStrategy.MINIMUM_COMPATIBLE,
+    }
+    format_map = {
+        "depcheck": LockfileFormat.DEPCHECK,
+        "pip": LockfileFormat.PIP,
+        "pipenv": LockfileFormat.PIPENV,
+        "poetry": LockfileFormat.POETRY,
+    }
+
+    if not quiet:
+        console.print("[bold]Resolving dependencies...[/bold]")
+
+    result = resolve_project(
+        project_path=path,
+        strategy=strategy_map[strategy.lower()],
+        python_version=python_version,
+        allow_prerelease=allow_prerelease,
+    )
+
+    if result.errors and not result.resolved:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Output lockfile
+    lockfile_content = generate_lockfile(
+        result,
+        format=format_map[lockfile_format.lower()],
+        project_name=Path(path).resolve().name,
+    )
+
+    if output_path:
+        Path(output_path).write_text(lockfile_content, encoding="utf-8")
+        if not quiet:
+            console.print(f"[green]✓ Lockfile written to {output_path}[/green]")
+            console.print(
+                f"  Resolved {len(result.resolved)} packages, "
+                f"{result.conflict_count} conflicts in "
+                f"{result.resolution_time_ms:.1f}ms"
+            )
+    elif output_json:
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(render_resolve_json(result))
+    else:
+        if not quiet:
+            render_resolve_table(result, console=console)
+
+    # Exit code
+    if result.has_conflicts:
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--policy",
+    type=click.Choice(["exact", "compatible", "minimum"], case_sensitive=False),
+    default="exact",
+    help="Pin policy: exact (==), compatible (~=), or minimum (>=).",
+)
+@click.option(
+    "--no-hashes",
+    is_flag=True,
+    default=False,
+    help="Skip hash verification data in the pinfile.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output pin results as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def pin(
+    path: str,
+    policy: str,
+    no_hashes: bool,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Pin all dependencies to their current versions with integrity metadata.
+
+    Creates a depcheck.pin.json file that records exact versions and
+    optional SHA-256 hashes for every dependency. Use 'depcheck verify'
+    to check integrity against the pinfile later.
+
+    PATH is the project directory to pin (defaults to current directory).
+
+    Examples:
+
+    \\b
+    depcheck pin
+    depcheck pin --policy compatible
+    depcheck pin --no-hashes
+    depcheck pin --json
+    """
+    from depcheck.pin import PinPolicy, render_pin_json, render_pin_table, pin_packages
+
+    console = Console(quiet=quiet)
+
+    policy_map = {
+        "exact": PinPolicy.EXACT,
+        "compatible": PinPolicy.COMPATIBLE,
+        "minimum": PinPolicy.MINIMUM,
+    }
+
+    result = pin_packages(
+        project_path=path,
+        policy=policy_map[policy.lower()],
+        include_hashes=not no_hashes,
+    )
+
+    if output_json:
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(render_pin_json(result))
+    elif not quiet:
+        render_pin_table(result, console=console)
+
+    if result.errors:
+        sys.exit(2)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--no-hash-check",
+    is_flag=True,
+    default=False,
+    help="Skip hash integrity checking.",
+)
+@click.option(
+    "--no-version-check",
+    is_flag=True,
+    default=False,
+    help="Skip version consistency checking.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output integrity report as JSON.",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(["warning", "critical", "any"], case_sensitive=False),
+    default=None,
+    help="Exit with code 1 if issues at the specified severity are found.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def verify(
+    path: str,
+    no_hash_check: bool,
+    no_version_check: bool,
+    output_json: bool,
+    fail_on: str | None,
+    quiet: bool,
+) -> None:
+    """Verify pinned dependency integrity against installed versions.
+
+    Checks that installed packages match their pinned versions, verifies
+    hash integrity, and flags yanked or deprecated packages.
+
+    PATH is the project directory to verify (defaults to current directory).
+
+    Examples:
+
+    \\b
+    depcheck verify
+    depcheck verify --json
+    depcheck verify --fail-on critical
+    depcheck verify --no-hash-check
+    """
+    from depcheck.pin import (
+        Severity,
+        render_integrity_json,
+        render_integrity_table,
+        verify_integrity,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = verify_integrity(
+        project_path=path,
+        check_hashes=not no_hash_check,
+        check_versions=not no_version_check,
+    )
+
+    if report.errors and not report.checks:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(render_integrity_json(report))
+    elif not quiet:
+        render_integrity_table(report, console=console)
+
+    # Exit code
+    if fail_on:
+        severity_map = {
+            "any": Severity.OK,
+            "warning": Severity.WARNING,
+            "critical": Severity.CRITICAL,
+        }
+        threshold = severity_map.get(fail_on.lower(), Severity.CRITICAL)
+        level_order = {Severity.OK: 0, Severity.WARNING: 1, Severity.CRITICAL: 2}
+        if level_order.get(report.overall_severity, 0) >= level_order.get(threshold, 2):
+            if not quiet:
+                console.print(
+                    f"[red]✗ Integrity check failed: {report.overall_severity.value} "
+                    f"issues meet or exceed --fail-on {fail_on} threshold[/red]"
+                )
+            sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output drift report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def drift(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Detect drift between pinned versions and latest available versions.
+
+    Compares your pinfile against the latest versions available on PyPI
+    and reports which packages have drifted, classified by severity
+    (major/minor/patch) and whether they include security updates.
+
+    PATH is the project directory to check for drift (defaults to current directory).
+
+    Examples:
+
+    \\b
+    depcheck drift
+    depcheck drift --json
+    """
+    from depcheck.pin import (
+        detect_pin_drift,
+        render_drift_json,
+        render_drift_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = detect_pin_drift(project_path=path)
+
+    if output_json:
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(render_drift_json(report))
+    elif not quiet:
+        render_drift_table(report, console=console)
+
+    # Exit with code 1 if there are significant drifts
+    if report.significant_drifts:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
