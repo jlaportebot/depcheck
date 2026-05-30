@@ -6,8 +6,6 @@ import json
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.bundle import (
     BundleResult,
     OptimizationRecommendation,
@@ -29,7 +27,6 @@ from depcheck.bundle import (
     run_bundle,
 )
 from depcheck.models import ParsedDependency
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for _human_readable_size

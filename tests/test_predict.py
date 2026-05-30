@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -27,9 +27,7 @@ from depcheck.predict import (
     predict_next_version,
     render_predict_json,
     render_predict_table,
-    run_predict,
 )
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for _parse_release_date
@@ -367,7 +365,9 @@ class TestDetectDeprecationSignals:
 
     def test_signal_high_vulnerability_count(self) -> None:
         pattern = ReleasePattern(package_name="test")
-        signals = detect_deprecation_signals("test", pattern, {"releases": {}}, vulnerabilities_count=5)
+        signals = detect_deprecation_signals(
+            "test", pattern, {"releases": {}}, vulnerabilities_count=5
+        )
         assert signals.high_vulnerability_count
         assert signals.signal_count >= 1
 
@@ -386,12 +386,31 @@ class TestDetectDeprecationSignals:
         pattern = ReleasePattern(
             package_name="test",
             release_history=[
-                ReleaseInfo(version="1.0.0", date=now - datetime.timedelta(days=100), is_yanked=True),
-                ReleaseInfo(version="1.1.0", date=now - datetime.timedelta(days=80), is_yanked=True),
-                ReleaseInfo(version="1.2.0", date=now - datetime.timedelta(days=60)),
-                ReleaseInfo(version="1.3.0", date=now - datetime.timedelta(days=40), is_yanked=True),
+                ReleaseInfo(
+                version="1.0.0",
+                date=now - datetime.timedelta(days=100),
+                is_yanked=True,
+            ),
+                ReleaseInfo(
+                version="1.1.0",
+                date=now - datetime.timedelta(days=80),
+                is_yanked=True,
+            ),
+                ReleaseInfo(
+                version="1.2.0",
+                date=now - datetime.timedelta(days=60),
+            ),
+                ReleaseInfo(
+                version="1.3.0",
+                date=now - datetime.timedelta(days=40),
+                is_yanked=True,
+            ),
                 ReleaseInfo(version="1.4.0", date=now - datetime.timedelta(days=20)),
-                ReleaseInfo(version="1.5.0", date=now - datetime.timedelta(days=10), is_yanked=True),
+                ReleaseInfo(
+                version="1.5.0",
+                date=now - datetime.timedelta(days=10),
+                is_yanked=True,
+            ),
             ],
         )
         signals = detect_deprecation_signals("test", pattern, {"releases": {}})

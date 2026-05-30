@@ -15,56 +15,86 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from depcheck.models import HealthStatus, ParsedDependency
+from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
     discover_dependencies,
     normalize_package_name,
 )
 
-
 # Known lightweight alternatives for common heavy packages
 _LIGHTWEIGHT_ALTERNATIVES: dict[str, list[dict[str, str]]] = {
     "requests": [
-        {"alternative": "httpx", "reason": "Lighter HTTP client with async support", "savings": "~30%"},
-        {"alternative": "urllib3", "reason": "Lower-level, requests depends on it", "savings": "~60%"},
+        {"alternative": "httpx",
+         "reason": "Lighter HTTP client with async support",
+         "savings": "~30%"},
+        {"alternative": "urllib3",
+         "reason": "Lower-level, requests depends on it",
+         "savings": "~60%"},
     ],
     "pandas": [
-        {"alternative": "polars", "reason": "Faster, lower memory DataFrame library", "savings": "~50%"},
-        {"alternative": "duckdb", "reason": "In-process SQL analytics, smaller footprint", "savings": "~70%"},
+        {"alternative": "polars",
+         "reason": "Faster, lower memory DataFrame library",
+         "savings": "~50%"},
+        {"alternative": "duckdb",
+         "reason": "In-process SQL analytics, smaller footprint",
+         "savings": "~70%"},
     ],
     "numpy": [
-        {"alternative": "array", "reason": "Built-in Python array module for simple cases", "savings": "~95%"},
+        {"alternative": "array",
+         "reason": "Built-in Python array module for simple cases",
+         "savings": "~95%"},
     ],
     "scipy": [
-        {"alternative": "numpy", "reason": "If only basic numerical functions needed", "savings": "~80%"},
+        {"alternative": "numpy",
+         "reason": "If only basic numerical functions needed",
+         "savings": "~80%"},
     ],
     "sqlalchemy": [
-        {"alternative": "sqlite3", "reason": "Built-in for simple SQLite usage", "savings": "~90%"},
-        {"alternative": "peewee", "reason": "Lighter ORM with smaller footprint", "savings": "~60%"},
+        {"alternative": "sqlite3",
+         "reason": "Built-in for simple SQLite usage",
+         "savings": "~90%"},
+        {"alternative": "peewee",
+         "reason": "Lighter ORM with smaller footprint",
+         "savings": "~60%"},
     ],
     "django": [
-        {"alternative": "flask", "reason": "Micro-framework if full Django not needed", "savings": "~70%"},
-        {"alternative": "fastapi", "reason": "Async-first, lighter for API-only projects", "savings": "~65%"},
+        {"alternative": "flask",
+         "reason": "Micro-framework if full Django not needed",
+         "savings": "~70%"},
+        {"alternative": "fastapi",
+         "reason": "Async-first, lighter for API-only projects",
+         "savings": "~65%"},
     ],
     "pillow": [
-        {"alternative": "pypng", "reason": "PNG-only, much smaller footprint", "savings": "~80%"},
+        {"alternative": "pypng",
+         "reason": "PNG-only, much smaller footprint",
+         "savings": "~80%"},
     ],
     "matplotlib": [
-        {"alternative": "plotly", "reason": "Interactive plots, smaller base install", "savings": "~30%"},
-        {"alternative": "asciiplotlib", "reason": "ASCII plots for CLI-only output", "savings": "~98%"},
+        {"alternative": "plotly",
+         "reason": "Interactive plots, smaller base install",
+         "savings": "~30%"},
+        {"alternative": "asciiplotlib",
+         "reason": "ASCII plots for CLI-only output",
+         "savings": "~98%"},
     ],
     "pyyaml": [
-        {"alternative": "tomli", "reason": "If YAML not strictly required, TOML is lighter", "savings": "~40%"},
+        {"alternative": "tomli",
+         "reason": "If YAML not strictly required, TOML is lighter",
+         "savings": "~40%"},
     ],
     "lxml": [
-        {"alternative": "xml.etree.ElementTree", "reason": "Built-in XML parser, no C deps", "savings": "~95%"},
+        {"alternative": "xml.etree.ElementTree",
+         "reason": "Built-in XML parser, no C deps",
+         "savings": "~95%"},
     ],
     "boto3": [
-        {"alternative": "httpx + sigv4", "reason": "Direct API calls for limited AWS usage", "savings": "~80%"},
+        {"alternative": "httpx + sigv4",
+         "reason": "Direct API calls for limited AWS usage",
+         "savings": "~80%"},
     ],
 }
 
@@ -575,7 +605,11 @@ def generate_recommendations(
 
     # Recommendations for packages with extras that could reduce install size
     for pkg in packages:
-        if pkg.extras and pkg.size_category in (SizeCategory.LARGE, SizeCategory.VERY_LARGE, SizeCategory.HUGE):
+        if (
+        pkg.extras
+        and pkg.size_category
+        in (SizeCategory.LARGE, SizeCategory.VERY_LARGE, SizeCategory.HUGE)
+    ):
             recommendations.append(
                 OptimizationRecommendation(
                     optimization_type=OptimizationType.SPLIT_EXTRAS,
@@ -663,7 +697,7 @@ def run_bundle(
                 info = pypi_client.get_package_info(dep.name)
                 size_info = analyze_package_size(dep, info)
                 package_sizes.append(size_info)
-            except Exception as exc:
+            except Exception:
                 package_sizes.append(
                     PackageSizeInfo(
                         package_name=dep.name,

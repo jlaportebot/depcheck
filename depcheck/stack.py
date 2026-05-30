@@ -17,11 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from depcheck.licenses import LicenseCategory
-from depcheck.models import HealthStatus, ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
     discover_dependencies,
@@ -77,7 +74,6 @@ _PACKAGE_CATEGORIES: dict[str, StackCategory] = {
     "fastapi": StackCategory.WEB_FRAMEWORK,
     "starlette": StackCategory.WEB_FRAMEWORK,
     "tornado": StackCategory.WEB_FRAMEWORK,
-    "aiohttp": StackCategory.WEB_FRAMEWORK,
     "sanic": StackCategory.WEB_FRAMEWORK,
     "bottle": StackCategory.WEB_FRAMEWORK,
     "pyramid": StackCategory.WEB_FRAMEWORK,
@@ -94,7 +90,6 @@ _PACKAGE_CATEGORIES: dict[str, StackCategory] = {
     "aiosqlite": StackCategory.DATABASE,
     "sqlite3": StackCategory.DATABASE,
     "pymongo": StackCategory.DATABASE,
-    "redis": StackCategory.DATABASE,
     "motor": StackCategory.DATABASE,
     "cassandra-driver": StackCategory.DATABASE,
     # ORM
@@ -135,8 +130,6 @@ _PACKAGE_CATEGORIES: dict[str, StackCategory] = {
     "pylint": StackCategory.LINTING,
     "black": StackCategory.LINTING,
     "isort": StackCategory.LINTING,
-    "mypy": StackCategory.LINTING,
-    "pyright": StackCategory.LINTING,
     "pyflakes": StackCategory.LINTING,
     "pycodestyle": StackCategory.LINTING,
     # Type checking
@@ -172,7 +165,6 @@ _PACKAGE_CATEGORIES: dict[str, StackCategory] = {
     "oauthlib": StackCategory.SECURITY,
     "passlib": StackCategory.SECURITY,
     "bcrypt": StackCategory.SECURITY,
-    "python-dotenv": StackCategory.SECURITY,
     # Logging
     "loguru": StackCategory.LOGGING,
     "structlog": StackCategory.LOGGING,
@@ -234,12 +226,18 @@ _INCOMPATIBILITY_RULES: list[dict[str, Any]] = [
     {
         "packages": ["django", "fastapi"],
         "severity": ConflictSeverity.WARNING,
-        "message": "Django and FastAPI are both web frameworks; consider splitting APIs and web app.",
+        "message": (
+        "Django and FastAPI are both web frameworks; "
+        "consider splitting APIs and web app."
+    ),
     },
     {
         "packages": ["asyncio", "tornado"],
         "severity": ConflictSeverity.WARNING,
-        "message": "Tornado has its own async loop; mixing with asyncio requires careful handling.",
+        "message": (
+        "Tornado has its own async loop; mixing with asyncio "
+        "requires careful handling."
+    ),
     },
     {
         "packages": ["celery", "rq"],
@@ -302,7 +300,10 @@ _INCOMPATIBILITY_RULES: list[dict[str, Any]] = [
 _PYTHON_COMPAT: dict[str, dict[str, tuple[int, int]]] = {
     "django": {"3.2": (3, 8), "4.0": (3, 8), "4.1": (3, 8), "4.2": (3, 8), "5.0": (3, 10)},
     "flask": {"2.0": (3, 7), "2.1": (3, 7), "2.2": (3, 8), "2.3": (3, 8), "3.0": (3, 8)},
-    "fastapi": {"0.100": (3, 8), "0.101": (3, 8), "0.102": (3, 8), "0.103": (3, 8), "0.104": (3, 8)},
+    "fastapi": {
+        "0.100": (3, 8), "0.101": (3, 8), "0.102": (3, 8),
+        "0.103": (3, 8), "0.104": (3, 8),
+    },
     "celery": {"5.2": (3, 7), "5.3": (3, 8), "5.4": (3, 8)},
     "numpy": {"1.24": (3, 8), "1.25": (3, 9), "1.26": (3, 9), "2.0": (3, 9)},
     "pandas": {"1.5": (3, 8), "2.0": (3, 9), "2.1": (3, 9), "2.2": (3, 9)},
@@ -416,7 +417,7 @@ class StackResult:
             "categories": self.categories,
             "conflicts": [c.to_dict() for c in self.conflicts],
             "python_compat": [p.to_dict() for p in self.python_compat],
-            "license_chain": [l.to_dict() for l in self.license_chain],
+            "license_chain": [lic.to_dict() for lic in self.license_chain],
             "detected_files": self.detected_files,
             "stack_summary": self.stack_summary,
             "errors": self.errors,
@@ -440,7 +441,9 @@ def _detect_project_type(project_path: Path) -> str:
         indicators.append("celery")
     if (project_path / "Dockerfile").exists():
         indicators.append("containerized")
-    if (project_path / "docker-compose.yml").exists() or (project_path / "docker-compose.yaml").exists():
+    if (project_path / "docker-compose.yml").exists() or (
+    (project_path / "docker-compose.yaml").exists()
+):
         indicators.append("containerized")
     if (project_path / ".github").is_dir():
         indicators.append("github-ci")
@@ -705,7 +708,10 @@ def check_license_chain(
         for entry in entries:
             if not entry.license_id or entry.license_id == "UNKNOWN":
                 continue
-            if entry.license_id not in copyleft_ids and entry.category not in ("copyleft", "COPYLEFT"):
+            if (
+    entry.license_id not in copyleft_ids
+    and entry.category not in ("copyleft", "COPYLEFT")
+):
                 entry.conflict_with = copyleft_packages
                 entry.note = (
                     f"Permissive license may be incompatible with copyleft: "
@@ -965,7 +971,7 @@ def render_stack_table(result: StackResult, console: Console | None = None) -> N
 
     # License chain
     if result.license_chain:
-        copyleft = [l for l in result.license_chain if l.conflict_with]
+        copyleft = [lic for lic in result.license_chain if lic.conflict_with]
         if copyleft:
             console.print()
             console.print("[bold yellow]⚠ License Chain Issues[/bold yellow]")

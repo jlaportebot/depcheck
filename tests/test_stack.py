@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 from io import StringIO
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from depcheck.stack import (
     ConflictSeverity,
@@ -27,7 +25,6 @@ from depcheck.stack import (
     render_stack_table,
     run_stack,
 )
-
 
 # ---------------------------------------------------------------------------
 # Unit tests for classify_package
@@ -127,7 +124,10 @@ class TestDetectConflicts:
     def test_no_self_conflict(self) -> None:
         # Single package in a rule shouldn't trigger
         conflicts = detect_conflicts(["django"])
-        django_conflicts = [c for c in conflicts if "django" in c.packages and "flask" in c.packages]
+        django_conflicts = [
+    c for c in conflicts
+    if "django" in c.packages and "flask" in c.packages
+]
         assert len(django_conflicts) == 0
 
     def test_multiple_conflicts(self) -> None:
@@ -233,7 +233,6 @@ class TestDetectProjectType:
     """Tests for _detect_project_type."""
 
     def test_django_project(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         (project / "manage.py").write_text("# django")
@@ -241,7 +240,6 @@ class TestDetectProjectType:
         assert "django" in result
 
     def test_containerized_project(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         (project / "Dockerfile").write_text("FROM python:3.11")
@@ -249,7 +247,6 @@ class TestDetectProjectType:
         assert "containerized" in result
 
     def test_plain_project(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         result = _detect_project_type(project)
@@ -265,7 +262,6 @@ class TestDetectProjectFiles:
     """Tests for _detect_project_files."""
 
     def test_common_files(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         (project / "pyproject.toml").write_text("[project]")
@@ -278,7 +274,6 @@ class TestDetectProjectFiles:
         assert "Dockerfile" in files
 
     def test_no_notable_files(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         files = _detect_project_files(project)
@@ -294,7 +289,6 @@ class TestDetectPythonVersion:
     """Tests for _detect_python_version."""
 
     def test_from_pyproject_toml(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         (project / "pyproject.toml").write_text(
@@ -304,7 +298,6 @@ class TestDetectPythonVersion:
         assert version == "3.10"
 
     def test_from_poetry(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         (project / "pyproject.toml").write_text(
@@ -314,7 +307,6 @@ class TestDetectPythonVersion:
         assert version == "3.9"
 
     def test_fallback_to_runtime(self, tmp_path: object) -> None:
-        from pathlib import Path
 
         project = tmp_path  # type: ignore
         import sys
@@ -516,7 +508,6 @@ class TestRunStackMocked:
     """Tests for run_stack with mocked dependencies."""
 
     def test_basic_stack_analysis(self) -> None:
-        from pathlib import Path
 
         from depcheck.models import ParsedDependency
 

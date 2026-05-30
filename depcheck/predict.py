@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from packaging.version import Version
+from rich.console import Console
+from rich.table import Table
 
 from depcheck.models import HealthStatus, ParsedDependency
 from depcheck.osv import OSVClient
@@ -23,7 +25,6 @@ from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
     check_package_health,
     discover_dependencies,
-    normalize_package_name,
 )
 
 
@@ -442,7 +443,10 @@ def predict_next_version(
         return prediction
 
     # Estimate time to next release based on cadence
-    if release_pattern.median_days_between_releases and release_pattern.median_days_between_releases > 0:
+    if (
+        release_pattern.median_days_between_releases
+        and release_pattern.median_days_between_releases > 0
+    ):
         prediction.estimated_days_to_next = release_pattern.median_days_between_releases
 
     # Confidence based on number of stable releases and regularity
@@ -497,7 +501,10 @@ def detect_deprecation_signals(
     details: list[str] = []
 
     # Signal: No releases for over 365 days
-    if release_pattern.days_since_last_release is not None and release_pattern.days_since_last_release > 365:
+    if (
+        release_pattern.days_since_last_release is not None
+        and release_pattern.days_since_last_release > 365
+    ):
         signals.no_releases_over_365d = True
         details.append(
             f"No releases in {release_pattern.days_since_last_release} days (>365 threshold)"
@@ -581,7 +588,8 @@ def detect_deprecation_signals(
     ):
         signals.no_maintainer_response = True
         details.append(
-            f"No maintainer activity in {release_pattern.days_since_last_release} days (>730 threshold)"
+            f"No maintainer activity in {release_pattern.days_since_last_release}"
+        f" days (>730 threshold)"
         )
 
     signals.signal_count = sum(
@@ -852,12 +860,8 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
         result: The predict analysis result.
         console: Rich console instance.
     """
-    from rich.console import Console as RichConsole
-    from rich.panel import Panel
-    from rich.table import Table
-
     if console is None:
-        console = RichConsole()
+        console = Console()
 
     # Header
     console.print()
@@ -906,7 +910,7 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
     pkg_table.add_column("Signals", justify="right", max_width=7)
     pkg_table.add_column("Next Version (est.)", max_width=20)
 
-    _STATUS_STYLES: dict[HealthStatus, tuple[str, str]] = {
+    _status_styles: dict[HealthStatus, tuple[str, str]] = {
         HealthStatus.HEALTHY: ("✓", "green"),
         HealthStatus.OUTDATED: ("↑", "yellow"),
         HealthStatus.VULNERABLE: ("!", "red bold"),
@@ -918,7 +922,7 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
 
     for pred in result.packages:
         # Health status
-        icon, color = _STATUS_STYLES.get(pred.health_status, ("?", "white"))
+        icon, color = _status_styles.get(pred.health_status, ("?", "white"))
         health_str = f"[{color}]{icon}[/{color}]"
 
         # Cadence
@@ -933,7 +937,11 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
         risk_str = f"[{risk_color}]{risk_icon} {pred.deprecation_risk.value}[/{risk_color}]"
 
         # Signals count
-        signals_count = str(pred.deprecation_signals.signal_count) if pred.deprecation_signals else "0"
+        signals_count = (
+        str(pred.deprecation_signals.signal_count)
+        if pred.deprecation_signals
+        else "0"
+    )
 
         # Next version estimate
         next_ver = "—"
@@ -978,9 +986,7 @@ def render_predict_json(result: PredictResult, console: Console | None = None) -
         result: The predict analysis result.
         console: Rich console instance.
     """
-    from rich.console import Console as RichConsole
-
     if console is None:
-        console = RichConsole(force_terminal=False, no_color=True)
+        console = Console(force_terminal=False, no_color=True)
 
     console.print(json.dumps(result.to_dict(), indent=2))
