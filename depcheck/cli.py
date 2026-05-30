@@ -1202,5 +1202,320 @@ def graph(
         console.print("  Open in a browser to explore the interactive visualization.")
 
 
+@main.command()
+@click.argument(
+    "target_package",
+    required=True,
+)
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output dependency chain analysis as JSON.",
+)
+@click.option(
+    "--max-depth",
+    type=int,
+    default=4,
+    help="Maximum depth to resolve the dependency graph (default: 4).",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster resolution).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def why(
+    target_package: str,
+    path: str,
+    output_json: bool,
+    max_depth: int,
+    no_vuln_check: bool,
+    quiet: bool,
+) -> None:
+    """Trace why a transitive dependency exists in your project.
+
+    Resolves the full dependency graph and finds all paths from your
+    direct dependencies to the target package. Shows health status
+    at each link in the chain.
+
+    TARGET_PACKAGE is the package to trace dependency chains for.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck why requests
+    depcheck why urllib3 /path/to/project
+    depcheck why --json numpy
+    depcheck why --max-depth 6 pydantic
+    """
+    from depcheck.why import render_why_json, render_why_table, resolve_why
+
+    console = Console(quiet=quiet)
+
+    result = resolve_why(
+        project_path=path,
+        target_package=target_package,
+        max_depth=max_depth,
+        check_vulnerabilities=not no_vuln_check,
+    )
+
+    if output_json:
+        render_why_json(result)
+    elif not quiet:
+        render_why_table(result, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output predictions as JSON.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster analysis).",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(
+        ["moderate", "high", "critical"],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Exit with code 1 if deprecation risk meets threshold.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def predict(
+    path: str,
+    output_json: bool,
+    no_vuln_check: bool,
+    fail_on: str | None,
+    quiet: bool,
+) -> None:
+    """Predict version releases and detect deprecation risk for dependencies.
+
+    Analyzes package release history to predict next version numbers,
+    estimate release cadence, detect deprecation signals, and calculate
+    a comprehensive deprecation risk score for each dependency.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck predict
+    depcheck predict --json
+    depcheck predict --fail-on high
+    depcheck predict /path/to/project
+    """
+    from depcheck.predict import (
+        DeprecationRiskLevel,
+        render_predict_json,
+        render_predict_table,
+        run_predict,
+    )
+
+    console = Console(quiet=quiet)
+
+    result = run_predict(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+    )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_predict_json(result)
+    elif not quiet:
+        render_predict_table(result, console=console)
+
+    if fail_on:
+        threshold_map = {
+            "moderate": DeprecationRiskLevel.MODERATE,
+            "high": DeprecationRiskLevel.HIGH,
+            "critical": DeprecationRiskLevel.CRITICAL,
+        }
+        threshold = threshold_map.get(fail_on.lower(), DeprecationRiskLevel.CRITICAL)
+        level_order = {
+            DeprecationRiskLevel.LOW: 0,
+            DeprecationRiskLevel.MODERATE: 1,
+            DeprecationRiskLevel.HIGH: 2,
+            DeprecationRiskLevel.CRITICAL: 3,
+        }
+        if level_order.get(result.overall_deprecation_risk, 0) >= level_order.get(
+            threshold, 3
+        ):
+            if not quiet:
+                console.print(
+                    f"[red]✗ Predict failed: deprecation risk "
+                    f"{result.overall_deprecation_risk.value} "
+                    f"meets or exceeds --fail-on {fail_on} threshold[/red]"
+                )
+            sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output bundle analysis as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def bundle(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Analyze dependency bundle size and detect optimization opportunities.
+
+    Checks the install size of each dependency, identifies bloat, detects
+    redundant packages, suggests lighter alternatives, and provides
+    optimization recommendations for reducing your dependency footprint.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck bundle
+    depcheck bundle --json
+    depcheck bundle /path/to/project
+    """
+    from depcheck.bundle import render_bundle_json, render_bundle_table, run_bundle
+
+    console = Console(quiet=quiet)
+
+    result = run_bundle(project_path=path)
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_bundle_json(result)
+    elif not quiet:
+        render_bundle_table(result, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output stack analysis as JSON.",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Include license chain compatibility analysis.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def stack(
+    path: str,
+    output_json: bool,
+    check_licenses: bool,
+    quiet: bool,
+) -> None:
+    """Analyze your project's tech stack and detect conflicts.
+
+    Automatically detects the technology stack by analyzing dependencies
+    and configuration files. Checks for version conflicts, known
+    incompatibilities between packages, and optionally checks license
+    chain compliance across your dependency tree.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck stack
+    depcheck stack --json
+    depcheck stack --check-licenses
+    depcheck stack /path/to/project
+    """
+    from depcheck.stack import render_stack_json, render_stack_table, run_stack
+
+    console = Console(quiet=quiet)
+
+    result = run_stack(
+        project_path=path,
+        check_licenses=check_licenses,
+    )
+
+    if result.errors and not result.components:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_stack_json(result)
+    elif not quiet:
+        render_stack_table(result, console=console)
+
+    # Exit with error if there are critical conflicts
+    has_critical = any(
+        c.severity.value == "critical" for c in result.conflicts
+    )
+    if has_critical:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
