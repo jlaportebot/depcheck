@@ -26,13 +26,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
-from depcheck.scanner import normalize_package_name
 
 # Re-export from repomap for node model
-from depcheck.repomap import DependencyNode, RepoMap, build_repomap
-
+from depcheck.repomap import RepoMap, build_repomap
+from depcheck.scanner import normalize_package_name
 
 # ── Data Models ──────────────────────────────────────────────────────────
 
@@ -284,13 +282,13 @@ def _classify_conflict(
     """
     if not compatible_versions:
         # No version satisfies all constraints — hard conflict
-        specifiers = [c.specifier for c in constraints if c.specifier]
+        [c.specifier for c in constraints if c.specifier]
         constraint_strs = [
             f"  {c.package} requires {c.target}{c.specifier}" for c in constraints
         ]
         return (
             ConflictSeverity.HARD,
-            f"No compatible version found. Conflicting specifiers:\n"
+            "No compatible version found. Conflicting specifiers:\n"
             + "\n".join(constraint_strs),
         )
 
@@ -449,7 +447,13 @@ def render_conflict_table(report: ConflictReport, console: Console | None = None
         console = Console()
 
     # Summary panel
-    severity_color = "red" if report.hard_conflict_count > 0 else "yellow" if report.soft_conflict_count > 0 else "green"
+    severity_color = (
+    "red"
+    if report.hard_conflict_count > 0
+    else "yellow"
+    if report.soft_conflict_count > 0
+    else "green"
+)
     summary = (
         f"[bold]Packages Analyzed:[/bold] {report.total_packages_analyzed}  "
         f"[bold]Constraints:[/bold] {report.total_constraints}  "

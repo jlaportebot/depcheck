@@ -24,13 +24,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import httpx
-from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
@@ -40,7 +37,6 @@ from depcheck.scanner import (
     parse_pyproject_toml,
     parse_requirements_txt,
 )
-
 
 # ── Enums & Constants ────────────────────────────────────────────────────
 
@@ -483,7 +479,7 @@ def generate_constraints_file(report: PinReport) -> str:
     lines = [
         "# depcheck-generated constraints file",
         f"# Project: {report.project_path}",
-        f"# Generated with depcheck pinpoint --generate-constraints",
+        "# Generated with depcheck pinpoint --generate-constraints",
         "",
     ]
 
@@ -519,7 +515,13 @@ def render_pin_table(report: PinReport, console: Console | None = None) -> None:
         console = Console()
 
     # Health score panel
-    score_color = "green" if report.health_score >= 80 else "yellow" if report.health_score >= 60 else "red"
+    score_color = (
+    "green"
+    if report.health_score >= 80
+    else "yellow"
+    if report.health_score >= 60
+    else "red"
+)
     summary = (
         f"[bold]Dependencies:[/bold] {report.total_dependencies}  "
         f"[bold]Pinned:[/bold] {report.pinned_count} ({report.pin_coverage:.0f}%)  "

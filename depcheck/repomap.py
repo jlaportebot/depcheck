@@ -24,7 +24,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.tree import Tree
 
-from depcheck.models import ParsedDependency, ScanResult
+from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
     normalize_package_name,
@@ -32,7 +32,6 @@ from depcheck.scanner import (
     parse_pyproject_toml,
     parse_requirements_txt,
 )
-
 
 # ── Data Models ──────────────────────────────────────────────────────────
 
@@ -484,14 +483,14 @@ def render_repomap_table(repo_map: RepoMap, console: Console | None = None) -> N
     # Critical packages
     if repo_map.critical_packages:
         console.print(
-            f"\n[bold red]⚠ Critical packages (most depended-upon):[/bold red] "
+            "\n[bold red]⚠ Critical packages (most depended-upon):[/bold red] "
             + ", ".join(repo_map.critical_packages)
         )
 
     # Orphan packages
     if repo_map.orphan_packages:
         console.print(
-            f"[dim]⚪ Orphan packages (no reverse deps):[/dim] "
+            "[dim]⚪ Orphan packages (no reverse deps):[/dim] "
             + ", ".join(repo_map.orphan_packages[:20])
         )
 
@@ -614,19 +613,19 @@ def render_impact_table(impact: ImpactReport, console: Console | None = None) ->
 
     if impact.removed_directly:
         console.print(
-            f"  [red]✗ Directly removed:[/red] "
+            "  [red]✗ Directly removed:[/red] "
             + ", ".join(impact.removed_directly)
         )
 
     if impact.removed_transitively:
         console.print(
-            f"  [red]✗ Transitively removed:[/red] "
+            "  [red]✗ Transitively removed:[/red] "
             + ", ".join(impact.removed_transitively)
         )
 
     if impact.affected_packages:
         console.print(
-            f"  [yellow]⚠ Affected (orphaned):[/yellow] "
+            "  [yellow]⚠ Affected (orphaned):[/yellow] "
             + ", ".join(impact.affected_packages)
         )
 
