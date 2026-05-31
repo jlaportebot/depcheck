@@ -33,7 +33,6 @@ from depcheck.history import (
 )
 from depcheck.models import HealthStatus, PackageReport, ScanResult
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -412,7 +411,9 @@ class TestClassifyMaintenance:
 
     def test_stable(self) -> None:
         # days_since_last=150, avg_interval=200 => within 180 days, avg_interval > 90
-        assert classify_maintenance(days_since_last=150, avg_interval=200) == MaintenanceLevel.STABLE
+        assert (
+            classify_maintenance(days_since_last=150, avg_interval=200) == MaintenanceLevel.STABLE
+        )
 
     def test_slow(self) -> None:
         # days_since_last=300, avg_interval=100 => within 365, avg_interval <= 180
@@ -426,7 +427,12 @@ class TestClassifyMaintenance:
         assert classify_maintenance(days_since_last=500, avg_interval=100) == MaintenanceLevel.STALE
 
     def test_abandoned(self) -> None:
-        assert classify_maintenance(days_since_last=800, avg_interval=200) == MaintenanceLevel.ABANDONED
+        assert (
+            classify_maintenance(
+                days_since_last=800, avg_interval=200
+            )
+            == MaintenanceLevel.ABANDONED
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -728,7 +734,9 @@ class TestBuildHistoryReport:
 
     @patch("depcheck.history.PyPIClient")
     @patch("depcheck.history.scan_project")
-    def test_basic_report(self, mock_scan: MagicMock, mock_pypi_cls: MagicMock, tmp_path: Path) -> None:
+    def test_basic_report(
+        self, mock_scan: MagicMock, mock_pypi_cls: MagicMock, tmp_path: Path
+    ) -> None:
         mock_scan.return_value = ScanResult(
             packages=[
                 PackageReport(

@@ -17,15 +17,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import scan_project
-
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -300,7 +298,9 @@ def classify_maintenance(days_since_last: int, avg_interval: float) -> Maintenan
     return MaintenanceLevel.ABANDONED
 
 
-def classify_risk(days_since_last: int, version_gap: int, maintenance: MaintenanceLevel) -> RiskLevel:
+def classify_risk(
+    days_since_last: int, version_gap: int, maintenance: MaintenanceLevel
+) -> RiskLevel:
     """Classify risk level based on multiple factors."""
     if maintenance == MaintenanceLevel.ABANDONED:
         return RiskLevel.CRITICAL
@@ -333,7 +333,9 @@ def classify_cadence_trend(intervals: list[float]) -> CadenceTrend:
 
     mid = len(intervals) // 2
     first_half_avg = sum(intervals[:mid]) / mid if mid > 0 else 0
-    second_half_avg = sum(intervals[mid:]) / (len(intervals) - mid) if (len(intervals) - mid) > 0 else 0
+    second_half_avg = (
+        sum(intervals[mid:]) / (len(intervals) - mid) if (len(intervals) - mid) > 0 else 0
+    )
 
     if first_half_avg == 0 and second_half_avg == 0:
         return CadenceTrend.INSUFFICIENT_DATA
@@ -607,7 +609,9 @@ def build_history_report(
                 upload_time_str = files[0].get("upload_time_iso") or files[0].get("upload_time")
                 if upload_time_str:
                     try:
-                        release_date = datetime.fromisoformat(upload_time_str.replace("Z", "+00:00"))
+                        release_date = datetime.fromisoformat(
+                    upload_time_str.replace("Z", "+00:00")
+                )
                     except (ValueError, AttributeError):
                         continue
                 else:

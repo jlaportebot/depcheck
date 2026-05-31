@@ -828,8 +828,7 @@ class TestSuggestCLI:
         from click.testing import CliRunner
 
         from depcheck.cli import main
-
-        from depcheck.suggest import SuggestResult, PackageSuggestion
+        from depcheck.suggest import PackageSuggestion, SuggestResult
 
         mock_suggest.return_value = SuggestResult(
             project_path=str(tmp_path),
@@ -857,8 +856,7 @@ class TestSuggestCLI:
         from click.testing import CliRunner
 
         from depcheck.cli import main
-
-        from depcheck.suggest import SuggestResult, PackageSuggestion
+        from depcheck.suggest import PackageSuggestion, SuggestResult
 
         mock_suggest.return_value = SuggestResult(
             project_path=str(tmp_path),
