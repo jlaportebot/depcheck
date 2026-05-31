@@ -16,9 +16,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from packaging.version import Version, InvalidVersion
 from packaging.specifiers import SpecifierSet
-
+from packaging.version import InvalidVersion, Version
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -418,7 +417,9 @@ def pin_packages(
 
             if include_hashes:
                 try:
-                    pinned_pkg.hash_sha256 = _fetch_hash(pkg_report.name, pkg_report.installed_version)
+                    pinned_pkg.hash_sha256 = _fetch_hash(
+                pkg_report.name, pkg_report.installed_version
+            )
                 except Exception:
                     pass
 
@@ -508,7 +509,6 @@ def update_pins(
 
         latest = latest_versions.get(norm)
         if latest and latest != pinned_pkg.version:
-            old_version = pinned_pkg.version
             pinned_pkg.version = latest
             pinned_pkg.pinned_at = _timestamp()
             if policy:
@@ -610,8 +610,13 @@ def _check_package_integrity(
             pinned_version=pinned_pkg.version,
             status=IntegrityStatus.MISSING,
             severity=Severity.CRITICAL,
-            message=f"Package '{pinned_pkg.name}' is pinned but not installed",
-            fix_suggestion=f"Install the package: pip install {pinned_pkg.name}=={pinned_pkg.version}",
+        message=(
+            f"Package '{pinned_pkg.name}' is pinned but not installed"
+        ),
+        fix_suggestion=(
+            f"Install the package: pip install {pinned_pkg.name}"
+            f"=={pinned_pkg.version}"
+        ),
         )
 
     # Version check
@@ -624,8 +629,14 @@ def _check_package_integrity(
                 pinned_version=pinned_pkg.version,
                 status=IntegrityStatus.VERSION_MISMATCH,
                 severity=Severity.CRITICAL,
-                message=f"Version mismatch: installed {installed_version} != pinned {pinned_pkg.version}",
-                fix_suggestion=f"Reinstall: pip install {pinned_pkg.name}=={pinned_pkg.version}",
+        message=(
+            f"Version mismatch: installed {installed_version}"
+            f" != pinned {pinned_pkg.version}"
+        ),
+        fix_suggestion=(
+            f"Reinstall: pip install {pinned_pkg.name}"
+            f"=={pinned_pkg.version}"
+        ),
             )
 
     # Yanked check
@@ -636,8 +647,14 @@ def _check_package_integrity(
             pinned_version=pinned_pkg.version,
             status=IntegrityStatus.YANKED,
             severity=Severity.CRITICAL,
-            message=f"Pinned version {pinned_pkg.version} has been yanked: {pinned_pkg.yanked_reason}",
-            fix_suggestion=f"Update to a non-yanked version: depcheck pin --update {pinned_pkg.name}",
+        message=(
+            f"Pinned version {pinned_pkg.version} has been"
+            f" yanked: {pinned_pkg.yanked_reason}"
+        ),
+        fix_suggestion=(
+            "Update to a non-yanked version:"
+            f" depcheck pin --update {pinned_pkg.name}"
+        ),
         )
 
     # Deprecated check
@@ -994,11 +1011,14 @@ def render_integrity_table(report: IntegrityReport, *, console: Any = None) -> N
 
     console.print(f"\n[bold]Integrity Verification: {report.project_path}[/bold]")
     overall = report.overall_severity
-    console.print(f"Overall: [{severity_colors[overall]}]{overall.value}[/{severity_colors[overall]}] | "
-                  f"Valid: [green]{report.valid_count}[/green] | "
-                  f"Mismatches: [red]{report.mismatch_count}[/red] | "
-                  f"Missing: [yellow]{report.missing_count}[/yellow] | "
-                  f"Yanked: [orange1]{report.yanked_count}[/orange1]")
+    console.print(
+        f"Overall: [{severity_colors[overall]}]{overall.value}"
+        f"[/{severity_colors[overall]}] | "
+        f"Valid: [green]{report.valid_count}[/green] | "
+        f"Mismatches: [red]{report.mismatch_count}[/red] | "
+        f"Missing: [yellow]{report.missing_count}[/yellow] | "
+        f"Yanked: [orange1]{report.yanked_count}[/orange1]"
+    )
 
     if report.checks:
         table = Table(title="Integrity Checks", show_lines=True)
@@ -1029,9 +1049,12 @@ def render_drift_table(report: PinDriftReport, *, console: Any = None) -> None:
     if console is None:
         console = Console()
 
-    console.print(f"\n[bold]Pin Drift Report[/bold]")
-    console.print(f"Total pinned: {report.total_pinned} | Up to date: [green]{report.up_to_date_count}[/green] | "
-                  f"Drifted: [yellow]{len(report.drifts)}[/yellow]")
+    console.print("\n[bold]Pin Drift Report[/bold]")
+    console.print(
+        f"Total pinned: {report.total_pinned} |"
+        f" Up to date: [green]{report.up_to_date_count}[/green] |"
+        f" Drifted: [yellow]{len(report.drifts)}[/yellow]"
+    )
 
     if report.drifts:
         drift_colors = {"major": "red", "minor": "yellow", "patch": "dim"}

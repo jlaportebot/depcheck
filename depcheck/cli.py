@@ -1404,7 +1404,7 @@ def pin(
     depcheck pin --no-hashes
     depcheck pin --json
     """
-    from depcheck.pin import PinPolicy, render_pin_json, render_pin_table, pin_packages
+    from depcheck.pin import PinPolicy, pin_packages, render_pin_json, render_pin_table
 
     console = Console(quiet=quiet)
 
