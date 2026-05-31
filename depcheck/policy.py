@@ -19,12 +19,11 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
-from depcheck.scanner import scan_project, discover_dependencies
-from depcheck.pypi import PyPIClient
+from depcheck.models import HealthStatus, PackageReport
+from depcheck.scanner import scan_project
 
 # Package name regex (PEP 503)
 _PKG_RE = re.compile(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)")
@@ -155,7 +154,7 @@ class PolicyReport:
         """
         if self.total_packages == 0:
             return 100.0
-        failing_pkgs = len(set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR))
+        failing_pkgs = len(set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR))  # noqa: E501
         return round((1 - failing_pkgs / self.total_packages) * 100, 1)
 
     def to_dict(self) -> dict[str, Any]:
@@ -286,7 +285,7 @@ class PolicyConfig:
                         name="maintenance-policy",
                         category=RuleCategory.MAINTENANCE,
                         severity=RuleSeverity(maint_config.get("severity", "warning")),
-                        description=f"Dependencies must have been updated in the last {min_days} days",
+                        description=f"Dependencies must have been updated in the last {min_days} days",  # noqa: E501
                         min_maintained_days=min_days,
                     )
                 )
@@ -554,7 +553,7 @@ def _evaluate_vulnerability_rule(
                 version=pkg.installed_version,
                 severity=rule.severity,
                 category=rule.category,
-                message=f"Vulnerability {vuln.vuln_id} ({vuln.severity}) at or above threshold {rule.max_severity}",
+                message=f"Vulnerability {vuln.vuln_id} ({vuln.severity}) at or above threshold {rule.max_severity}",  # noqa: E501
                 remediation=f"Update {pkg.name} to a patched version",
             )
 
@@ -575,7 +574,7 @@ def _evaluate_maintenance_rule(
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message=f"Package appears unmaintained",
+            message="Package appears unmaintained",
             remediation=f"Consider replacing {pkg.name} with an actively-maintained alternative",
         )
 
@@ -593,7 +592,7 @@ def _evaluate_maintenance_rule(
                     version=pkg.installed_version,
                     severity=rule.severity,
                     category=rule.category,
-                    message=f"Last release {days_since} days ago (policy: {rule.min_maintained_days})",
+                    message=f"Last release {days_since} days ago (policy: {rule.min_maintained_days})",  # noqa: E501
                     remediation=f"Find an alternative to {pkg.name} or verify maintenance",
                 )
         except (ValueError, TypeError):
@@ -613,7 +612,7 @@ def _evaluate_package_rule(
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message=f"Package is on the deny list",
+            message="Package is on the deny list",
             remediation=f"Remove {pkg.name} from your dependencies",
         )
 
@@ -624,7 +623,7 @@ def _evaluate_package_rule(
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message=f"Package not on the allow list",
+            message="Package not on the allow list",
             remediation=f"Remove {pkg.name} or add it to the allow list",
         )
 
@@ -783,7 +782,7 @@ def render_policy_table(report: PolicyReport, console: Console | None = None) ->
         f"Status: {status}\n"
         f"Compliance Score: [bold]{report.compliance_score}%[/bold]\n"
         f"Total packages: {report.total_packages}\n"
-        f"Errors: {report.error_count}  Warnings: {report.warning_count}  Info: {report.info_count}\n"
+        f"Errors: {report.error_count}  Warnings: {report.warning_count}  Info: {report.info_count}\n"  # noqa: E501
         f"Pass: {report.pass_count}  Fail: {report.fail_count}\n"
         f"Active rules: {len(report.rules)}"
     )

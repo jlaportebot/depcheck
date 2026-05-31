@@ -2291,7 +2291,6 @@ def advisories(
         render_advisories_json,
         render_advisories_table,
         run_advisories,
-        search_advisories,
     )
 
     console = Console(quiet=quiet)
@@ -2398,7 +2397,6 @@ def policy(
     depcheck policy --no-vulns
     """
     from depcheck.policy import (
-        PolicyConfig,
         evaluate_policy,
         render_policy_json,
         render_policy_table,

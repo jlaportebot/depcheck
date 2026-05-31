@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import json
-import sys
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -89,8 +86,8 @@ class TestRiskEntry:
     def test_severity_rank(self):
         from depcheck.risks import RiskEntry, RiskSeverity
 
-        critical = RiskEntry(package="x", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL)
-        minimal = RiskEntry(package="y", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL)
+        critical = RiskEntry(package="x", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL)  # noqa: E501
+        minimal = RiskEntry(package="y", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL)  # noqa: E501
         assert critical.severity_rank > minimal.severity_rank
 
     def test_to_dict(self):
@@ -119,11 +116,11 @@ class TestRiskReport:
         assert report.priority_remediations == []
 
     def test_at_risk_packages(self):
-        from depcheck.risks import RiskEntry, RiskReport, RiskSeverity, RemediationAction
+        from depcheck.risks import RemediationAction, RiskEntry, RiskReport, RiskSeverity
 
         entries = [
-            RiskEntry(package="safe", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL),
-            RiskEntry(package="risky", version="1.0", composite_score=0.7, severity=RiskSeverity.HIGH,
+            RiskEntry(package="safe", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL),  # noqa: E501
+            RiskEntry(package="risky", version="1.0", composite_score=0.7, severity=RiskSeverity.HIGH,  # noqa: E501
                        remediation=RemediationAction.UPDATE),
         ]
         report = RiskReport(project_path="/test", entries=entries)
@@ -131,14 +128,14 @@ class TestRiskReport:
         assert report.at_risk_packages[0].package == "risky"
 
     def test_priority_remediations(self):
-        from depcheck.risks import RiskEntry, RiskReport, RiskSeverity, RemediationAction
+        from depcheck.risks import RemediationAction, RiskEntry, RiskReport, RiskSeverity
 
         entries = [
-            RiskEntry(package="ok", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL,
+            RiskEntry(package="ok", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL,  # noqa: E501
                        remediation=RemediationAction.NONE),
-            RiskEntry(package="needs-update", version="1.0", composite_score=0.7, severity=RiskSeverity.HIGH,
+            RiskEntry(package="needs-update", version="1.0", composite_score=0.7, severity=RiskSeverity.HIGH,  # noqa: E501
                        remediation=RemediationAction.UPDATE),
-            RiskEntry(package="needs-replace", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL,
+            RiskEntry(package="needs-replace", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL,  # noqa: E501
                        remediation=RemediationAction.REPLACE),
         ]
         report = RiskReport(project_path="/test", entries=entries)
@@ -194,7 +191,7 @@ class TestScoreVulnerability:
 
     def test_no_vulnerabilities(self):
         from depcheck.models import PackageReport
-        from depcheck.risks import _score_vulnerability, RiskDimension
+        from depcheck.risks import RiskDimension, _score_vulnerability
 
         pkg = PackageReport(name="safe-pkg", installed_version="1.0.0")
         ds = _score_vulnerability(pkg)
@@ -203,7 +200,7 @@ class TestScoreVulnerability:
 
     def test_with_critical_vuln(self):
         from depcheck.models import PackageReport, Vulnerability
-        from depcheck.risks import _score_vulnerability, RiskDimension
+        from depcheck.risks import RiskDimension, _score_vulnerability
 
         pkg = PackageReport(
             name="vuln-pkg",
@@ -368,7 +365,7 @@ class TestAssessRisks:
              patch("depcheck.risks.scan_project") as mock_scan:
             mock_scan.return_value = ScanResult(
                 project_path=tmpdir,
-                packages=[PackageReport(name="p", installed_version="1.0", status=HealthStatus.HEALTHY)],
+                packages=[PackageReport(name="p", installed_version="1.0", status=HealthStatus.HEALTHY)],  # noqa: E501
                 errors=[],
             )
             custom_weights = {
@@ -439,7 +436,7 @@ class TestAdvisoryEntry:
     """Tests for AdvisoryEntry data model."""
 
     def test_basic_entry(self):
-        from depcheck.advisories import AdvisoryEntry, AdvisorySource, AdvisoryStatus
+        from depcheck.advisories import AdvisoryEntry, AdvisorySource
 
         entry = AdvisoryEntry(
             advisory_id="CVE-2023-001",
@@ -631,7 +628,12 @@ class TestSearchAdvisories:
 
     @patch("depcheck.advisories.lookup_advisories")
     def test_patched_only_filter(self, mock_lookup):
-        from depcheck.advisories import AdvisoryEntry, AdvisorySource, AffectedRange, search_advisories
+        from depcheck.advisories import (
+            AdvisoryEntry,
+            AdvisorySource,
+            AffectedRange,
+            search_advisories,
+        )
 
         mock_lookup.return_value = [
             AdvisoryEntry(advisory_id="P-1", source=AdvisorySource.OSV, package="x",
@@ -842,7 +844,7 @@ class TestPolicyConfig:
         assert RuleCategory.PINNING in categories
 
     def test_from_dict_vulnerability(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"vulnerability": {"max_severity": "HIGH"}}
         config = PolicyConfig.from_dict(data)
@@ -850,7 +852,7 @@ class TestPolicyConfig:
         assert config.rules[0].max_severity == "HIGH"
 
     def test_from_dict_packages_deny(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"packages": {"deny": ["pkg-a", "pkg-b"]}}
         config = PolicyConfig.from_dict(data)
@@ -858,7 +860,7 @@ class TestPolicyConfig:
         assert config.rules[0].deny_packages == ["pkg-a", "pkg-b"]
 
     def test_from_dict_packages_allow(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"packages": {"allow": ["pkg-a"]}}
         config = PolicyConfig.from_dict(data)
@@ -866,7 +868,7 @@ class TestPolicyConfig:
         assert config.rules[0].allow_packages == ["pkg-a"]
 
     def test_from_dict_maintenance(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"maintenance": {"min_maintained_days": 180}}
         config = PolicyConfig.from_dict(data)
@@ -874,7 +876,7 @@ class TestPolicyConfig:
         assert config.rules[0].min_maintained_days == 180
 
     def test_from_dict_depth(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"depth": {"max_depth": 3}}
         config = PolicyConfig.from_dict(data)
@@ -1074,7 +1076,12 @@ class TestEvaluateVulnerabilityRule:
 
     def test_no_vulns_passes(self):
         from depcheck.models import PackageReport
-        from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_vulnerability_rule
+        from depcheck.policy import (
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            _evaluate_vulnerability_rule,
+        )
 
         rule = PolicyRule(
             name="no-high", category=RuleCategory.VULNERABILITY,
@@ -1086,7 +1093,12 @@ class TestEvaluateVulnerabilityRule:
 
     def test_critical_vuln_fails(self):
         from depcheck.models import PackageReport, Vulnerability
-        from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_vulnerability_rule
+        from depcheck.policy import (
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            _evaluate_vulnerability_rule,
+        )
 
         rule = PolicyRule(
             name="no-high", category=RuleCategory.VULNERABILITY,
@@ -1103,7 +1115,12 @@ class TestEvaluateVulnerabilityRule:
 
     def test_low_vuln_passes_high_threshold(self):
         from depcheck.models import PackageReport, Vulnerability
-        from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_vulnerability_rule
+        from depcheck.policy import (
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            _evaluate_vulnerability_rule,
+        )
 
         rule = PolicyRule(
             name="no-critical-only", category=RuleCategory.VULNERABILITY,
@@ -1235,7 +1252,7 @@ class TestEvaluatePolicy:
             mock_scan.return_value = ScanResult(
                 project_path=tmpdir,
                 packages=[
-                    PackageReport(name="pkg-a", installed_version="1.0.0", status=HealthStatus.HEALTHY),
+                    PackageReport(name="pkg-a", installed_version="1.0.0", status=HealthStatus.HEALTHY),  # noqa: E501
                 ],
                 errors=[],
             )
@@ -1244,7 +1261,13 @@ class TestEvaluatePolicy:
 
     def test_custom_config_with_mock(self):
         from depcheck.models import HealthStatus, LicenseInfo, PackageReport, ScanResult
-        from depcheck.policy import PolicyConfig, PolicyRule, RuleCategory, RuleSeverity, evaluate_policy
+        from depcheck.policy import (
+            PolicyConfig,
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            evaluate_policy,
+        )
 
         config = PolicyConfig(rules=[
             PolicyRule(
@@ -1292,6 +1315,7 @@ class TestCLICommands:
 
     def test_budget_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1301,6 +1325,7 @@ class TestCLICommands:
 
     def test_risks_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1310,6 +1335,7 @@ class TestCLICommands:
 
     def test_advisories_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1319,6 +1345,7 @@ class TestCLICommands:
 
     def test_graph_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1328,6 +1355,7 @@ class TestCLICommands:
 
     def test_policy_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1337,6 +1365,7 @@ class TestCLICommands:
 
     def test_main_help_lists_commands(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1350,6 +1379,7 @@ class TestCLICommands:
 
     def test_budget_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1360,6 +1390,7 @@ class TestCLICommands:
 
     def test_risks_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1369,6 +1400,7 @@ class TestCLICommands:
 
     def test_advisories_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1380,6 +1412,7 @@ class TestCLICommands:
 
     def test_graph_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1390,6 +1423,7 @@ class TestCLICommands:
 
     def test_policy_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
