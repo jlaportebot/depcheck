@@ -1872,11 +1872,11 @@ def size(
     depcheck size --compare flask --compare django --compare fastapi
     """
     from depcheck.size import (
+        analyze_project_sizes,
         compare_package_sizes,
         render_size_comparison,
         render_size_json,
         render_size_table,
-        analyze_project_sizes,
     )
 
     console = Console(quiet=quiet)

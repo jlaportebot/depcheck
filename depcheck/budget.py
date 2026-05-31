@@ -9,7 +9,6 @@ clear reports of where budgets are being spent.
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,13 +16,10 @@ from typing import Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.bar import Bar
 
-from depcheck.models import HealthStatus, ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies, normalize_package_name
 from depcheck.size import _fetch_package_size, _human_size
-
 
 # ── Data models ──────────────────────────────────────────────────────────
 
@@ -34,7 +30,8 @@ class BudgetRule:
 
     Attributes:
         name: Human-readable rule name.
-        metric: What to measure (count, download_kb, install_kb, max_deps, max_depth, license_category).
+        metric: What to measure (count, download_kb, install_kb, max_deps, max_depth,
+        license_category).
         limit: The budget limit value.
         current: Current measured value (filled after analysis).
         unit: Unit for display (e.g., "packages", "KB", "MB").
@@ -99,7 +96,9 @@ class BudgetConfig:
     max_total_install_kb: float = 1_000_000  # 1 GB
     max_single_package_kb: float = 100_000  # 100 MB
     max_transitive_depth: int = 6
-    allowed_license_categories: set[str] = field(default_factory=lambda: {"permissive", "public_domain"})
+    allowed_license_categories: set[str] = field(
+        default_factory=lambda: {"permissive", "public_domain"},
+    )
     denied_packages: set[str] = field(default_factory=set)
     required_packages: set[str] = field(default_factory=set)
 
@@ -141,7 +140,9 @@ class BudgetConfig:
         if "denied_packages" in data:
             config.denied_packages = {normalize_package_name(p) for p in data["denied_packages"]}
         if "required_packages" in data:
-            config.required_packages = {normalize_package_name(p) for p in data["required_packages"]}
+            config.required_packages = {
+        normalize_package_name(p) for p in data["required_packages"]
+    }
         return config
 
     @classmethod
@@ -488,7 +489,9 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
         Panel(
             f"[bold]depcheck budget[/bold] — Dependency Budget Report\n"
             f"[dim]Project: {report.project_path}[/dim]\n"
-            f"[{status_color}]{status_icon} {'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
+            f"[{status_color}]{status_icon} "
+f"{'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
+    f"[/{status_color}]",
             border_style=status_color,
         )
     )
@@ -575,9 +578,14 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
         console.print()
         console.print("[bold yellow]Warnings:[/bold yellow]")
         for w in report.warnings:
+            size_str = (
+                _human_size(w.remaining)
+                if 'kb' in w.metric
+                else f'{int(w.remaining)} {w.unit}'
+            )
             console.print(
-                f"  [yellow]⚠[/yellow] {w.name}: {w.utilization:.0f}% utilization "
-                f"({_human_size(w.remaining) if 'kb' in w.metric else f'{int(w.remaining)} {w.unit}'} remaining)"
+                f"  [yellow]⚠[/yellow] {w.name}: {w.utilization:.0f}%"
+                f" utilization ({size_str} remaining)"
             )
 
     # Package details table
@@ -598,7 +606,9 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
         pkg_table.add_column("Category", min_width=8)
         pkg_table.add_column("License", min_width=12)
 
-        for pkg in sorted(report.package_details, key=lambda p: p.get("download_kb", 0), reverse=True):
+        for pkg in sorted(
+    report.package_details, key=lambda p: p.get("download_kb", 0), reverse=True
+):
             dl_kb = pkg.get("download_kb", 0)
             inst_kb = pkg.get("install_kb", 0)
             cat = pkg.get("category", "unknown")

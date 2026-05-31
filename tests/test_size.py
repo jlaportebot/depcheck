@@ -6,15 +6,13 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.models import HealthStatus
 from depcheck.size import (
     PackageSize,
     SizeReport,
     _categorize_size,
-    _human_size,
     _fetch_package_size,
+    _human_size,
     analyze_project_sizes,
     compare_package_sizes,
     render_comparison_json,
@@ -22,7 +20,6 @@ from depcheck.size import (
     render_size_json,
     render_size_table,
 )
-
 
 # ── Human size tests ─────────────────────────────────────────────────────
 
@@ -391,10 +388,21 @@ class TestAnalyzeProjectSizes:
             ["pyproject.toml"],
         )
         mock_fetch.side_effect = [
-            PackageSize(name="flask", version="3.0.0", wheel_size_kb=500, estimated_install_kb=1250, category="small"),
-            PackageSize(name="click", version="8.1.0", wheel_size_kb=200, estimated_install_kb=500, category="tiny"),
+        PackageSize(
+            name="flask",
+            version="3.0.0",
+            wheel_size_kb=500,
+            estimated_install_kb=1250,
+            category="small",
+        ),
+        PackageSize(
+            name="click",
+            version="8.1.0",
+            wheel_size_kb=200,
+            estimated_install_kb=500,
+            category="tiny",
+            ),
         ]
-
         report = analyze_project_sizes(str(tmp_path))
         assert len(report.packages) == 2
         assert report.total_download_kb == 700
@@ -412,9 +420,24 @@ class TestAnalyzeProjectSizes:
             ["pyproject.toml"],
         )
         mock_fetch.side_effect = [
-            PackageSize(name="a", wheel_size_kb=10, estimated_install_kb=25, category="tiny"),
-            PackageSize(name="b", wheel_size_kb=500, estimated_install_kb=1250, category="small"),
-            PackageSize(name="c", wheel_size_kb=5000, estimated_install_kb=12500, category="medium"),
+            PackageSize(
+                name="a",
+                wheel_size_kb=10,
+                estimated_install_kb=25,
+                category="tiny",
+            ),
+            PackageSize(
+                name="b",
+                wheel_size_kb=500,
+                estimated_install_kb=1250,
+                category="small",
+            ),
+            PackageSize(
+                name="c",
+                wheel_size_kb=5000,
+                estimated_install_kb=12500,
+                category="medium",
+            ),
         ]
 
         report = analyze_project_sizes(str(tmp_path))
@@ -434,8 +457,18 @@ class TestAnalyzeProjectSizes:
             ["pyproject.toml"],
         )
         mock_fetch.side_effect = [
-            PackageSize(name="small", wheel_size_kb=100, estimated_install_kb=250, category="small"),
-            PackageSize(name="big", wheel_size_kb=50000, estimated_install_kb=125000, category="large"),
+            PackageSize(
+                name="small",
+                wheel_size_kb=100,
+                estimated_install_kb=250,
+                category="small",
+            ),
+            PackageSize(
+                name="big",
+                wheel_size_kb=50000,
+                estimated_install_kb=125000,
+                category="large",
+            ),
         ]
 
         report = analyze_project_sizes(str(tmp_path))

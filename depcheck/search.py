@@ -526,7 +526,7 @@ def search_by_category(
         SearchResults with ranked results.
     """
     # Curated list of popular packages by category
-    _CATEGORY_PACKAGES: dict[str, list[str]] = {
+    _category_packages: dict[str, list[str]] = {
         "web": [
             "flask", "django", "fastapi", "starlette", "aiohttp",
             "sanic", "tornado", "bottle", "pyramid", "quart",
@@ -565,12 +565,15 @@ def search_by_category(
     }
 
     category_lower = category.lower()
-    packages = _CATEGORY_PACKAGES.get(category_lower, [])
+    packages = _category_packages.get(category_lower, [])
 
     if not packages:
         return SearchResults(
             query=f"category:{category}",
-            errors=[f"Unknown category '{category}'. Choose from: web, data, testing, cli, database, security, ml, devtools"],
+            errors=[
+    f"Unknown category '{category}'. "
+    f"Choose from: web, data, testing, cli, database, security, ml, devtools"
+],
         )
 
     results = SearchResults(query=f"category:{category}")
@@ -612,7 +615,8 @@ def render_search_table(results: SearchResults, console: Console | None = None) 
     console.print()
     console.print(
         Panel(
-            f"[bold]depcheck search[/bold] — {results.total} result{'s' if results.total != 1 else ''} "
+            f"[bold]depcheck search[/bold] — {results.total} "
+f"result{'s' if results.total != 1 else ''} "
             f"for '[cyan]{results.query}[/cyan]'",
             border_style="blue",
         )

@@ -15,12 +15,10 @@ from typing import Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from depcheck.models import HealthStatus, ParsedDependency
+from depcheck.models import HealthStatus
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies, normalize_package_name
-
 
 # ── Constants ────────────────────────────────────────────────────────────
 
@@ -472,7 +470,8 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
 
     if report.category_breakdown:
         breakdown = "  ".join(
-            f"[{category_colors.get(cat, 'white')}]{cat}: {count}[/{category_colors.get(cat, 'white')}]"
+            f"[{category_colors.get(cat, 'white')}]{cat}: {count}"
+f"[/{category_colors.get(cat, 'white')}]"
             for cat, count in sorted(report.category_breakdown.items())
         )
         summary_parts.append(f"[bold]Size breakdown:[/bold] {breakdown}")
@@ -504,7 +503,9 @@ def render_size_comparison(
         return
 
     console.print()
-    console.print(Panel("[bold]depcheck size[/bold] — Package Size Comparison", border_style="blue"))
+    console.print(
+    Panel("[bold]depcheck size[/bold] — Package Size Comparison", border_style="blue")
+)
 
     table = Table(
         show_header=True,

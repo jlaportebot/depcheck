@@ -5,12 +5,10 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.models import HealthStatus
 from depcheck.search import (
-    SearchResults,
     SearchResult,
+    SearchResults,
     _classify_license,
     _compute_health_score,
     _compute_health_status,
@@ -20,7 +18,6 @@ from depcheck.search import (
     search_by_category,
     search_packages,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
 
@@ -390,7 +387,9 @@ class TestSearchPackages:
 
     @patch("depcheck.search.PyPIClient")
     @patch("depcheck.search.httpx.Client")
-    def test_search_returns_results(self, mock_http_cls: MagicMock, mock_pypi_cls: MagicMock) -> None:
+    def test_search_returns_results(
+    self, mock_http_cls: MagicMock, mock_pypi_cls: MagicMock
+) -> None:
         # Mock HTTP client for simple index
         mock_http = MagicMock()
         mock_http.get.return_value = MagicMock(status_code=404)

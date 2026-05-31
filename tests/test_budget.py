@@ -6,8 +6,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.budget import (
     BudgetConfig,
     BudgetReport,
@@ -18,7 +16,6 @@ from depcheck.budget import (
     render_budget_json,
     render_budget_table,
 )
-
 
 # ── BudgetRule tests ─────────────────────────────────────────────────────
 
@@ -535,7 +532,12 @@ class TestCheckBudget:
         mock_pypi.__enter__ = MagicMock(return_value=mock_pypi)
         mock_pypi.__exit__ = MagicMock(return_value=False)
         mock_pypi.get_package_info.return_value = {
-            "info": {"name": "gpl-pkg", "version": "1.0.0", "license": "GPL-3.0", "classifiers": []},
+            "info": {
+    "name": "gpl-pkg",
+    "version": "1.0.0",
+    "license": "GPL-3.0",
+    "classifiers": [],
+},
             "releases": {},
         }
         mock_pypi_cls.return_value = mock_pypi
