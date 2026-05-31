@@ -133,16 +133,20 @@ class TestTreeToGraph:
                     name="requests",
                     version="2.31.0",
                     status=HealthStatus.HEALTHY,
-                children=[
-                    TreeNode(
-                        name="urllib3", version="2.0",
-                        status=HealthStatus.HEALTHY, depth=1,
-                    ),
-                    TreeNode(
-                        name="certifi", version="2023.7",
-                        status=HealthStatus.OUTDATED, depth=1,
-                    ),
-                ],
+                    children=[
+                        TreeNode(
+                            name="urllib3",
+                            version="2.0",
+                            status=HealthStatus.HEALTHY,
+                            depth=1,
+                        ),
+                        TreeNode(
+                            name="certifi",
+                            version="2023.7",
+                            status=HealthStatus.OUTDATED,
+                            depth=1,
+                        ),
+                    ],
                 ),
             ],
         )
@@ -164,8 +168,10 @@ class TestTreeToGraph:
                     status=HealthStatus.HEALTHY,
                     children=[
                         TreeNode(
-                            name="shared", version="1.0",
-                            status=HealthStatus.HEALTHY, depth=1,
+                            name="shared",
+                            version="1.0",
+                            status=HealthStatus.HEALTHY,
+                            depth=1,
                         ),
                     ],
                 ),
@@ -175,8 +181,10 @@ class TestTreeToGraph:
                     status=HealthStatus.HEALTHY,
                     children=[
                         TreeNode(
-                            name="shared", version="1.0",
-                            status=HealthStatus.HEALTHY, depth=1,
+                            name="shared",
+                            version="1.0",
+                            status=HealthStatus.HEALTHY,
+                            depth=1,
                         ),
                     ],
                 ),
@@ -366,6 +374,7 @@ class TestWriteGraphHtml:
 
             # Change to tmpdir so the default path writes there
             import os
+
             old_cwd = os.getcwd()
             os.chdir(tmpdir)
             try:

@@ -251,10 +251,18 @@ class TestBuildOutdatedReport:
 
     def test_all_healthy(self):
         pkgs = [
-            PackageReport(name="a", installed_version="1.0.0", latest_version="1.0.0",
-                          status=HealthStatus.HEALTHY),
-            PackageReport(name="b", installed_version="2.0.0", latest_version="2.0.0",
-                          status=HealthStatus.HEALTHY),
+            PackageReport(
+                name="a",
+                installed_version="1.0.0",
+                latest_version="1.0.0",
+                status=HealthStatus.HEALTHY,
+            ),
+            PackageReport(
+                name="b",
+                installed_version="2.0.0",
+                latest_version="2.0.0",
+                status=HealthStatus.HEALTHY,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -264,8 +272,12 @@ class TestBuildOutdatedReport:
 
     def test_outdated_packages(self):
         pkgs = [
-            PackageReport(name="old-pkg", installed_version="1.0.0",
-                          latest_version="2.0.0", status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="old-pkg",
+                installed_version="1.0.0",
+                latest_version="2.0.0",
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -276,12 +288,24 @@ class TestBuildOutdatedReport:
 
     def test_mixed_statuses(self):
         pkgs = [
-            PackageReport(name="healthy", installed_version="1.0.0",
-                          latest_version="1.0.0", status=HealthStatus.HEALTHY),
-            PackageReport(name="outdated", installed_version="1.0.0",
-                          latest_version="1.1.0", status=HealthStatus.OUTDATED),
-            PackageReport(name="vulnerable", installed_version="1.0.0",
-                          latest_version="2.0.0", status=HealthStatus.VULNERABLE),
+            PackageReport(
+                name="healthy",
+                installed_version="1.0.0",
+                latest_version="1.0.0",
+                status=HealthStatus.HEALTHY,
+            ),
+            PackageReport(
+                name="outdated",
+                installed_version="1.0.0",
+                latest_version="1.1.0",
+                status=HealthStatus.OUTDATED,
+            ),
+            PackageReport(
+                name="vulnerable",
+                installed_version="1.0.0",
+                latest_version="2.0.0",
+                status=HealthStatus.VULNERABLE,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -291,12 +315,24 @@ class TestBuildOutdatedReport:
 
     def test_sorting_by_level(self):
         pkgs = [
-            PackageReport(name="patch-pkg", installed_version="1.0.0",
-                          latest_version="1.0.1", status=HealthStatus.OUTDATED),
-            PackageReport(name="major-pkg", installed_version="1.0.0",
-                          latest_version="2.0.0", status=HealthStatus.OUTDATED),
-            PackageReport(name="minor-pkg", installed_version="1.0.0",
-                          latest_version="1.1.0", status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="patch-pkg",
+                installed_version="1.0.0",
+                latest_version="1.0.1",
+                status=HealthStatus.OUTDATED,
+            ),
+            PackageReport(
+                name="major-pkg",
+                installed_version="1.0.0",
+                latest_version="2.0.0",
+                status=HealthStatus.OUTDATED,
+            ),
+            PackageReport(
+                name="minor-pkg",
+                installed_version="1.0.0",
+                latest_version="1.1.0",
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -305,8 +341,12 @@ class TestBuildOutdatedReport:
 
     def test_unmaintained_counted_as_outdated(self):
         pkgs = [
-            PackageReport(name="unmaintained", installed_version="1.0.0",
-                          latest_version="2.0.0", status=HealthStatus.UNMAINTAINED),
+            PackageReport(
+                name="unmaintained",
+                installed_version="1.0.0",
+                latest_version="2.0.0",
+                status=HealthStatus.UNMAINTAINED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -314,8 +354,12 @@ class TestBuildOutdatedReport:
 
     def test_unknown_version_skipped(self):
         pkgs = [
-            PackageReport(name="no-ver", installed_version="unknown",
-                          latest_version="1.0.0", status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="no-ver",
+                installed_version="unknown",
+                latest_version="1.0.0",
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -331,8 +375,12 @@ class TestBuildOutdatedReport:
 
     def test_with_pypi_infos_for_changelog(self):
         pkgs = [
-            PackageReport(name="requests", installed_version="2.28.0",
-                          latest_version="2.31.0", status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="requests",
+                installed_version="2.28.0",
+                latest_version="2.31.0",
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         pypi_infos = {
@@ -350,8 +398,12 @@ class TestBuildOutdatedReport:
 
     def test_minor_upgrade_classification(self):
         pkgs = [
-            PackageReport(name="pkg", installed_version="1.0.0",
-                          latest_version="1.2.0", status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="pkg",
+                installed_version="1.0.0",
+                latest_version="1.2.0",
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -360,8 +412,12 @@ class TestBuildOutdatedReport:
 
     def test_patch_upgrade_classification(self):
         pkgs = [
-            PackageReport(name="pkg", installed_version="1.0.0",
-                          latest_version="1.0.5", status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="pkg",
+                installed_version="1.0.0",
+                latest_version="1.0.5",
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -370,8 +426,12 @@ class TestBuildOutdatedReport:
 
     def test_no_latest_version_skipped(self):
         pkgs = [
-            PackageReport(name="pkg", installed_version="1.0.0",
-                          latest_version=None, status=HealthStatus.OUTDATED),
+            PackageReport(
+                name="pkg",
+                installed_version="1.0.0",
+                latest_version=None,
+                status=HealthStatus.OUTDATED,
+            ),
         ]
         result = self._make_scan_result(pkgs)
         report = build_outdated_report(result)
@@ -431,8 +491,13 @@ class TestOutdatedReportToDict:
             minor_count=1,
             patch_count=1,
             packages=[
-                UpgradeInfo(name="a", installed_version="1.0.0", latest_version="2.0.0",
-                            upgrade_level=UpgradeLevel.MAJOR, risk=RiskLevel.HIGH),
+                UpgradeInfo(
+                    name="a",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    upgrade_level=UpgradeLevel.MAJOR,
+                    risk=RiskLevel.HIGH,
+                ),
             ],
         )
         d = report.to_dict()
@@ -471,12 +536,20 @@ class TestRenderOutdatedTable:
             patch_count=0,
             up_to_date_count=1,
             packages=[
-                UpgradeInfo(name="big-pkg", installed_version="1.0.0",
-                            latest_version="2.0.0",
-                            upgrade_level=UpgradeLevel.MAJOR, risk=RiskLevel.HIGH),
-                UpgradeInfo(name="small-pkg", installed_version="1.0.0",
-                            latest_version="1.1.0",
-                            upgrade_level=UpgradeLevel.MINOR, risk=RiskLevel.MEDIUM),
+                UpgradeInfo(
+                    name="big-pkg",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    upgrade_level=UpgradeLevel.MAJOR,
+                    risk=RiskLevel.HIGH,
+                ),
+                UpgradeInfo(
+                    name="small-pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.1.0",
+                    upgrade_level=UpgradeLevel.MINOR,
+                    risk=RiskLevel.MEDIUM,
+                ),
             ],
         )
         render_outdated_table(report, console=console)
@@ -496,9 +569,13 @@ class TestRenderOutdatedJson:
             outdated_count=1,
             major_count=1,
             packages=[
-                UpgradeInfo(name="pkg", installed_version="1.0.0",
-                            latest_version="2.0.0",
-                            upgrade_level=UpgradeLevel.MAJOR, risk=RiskLevel.HIGH),
+                UpgradeInfo(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    upgrade_level=UpgradeLevel.MAJOR,
+                    risk=RiskLevel.HIGH,
+                ),
             ],
         )
         output = render_outdated_json(report)
@@ -539,15 +616,27 @@ class TestRenderUpgradeCommands:
         console = Console(file=StringIO(), force_terminal=False)
         report = OutdatedReport(
             packages=[
-                UpgradeInfo(name="patch-pkg", installed_version="1.0.0",
-                            latest_version="1.0.1",
-                            upgrade_level=UpgradeLevel.PATCH, risk=RiskLevel.LOW),
-                UpgradeInfo(name="minor-pkg", installed_version="1.0.0",
-                            latest_version="1.1.0",
-                            upgrade_level=UpgradeLevel.MINOR, risk=RiskLevel.MEDIUM),
-                UpgradeInfo(name="major-pkg", installed_version="1.0.0",
-                            latest_version="2.0.0",
-                            upgrade_level=UpgradeLevel.MAJOR, risk=RiskLevel.HIGH),
+                UpgradeInfo(
+                    name="patch-pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.1",
+                    upgrade_level=UpgradeLevel.PATCH,
+                    risk=RiskLevel.LOW,
+                ),
+                UpgradeInfo(
+                    name="minor-pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.1.0",
+                    upgrade_level=UpgradeLevel.MINOR,
+                    risk=RiskLevel.MEDIUM,
+                ),
+                UpgradeInfo(
+                    name="major-pkg",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    upgrade_level=UpgradeLevel.MAJOR,
+                    risk=RiskLevel.HIGH,
+                ),
             ],
         )
         render_upgrade_commands(report, console=console)
@@ -610,8 +699,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="1.0.0", status=HealthStatus.HEALTHY),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.0",
+                    status=HealthStatus.HEALTHY,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -628,8 +721,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="old", installed_version="1.0.0",
-                              latest_version="2.0.0", status=HealthStatus.OUTDATED),
+                PackageReport(
+                    name="old",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    status=HealthStatus.OUTDATED,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -648,8 +745,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="2.0.0", status=HealthStatus.OUTDATED),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    status=HealthStatus.OUTDATED,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -666,8 +767,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="1.1.0", status=HealthStatus.OUTDATED),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.1.0",
+                    status=HealthStatus.OUTDATED,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -684,8 +789,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="1.1.0", status=HealthStatus.OUTDATED),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.1.0",
+                    status=HealthStatus.OUTDATED,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -703,8 +812,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="1.0.1", status=HealthStatus.OUTDATED),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.1",
+                    status=HealthStatus.OUTDATED,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -721,8 +834,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="1.0.0", status=HealthStatus.HEALTHY),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.0",
+                    status=HealthStatus.HEALTHY,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )
@@ -739,8 +856,12 @@ class TestOutdatedCLI:
         mock_scan.return_value = ScanResult(
             project_path=str(tmp_path),
             packages=[
-                PackageReport(name="pkg", installed_version="1.0.0",
-                              latest_version="1.0.1", status=HealthStatus.OUTDATED),
+                PackageReport(
+                    name="pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.1",
+                    status=HealthStatus.OUTDATED,
+                ),
             ],
             files_scanned=[str(tmp_path / "requirements.txt")],
         )

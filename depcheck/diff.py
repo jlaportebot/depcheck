@@ -116,8 +116,7 @@ class DiffResult:
         return sum(
             1
             for p in self.packages
-            if p.diff_type
-            not in (DiffType.ADDED, DiffType.REMOVED, DiffType.UNCHANGED)
+            if p.diff_type not in (DiffType.ADDED, DiffType.REMOVED, DiffType.UNCHANGED)
         )
 
     @property
@@ -284,11 +283,7 @@ def _compare_versions(name: str, old: ParsedDependency, new: ParsedDependency) -
         except Exception:
             # Fallback to string comparison
             if old_ver != new_ver:
-                diff_type = (
-                    DiffType.UPGRADED
-                    if old_ver < new_ver
-                    else DiffType.DOWNGRADED
-                )
+                diff_type = DiffType.UPGRADED if old_ver < new_ver else DiffType.DOWNGRADED
                 return PackageDiff(
                     name=name,
                     diff_type=diff_type,
@@ -586,8 +581,7 @@ def render_diff_table(result: DiffResult, console: Console | None = None) -> Non
     console.print()
     summary_parts: list[str] = []
     summary_parts.append(
-        f"[bold]Old: {result.old_total} deps "
-        f"→ New: {result.new_total} deps[/bold]"
+        f"[bold]Old: {result.old_total} deps → New: {result.new_total} deps[/bold]"
     )
     if result.added_count:
         summary_parts.append(f"[green]+{result.added_count} added[/green]")

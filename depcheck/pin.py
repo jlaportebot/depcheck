@@ -27,10 +27,10 @@ from packaging.version import InvalidVersion, Version
 class PinPolicy(Enum):
     """Policy for version pinning behavior."""
 
-    EXACT = "exact"                # Pin to exact version (==1.2.3)
-    COMPATIBLE = "compatible"      # Pin to compatible release (~=1.2.3)
-    MINIMUM = "minimum"            # Pin to minimum version (>=1.2.3)
-    RANGE = "range"                # Pin to a range (>=1.2.3,<2.0.0)
+    EXACT = "exact"  # Pin to exact version (==1.2.3)
+    COMPATIBLE = "compatible"  # Pin to compatible release (~=1.2.3)
+    MINIMUM = "minimum"  # Pin to minimum version (>=1.2.3)
+    RANGE = "range"  # Pin to a range (>=1.2.3,<2.0.0)
 
 
 class IntegrityStatus(Enum):
@@ -223,10 +223,15 @@ class IntegrityReport:
 
     @property
     def mismatch_count(self) -> int:
-        return sum(1 for c in self.checks if c.status in (
-            IntegrityStatus.HASH_MISMATCH,
-            IntegrityStatus.VERSION_MISMATCH,
-        ))
+        return sum(
+            1
+            for c in self.checks
+            if c.status
+            in (
+                IntegrityStatus.HASH_MISMATCH,
+                IntegrityStatus.VERSION_MISMATCH,
+            )
+        )
 
     @property
     def missing_count(self) -> int:
@@ -418,8 +423,8 @@ def pin_packages(
             if include_hashes:
                 try:
                     pinned_pkg.hash_sha256 = _fetch_hash(
-                pkg_report.name, pkg_report.installed_version
-            )
+                        pkg_report.name, pkg_report.installed_version
+                    )
                 except Exception:
                     pass
 
@@ -479,6 +484,7 @@ def update_pins(
         return PinResult()
 
     from depcheck.scanner import scan_project
+
     scan_result = scan_project(
         project_path=project_path,
         check_vulnerabilities=True,
@@ -610,13 +616,10 @@ def _check_package_integrity(
             pinned_version=pinned_pkg.version,
             status=IntegrityStatus.MISSING,
             severity=Severity.CRITICAL,
-        message=(
-            f"Package '{pinned_pkg.name}' is pinned but not installed"
-        ),
-        fix_suggestion=(
-            f"Install the package: pip install {pinned_pkg.name}"
-            f"=={pinned_pkg.version}"
-        ),
+            message=(f"Package '{pinned_pkg.name}' is pinned but not installed"),
+            fix_suggestion=(
+                f"Install the package: pip install {pinned_pkg.name}=={pinned_pkg.version}"
+            ),
         )
 
     # Version check
@@ -629,14 +632,11 @@ def _check_package_integrity(
                 pinned_version=pinned_pkg.version,
                 status=IntegrityStatus.VERSION_MISMATCH,
                 severity=Severity.CRITICAL,
-        message=(
-            f"Version mismatch: installed {installed_version}"
-            f" != pinned {pinned_pkg.version}"
-        ),
-        fix_suggestion=(
-            f"Reinstall: pip install {pinned_pkg.name}"
-            f"=={pinned_pkg.version}"
-        ),
+                message=(
+                    f"Version mismatch: installed {installed_version}"
+                    f" != pinned {pinned_pkg.version}"
+                ),
+                fix_suggestion=(f"Reinstall: pip install {pinned_pkg.name}=={pinned_pkg.version}"),
             )
 
     # Yanked check
@@ -647,14 +647,12 @@ def _check_package_integrity(
             pinned_version=pinned_pkg.version,
             status=IntegrityStatus.YANKED,
             severity=Severity.CRITICAL,
-        message=(
-            f"Pinned version {pinned_pkg.version} has been"
-            f" yanked: {pinned_pkg.yanked_reason}"
-        ),
-        fix_suggestion=(
-            "Update to a non-yanked version:"
-            f" depcheck pin --update {pinned_pkg.name}"
-        ),
+            message=(
+                f"Pinned version {pinned_pkg.version} has been yanked: {pinned_pkg.yanked_reason}"
+            ),
+            fix_suggestion=(
+                f"Update to a non-yanked version: depcheck pin --update {pinned_pkg.name}"
+            ),
         )
 
     # Deprecated check
@@ -704,8 +702,8 @@ def _check_package_integrity(
 class PinPolicyRule:
     """A pinning policy rule for a package or pattern."""
 
-    pattern: str          # Package name pattern (glob or regex)
-    policy: PinPolicy     # Pin policy to apply
+    pattern: str  # Package name pattern (glob or regex)
+    policy: PinPolicy  # Pin policy to apply
     allow_prerelease: bool = False
     hash_required: bool = True
     allow_yanked: bool = False
@@ -933,13 +931,15 @@ def detect_pin_drift(project_path: str = ".", filename: str = PINFILE_NAME) -> P
         drift_type = _classify_drift(pinned_pkg.version, latest)
         is_security = norm in vulnerable
 
-        drifts.append(PinDrift(
-            package=pinned_pkg.name,
-            pinned_version=pinned_pkg.version,
-            latest_version=latest,
-            drift_type=drift_type,
-            is_security_update=is_security,
-        ))
+        drifts.append(
+            PinDrift(
+                package=pinned_pkg.name,
+                pinned_version=pinned_pkg.version,
+                latest_version=latest,
+                drift_type=drift_type,
+                is_security_update=is_security,
+            )
+        )
 
     report.drifts = drifts
     report.up_to_date_count = up_to_date
@@ -1102,6 +1102,7 @@ def _fetch_hash(package: str, version: str) -> str:
     """Fetch SHA-256 hash for a package version from PyPI."""
     try:
         from depcheck.pypi import fetch_package_info
+
         info = fetch_package_info(package)
         if info and "releases" in info:
             release = info["releases"].get(version, [])
@@ -1139,4 +1140,5 @@ def _classify_drift(old_version: str, new_version: str) -> str:
 def _timestamp() -> str:
     """Return ISO 8601 timestamp."""
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).isoformat()

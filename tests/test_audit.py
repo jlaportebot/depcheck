@@ -223,10 +223,7 @@ class TestComputePackageRisk:
         pkg = _make_pkg(
             status=HealthStatus.REMOVED,
             removed=True,
-            vulns=[
-                _make_vuln(vuln_id=f"OSV-{i}", severity="CRITICAL")
-                for i in range(10)
-            ],
+            vulns=[_make_vuln(vuln_id=f"OSV-{i}", severity="CRITICAL") for i in range(10)],
         )
         risk = _compute_package_risk(pkg)
         assert risk.risk_score <= 100.0
@@ -654,13 +651,15 @@ class TestEdgeCases:
         packages = [
             _make_pkg(
                 status=HealthStatus.VULNERABLE,
-                vulns=[Vulnerability(
-                    vuln_id="GHSA-xxxx",
-                    summary="Bad bug",
-                    severity="HIGH",
-                    url="https://osv.dev/vulnerability/GHSA-xxxx",
-                    aliases=["CVE-2024-1234", "PYSEC-2024-5678"],
-                )],
+                vulns=[
+                    Vulnerability(
+                        vuln_id="GHSA-xxxx",
+                        summary="Bad bug",
+                        severity="HIGH",
+                        url="https://osv.dev/vulnerability/GHSA-xxxx",
+                        aliases=["CVE-2024-1234", "PYSEC-2024-5678"],
+                    )
+                ],
             ),
         ]
         details = _build_vulnerability_details(packages)

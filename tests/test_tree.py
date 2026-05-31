@@ -311,9 +311,7 @@ class TestRenderTree:
     def test_empty_result(self) -> None:
         buf = StringIO()
         console = Console(file=buf, force_terminal=True)
-        result = DependencyTreeResult(
-            project_path="/tmp/test", errors=["No deps found"]
-        )
+        result = DependencyTreeResult(project_path="/tmp/test", errors=["No deps found"])
         render_tree(result, console=console)
         output = buf.getvalue()
         assert "Error" in output
@@ -351,9 +349,7 @@ class TestRenderTree:
         buf = StringIO()
         console = Console(file=buf, force_terminal=True)
 
-        root = TreeNode(
-            name="pkg", version="1.0.0", status=HealthStatus.VULNERABLE
-        )
+        root = TreeNode(name="pkg", version="1.0.0", status=HealthStatus.VULNERABLE)
         result = DependencyTreeResult(project_path="/tmp/test", roots=[root])
 
         render_tree(result, console=console, highlight_issues=False)
@@ -364,9 +360,7 @@ class TestRenderTree:
         buf = StringIO()
         console = Console(file=buf, force_terminal=True)
 
-        grandchild = TreeNode(
-            name="deep", version="1.0", status=HealthStatus.HEALTHY, depth=2
-        )
+        grandchild = TreeNode(name="deep", version="1.0", status=HealthStatus.HEALTHY, depth=2)
         child = TreeNode(
             name="mid",
             version="1.0",
@@ -477,9 +471,7 @@ class TestTreeNodeDepth:
 
     def test_deeply_nested_tree(self) -> None:
         """Test a deeply nested tree structure."""
-        leaf = TreeNode(
-            name="d", version="1.0", status=HealthStatus.HEALTHY, depth=3
-        )
+        leaf = TreeNode(name="d", version="1.0", status=HealthStatus.HEALTHY, depth=3)
         c = TreeNode(
             name="c",
             version="1.0",

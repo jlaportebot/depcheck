@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 
 import pytest
 
 from depcheck.resolve import (
     Conflict,
-    ConflictAnalysis,
     ConflictType,
     DependencyResolver,
     LockfileFormat,
@@ -25,12 +22,10 @@ from depcheck.resolve import (
     find_duplicate_deps,
     generate_lockfile,
     parse_lockfile,
+    render_lockfile_diff_table,
     render_resolve_json,
     render_resolve_table,
-    render_lockfile_diff_table,
-    resolve_project,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -46,13 +41,17 @@ def simple_index() -> MockPackageIndex:
         versions=["2.31.0", "2.30.0", "2.29.0", "2.28.0"],
         deps={
             "2.31.0": [
-                VersionConstraint(package="charset-normalizer", specifier=">=2,<4", source="requests"),
+                VersionConstraint(
+                    package="charset-normalizer", specifier=">=2,<4", source="requests"
+                ),
                 VersionConstraint(package="urllib3", specifier=">=1.21.1,<3", source="requests"),
                 VersionConstraint(package="idna", specifier=">=2.5,<4", source="requests"),
                 VersionConstraint(package="certifi", specifier=">=2017.4.17", source="requests"),
             ],
             "2.30.0": [
-                VersionConstraint(package="charset-normalizer", specifier=">=2,<4", source="requests"),
+                VersionConstraint(
+                    package="charset-normalizer", specifier=">=2,<4", source="requests"
+                ),
                 VersionConstraint(package="urllib3", specifier=">=1.21.1,<3", source="requests"),
                 VersionConstraint(package="idna", specifier=">=2.5,<4", source="requests"),
                 VersionConstraint(package="certifi", specifier=">=2017.4.17", source="requests"),
@@ -111,9 +110,15 @@ def simple_index() -> MockPackageIndex:
         },
     )
     idx.add_package("werkzeug", versions=["3.0.1", "3.0.0", "2.3.7"], deps={"3.0.1": []})
-    idx.add_package("jinja2", versions=["3.1.2", "3.1.1"], deps={"3.1.2": [
-        VersionConstraint(package="markupsafe", specifier=">=2.0", source="jinja2"),
-    ]})
+    idx.add_package(
+        "jinja2",
+        versions=["3.1.2", "3.1.1"],
+        deps={
+            "3.1.2": [
+                VersionConstraint(package="markupsafe", specifier=">=2.0", source="jinja2"),
+            ]
+        },
+    )
     idx.add_package("markupsafe", versions=["2.1.3", "2.1.2"], deps={"2.1.3": []})
     idx.add_package("click", versions=["8.1.7", "8.1.6"], deps={"8.1.7": []})
     idx.add_package("itsdangerous", versions=["2.1.2"], deps={"2.1.2": []})
@@ -161,16 +166,20 @@ def circular_index() -> MockPackageIndex:
     idx.add_package(
         "cyclic-a",
         versions=["1.0.0"],
-        deps={"1.0.0": [
-            VersionConstraint(package="cyclic-b", specifier=">=1.0.0", source="cyclic-a"),
-        ]},
+        deps={
+            "1.0.0": [
+                VersionConstraint(package="cyclic-b", specifier=">=1.0.0", source="cyclic-a"),
+            ]
+        },
     )
     idx.add_package(
         "cyclic-b",
         versions=["1.0.0"],
-        deps={"1.0.0": [
-            VersionConstraint(package="cyclic-a", specifier=">=1.0.0", source="cyclic-b"),
-        ]},
+        deps={
+            "1.0.0": [
+                VersionConstraint(package="cyclic-a", specifier=">=1.0.0", source="cyclic-b"),
+            ]
+        },
     )
     return idx
 
@@ -241,7 +250,8 @@ class TestResolvedPackage:
 
     def test_to_dict(self):
         p = ResolvedPackage(
-            name="foo", version="1.0.0",
+            name="foo",
+            version="1.0.0",
             constraints=[VersionConstraint(package="foo", specifier=">=1.0")],
             dependencies=["bar"],
             is_transitive=True,
@@ -284,40 +294,53 @@ class TestResolutionResult:
         assert r.has_conflicts is False
 
     def test_has_conflicts_true(self):
-        r = ResolutionResult(conflicts=[Conflict(
-            conflict_type=ConflictType.VERSION_CONFLICT,
-            package="x", message="conflict",
-        )])
+        r = ResolutionResult(
+            conflicts=[
+                Conflict(
+                    conflict_type=ConflictType.VERSION_CONFLICT,
+                    package="x",
+                    message="conflict",
+                )
+            ]
+        )
         assert r.has_conflicts is True
 
     def test_direct_and_transitive_counts(self):
-        r = ResolutionResult(resolved=[
-            ResolvedPackage(name="a", version="1.0", is_transitive=False),
-            ResolvedPackage(name="b", version="2.0", is_transitive=True),
-            ResolvedPackage(name="c", version="3.0", is_transitive=True),
-        ])
+        r = ResolutionResult(
+            resolved=[
+                ResolvedPackage(name="a", version="1.0", is_transitive=False),
+                ResolvedPackage(name="b", version="2.0", is_transitive=True),
+                ResolvedPackage(name="c", version="3.0", is_transitive=True),
+            ]
+        )
         assert r.direct_count == 1
         assert r.transitive_count == 2
 
     def test_resolved_names(self):
-        r = ResolutionResult(resolved=[
-            ResolvedPackage(name="Foo_Bar", version="1.0"),
-            ResolvedPackage(name="baz", version="2.0"),
-        ])
+        r = ResolutionResult(
+            resolved=[
+                ResolvedPackage(name="Foo_Bar", version="1.0"),
+                ResolvedPackage(name="baz", version="2.0"),
+            ]
+        )
         assert r.resolved_names == {"foo-bar", "baz"}
 
     def test_get_package(self):
-        r = ResolutionResult(resolved=[
-            ResolvedPackage(name="My-Pkg", version="1.0"),
-        ])
+        r = ResolutionResult(
+            resolved=[
+                ResolvedPackage(name="My-Pkg", version="1.0"),
+            ]
+        )
         assert r.get_package("my-pkg") is not None
         assert r.get_package("My_Pkg") is not None
         assert r.get_package("nonexistent") is None
 
     def test_to_dict_includes_summary(self):
-        r = ResolutionResult(resolved=[
-            ResolvedPackage(name="a", version="1.0", is_transitive=False),
-        ])
+        r = ResolutionResult(
+            resolved=[
+                ResolvedPackage(name="a", version="1.0", is_transitive=False),
+            ]
+        )
         d = r.to_dict()
         assert "summary" in d
         assert d["summary"]["total"] == 1
@@ -338,9 +361,13 @@ class TestMockPackageIndex:
 
     def test_get_dependencies(self):
         idx = MockPackageIndex()
-        idx.add_package("foo", versions=["1.0.0"], deps={
-            "1.0.0": [VersionConstraint(package="bar", specifier=">=2.0")],
-        })
+        idx.add_package(
+            "foo",
+            versions=["1.0.0"],
+            deps={
+                "1.0.0": [VersionConstraint(package="bar", specifier=">=2.0")],
+            },
+        )
         deps = idx.get_dependencies("foo", "1.0.0")
         assert len(deps) == 1
         assert deps[0].package == "bar"
@@ -374,9 +401,11 @@ class TestMockPackageIndex:
 class TestDependencyResolver:
     def test_resolve_simple(self, simple_index):
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.NEWEST)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         assert result.is_complete
         assert len(result.resolved) >= 1
         pkg = result.get_package("requests")
@@ -385,9 +414,11 @@ class TestDependencyResolver:
 
     def test_resolve_with_transitive_deps(self, simple_index):
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.NEWEST)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         # requests has 4 transitive deps
         assert result.get_package("urllib3") is not None
         assert result.get_package("charset-normalizer") is not None
@@ -397,18 +428,24 @@ class TestDependencyResolver:
 
     def test_resolve_oldest_strategy(self, simple_index):
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.OLDEST)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         pkg = result.get_package("requests")
         assert pkg is not None
         assert pkg.version == "2.28.0"
 
     def test_resolve_minimum_compatible_strategy(self, simple_index):
-        resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.MINIMUM_COMPATIBLE)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        resolver = DependencyResolver(
+            index=simple_index, strategy=ResolutionStrategy.MINIMUM_COMPATIBLE
+        )
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         pkg = result.get_package("requests")
         assert pkg is not None
         # Minimum compatible = oldest that satisfies constraint
@@ -417,10 +454,12 @@ class TestDependencyResolver:
     def test_resolve_conflict(self, conflicting_index):
         resolver = DependencyResolver(index=conflicting_index, strategy=ResolutionStrategy.NEWEST)
         # pkg-a@2.0.0 requires shared>=2.0.0, pkg-b requires shared<2.0.0
-        result = resolver.resolve([
-            VersionConstraint(package="pkg-a", specifier=">=2.0.0"),
-            VersionConstraint(package="pkg-b", specifier=">=1.0.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="pkg-a", specifier=">=2.0.0"),
+                VersionConstraint(package="pkg-b", specifier=">=1.0.0"),
+            ]
+        )
         # This should find pkg-a@1.0.0 with shared@1.5.0 (backtracking)
         # Or report a conflict if backtracking doesn't find a solution
         # The resolver should find: pkg-a@1.0.0 needs shared>=1.0.0,<2.0.0
@@ -433,30 +472,39 @@ class TestDependencyResolver:
 
     def test_resolve_circular_detection(self, circular_index):
         resolver = DependencyResolver(index=circular_index, strategy=ResolutionStrategy.NEWEST)
-        result = resolver.resolve([
-            VersionConstraint(package="cyclic-a", specifier=">=1.0.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="cyclic-a", specifier=">=1.0.0"),
+            ]
+        )
         # Should detect circular dependency
         circular_conflicts = [
-            c for c in result.conflicts
-            if c.conflict_type == ConflictType.CIRCULAR_DEPENDENCY
+            c for c in result.conflicts if c.conflict_type == ConflictType.CIRCULAR_DEPENDENCY
         ]
         assert len(circular_conflicts) > 0
 
     def test_resolve_yanked_filtering(self, yanked_index):
-        resolver = DependencyResolver(index=yanked_index, strategy=ResolutionStrategy.NEWEST, ignore_yanked=True)
-        result = resolver.resolve([
-            VersionConstraint(package="yanked-pkg", specifier=">=1.0.0"),
-        ])
+        resolver = DependencyResolver(
+            index=yanked_index, strategy=ResolutionStrategy.NEWEST, ignore_yanked=True
+        )
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="yanked-pkg", specifier=">=1.0.0"),
+            ]
+        )
         pkg = result.get_package("yanked-pkg")
         assert pkg is not None
         assert pkg.version != "2.0.0"  # Yanked version should be skipped
 
     def test_resolve_yanked_allowed(self, yanked_index):
-        resolver = DependencyResolver(index=yanked_index, strategy=ResolutionStrategy.NEWEST, ignore_yanked=False)
-        result = resolver.resolve([
-            VersionConstraint(package="yanked-pkg", specifier=">=1.0.0"),
-        ])
+        resolver = DependencyResolver(
+            index=yanked_index, strategy=ResolutionStrategy.NEWEST, ignore_yanked=False
+        )
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="yanked-pkg", specifier=">=1.0.0"),
+            ]
+        )
         pkg = result.get_package("yanked-pkg")
         assert pkg is not None
         assert pkg.version == "3.0.0"  # Newest, even if 2.0.0 is yanked
@@ -469,50 +517,62 @@ class TestDependencyResolver:
 
     def test_resolve_missing_package(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="nonexistent-pkg", specifier=">=1.0.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="nonexistent-pkg", specifier=">=1.0.0"),
+            ]
+        )
         assert "nonexistent-pkg" in result.unresolved
 
     def test_resolve_exact_version(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier="==2.30.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier="==2.30.0"),
+            ]
+        )
         pkg = result.get_package("requests")
         assert pkg is not None
         assert pkg.version == "2.30.0"
 
     def test_resolve_multiple_direct(self, simple_index):
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.NEWEST)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-            VersionConstraint(package="flask", specifier=">=2.3.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+                VersionConstraint(package="flask", specifier=">=2.3.0"),
+            ]
+        )
         assert result.get_package("requests") is not None
         assert result.get_package("flask") is not None
         assert result.is_complete
 
     def test_resolve_iterations_recorded(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         assert result.iterations > 0
 
     def test_resolve_time_recorded(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         assert result.resolution_time_ms >= 0
 
     def test_resolve_complex_tree(self, simple_index):
         """Flask has deep dependency tree — test full resolution."""
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.NEWEST)
-        result = resolver.resolve([
-            VersionConstraint(package="flask", specifier=">=3.0.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="flask", specifier=">=3.0.0"),
+            ]
+        )
         assert result.is_complete
         assert result.get_package("flask") is not None
         assert result.get_package("werkzeug") is not None
@@ -555,13 +615,21 @@ class TestDeduplication:
 
     def test_deduplicate_keeps_more_constraints(self):
         pkgs = [
-            ResolvedPackage(name="foo", version="1.0.0", constraints=[
-                VersionConstraint(package="foo", specifier=">=1.0"),
-            ]),
-            ResolvedPackage(name="Foo", version="1.0.0", constraints=[
-                VersionConstraint(package="foo", specifier=">=1.0"),
-                VersionConstraint(package="foo", specifier="<2.0"),
-            ]),
+            ResolvedPackage(
+                name="foo",
+                version="1.0.0",
+                constraints=[
+                    VersionConstraint(package="foo", specifier=">=1.0"),
+                ],
+            ),
+            ResolvedPackage(
+                name="Foo",
+                version="1.0.0",
+                constraints=[
+                    VersionConstraint(package="foo", specifier=">=1.0"),
+                    VersionConstraint(package="foo", specifier="<2.0"),
+                ],
+            ),
         ]
         result = deduplicate_dependencies(pkgs)
         assert len(result) == 1
@@ -593,9 +661,11 @@ class TestDeduplication:
 class TestLockfileGeneration:
     def test_generate_depcheck_lock(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         lockfile = generate_lockfile(result, format=LockfileFormat.DEPCHECK, project_name="test")
         data = json.loads(lockfile)
         assert data["lockfileVersion"] == 1
@@ -605,18 +675,22 @@ class TestLockfileGeneration:
 
     def test_generate_pip_lockfile(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         lockfile = generate_lockfile(result, format=LockfileFormat.PIP)
         assert "# Generated by depcheck resolve" in lockfile
         assert "requests" in lockfile
 
     def test_generate_pipenv_lockfile(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         lockfile = generate_lockfile(result, format=LockfileFormat.PIPENV, project_name="test")
         data = json.loads(lockfile)
         assert "_meta" in data
@@ -624,18 +698,22 @@ class TestLockfileGeneration:
 
     def test_generate_poetry_lockfile(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         lockfile = generate_lockfile(result, format=LockfileFormat.POETRY)
-        assert '[[package]]' in lockfile
+        assert "[[package]]" in lockfile
         assert 'name = "requests"' in lockfile
 
     def test_parse_depcheck_lockfile(self, simple_index, tmp_path):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         lockfile = generate_lockfile(result, format=LockfileFormat.DEPCHECK)
         lock_path = tmp_path / "depcheck.lock"
         lock_path.write_text(lockfile)
@@ -658,8 +736,13 @@ class TestLockfileGeneration:
 
     def test_parse_pipfile_lock(self, tmp_path):
         data = {
-            "_meta": {"hash": {"sha256": "abc"}, "pipfile-spec": 6, "name": "test",
-                      "requires": {}, "sources": []},
+            "_meta": {
+                "hash": {"sha256": "abc"},
+                "pipfile-spec": 6,
+                "name": "test",
+                "requires": {},
+                "sources": [],
+            },
             "default": {
                 "requests": {"version": "==2.31.0"},
                 "urllib3": {"version": ">=1.21.1"},
@@ -674,9 +757,11 @@ class TestLockfileGeneration:
     def test_roundtrip_depcheck_lockfile(self, simple_index, tmp_path):
         """Generate and re-parse a depcheck lockfile."""
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         lockfile = generate_lockfile(result, format=LockfileFormat.DEPCHECK)
         lock_path = tmp_path / "depcheck.lock"
         lock_path.write_text(lockfile)
@@ -691,13 +776,15 @@ class TestLockfileGeneration:
 
 class TestConflictAnalysis:
     def test_analyze_version_conflict(self):
-        result = ResolutionResult(conflicts=[
-            Conflict(
-                conflict_type=ConflictType.VERSION_CONFLICT,
-                package="foo",
-                message="No version found",
-            )
-        ])
+        result = ResolutionResult(
+            conflicts=[
+                Conflict(
+                    conflict_type=ConflictType.VERSION_CONFLICT,
+                    package="foo",
+                    message="No version found",
+                )
+            ]
+        )
         analysis = analyze_conflicts(result)
         assert analysis.has_version_conflicts
         assert not analysis.has_circular_deps
@@ -705,23 +792,27 @@ class TestConflictAnalysis:
         assert analysis.critical_conflicts == 1
 
     def test_analyze_circular_dep(self):
-        result = ResolutionResult(conflicts=[
-            Conflict(
-                conflict_type=ConflictType.CIRCULAR_DEPENDENCY,
-                package="a -> b -> a",
-                message="Circular",
-            )
-        ])
+        result = ResolutionResult(
+            conflicts=[
+                Conflict(
+                    conflict_type=ConflictType.CIRCULAR_DEPENDENCY,
+                    package="a -> b -> a",
+                    message="Circular",
+                )
+            ]
+        )
         analysis = analyze_conflicts(result)
         assert analysis.has_circular_deps
         assert not analysis.has_version_conflicts
 
     def test_analyze_mixed_conflicts(self):
-        result = ResolutionResult(conflicts=[
-            Conflict(conflict_type=ConflictType.VERSION_CONFLICT, package="x", message="vc"),
-            Conflict(conflict_type=ConflictType.CIRCULAR_DEPENDENCY, package="y", message="cd"),
-            Conflict(conflict_type=ConflictType.MISSING_PACKAGE, package="z", message="mp"),
-        ])
+        result = ResolutionResult(
+            conflicts=[
+                Conflict(conflict_type=ConflictType.VERSION_CONFLICT, package="x", message="vc"),
+                Conflict(conflict_type=ConflictType.CIRCULAR_DEPENDENCY, package="y", message="cd"),
+                Conflict(conflict_type=ConflictType.MISSING_PACKAGE, package="z", message="mp"),
+            ]
+        )
         analysis = analyze_conflicts(result)
         assert analysis.total_conflicts == 3
         assert analysis.critical_conflicts == 2
@@ -732,16 +823,24 @@ class TestConflictAnalysis:
         assert analysis.is_healthy
 
     def test_analysis_not_healthy(self):
-        result = ResolutionResult(conflicts=[
-            Conflict(conflict_type=ConflictType.VERSION_CONFLICT, package="x", message="conflict"),
-        ])
+        result = ResolutionResult(
+            conflicts=[
+                Conflict(
+                    conflict_type=ConflictType.VERSION_CONFLICT, package="x", message="conflict"
+                ),
+            ]
+        )
         analysis = analyze_conflicts(result)
         assert not analysis.is_healthy
 
     def test_analysis_to_dict(self):
-        result = ResolutionResult(conflicts=[
-            Conflict(conflict_type=ConflictType.VERSION_CONFLICT, package="x", message="conflict"),
-        ])
+        result = ResolutionResult(
+            conflicts=[
+                Conflict(
+                    conflict_type=ConflictType.VERSION_CONFLICT, package="x", message="conflict"
+                ),
+            ]
+        )
         analysis = analyze_conflicts(result)
         d = analysis.to_dict()
         assert d["total_conflicts"] == 1
@@ -756,9 +855,11 @@ class TestConflictAnalysis:
 class TestRendering:
     def test_render_resolve_json(self, simple_index):
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         json_str = render_resolve_json(result)
         data = json.loads(json_str)
         assert "resolved" in data
@@ -768,12 +869,15 @@ class TestRendering:
     def test_render_resolve_table(self, simple_index):
         """Test that render_resolve_table doesn't raise."""
         from io import StringIO
+
         from rich.console import Console
 
         resolver = DependencyResolver(index=simple_index)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         console = Console(file=StringIO(), width=200)
         render_resolve_table(result, console=console)
         output = console.file.getvalue()
@@ -781,16 +885,21 @@ class TestRendering:
 
     def test_render_lockfile_diff(self, simple_index):
         from io import StringIO
+
         from rich.console import Console
 
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.NEWEST)
-        new_result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        new_result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         resolver_old = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.OLDEST)
-        old_result = resolver_old.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        old_result = resolver_old.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         console = Console(file=StringIO(), width=200)
         render_lockfile_diff_table(old_result, new_result, console=console)
         output = console.file.getvalue()
@@ -807,25 +916,45 @@ class TestEdgeCases:
         idx = MockPackageIndex()
         idx.add_package("standalone", versions=["1.0.0"], deps={"1.0.0": []})
         resolver = DependencyResolver(index=idx)
-        result = resolver.resolve([
-            VersionConstraint(package="standalone", specifier=">=1.0.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="standalone", specifier=">=1.0.0"),
+            ]
+        )
         assert result.is_complete
         assert len(result.resolved) == 1
 
     def test_resolve_diamond_dependency(self):
         """Diamond: A→B, A→C, B→D, C→D — D should only appear once."""
         idx = MockPackageIndex()
-        idx.add_package("a", versions=["1.0.0"], deps={"1.0.0": [
-            VersionConstraint(package="b", specifier=">=1.0", source="a"),
-            VersionConstraint(package="c", specifier=">=1.0", source="a"),
-        ]})
-        idx.add_package("b", versions=["1.0.0"], deps={"1.0.0": [
-            VersionConstraint(package="d", specifier=">=1.0", source="b"),
-        ]})
-        idx.add_package("c", versions=["1.0.0"], deps={"1.0.0": [
-            VersionConstraint(package="d", specifier=">=1.0", source="c"),
-        ]})
+        idx.add_package(
+            "a",
+            versions=["1.0.0"],
+            deps={
+                "1.0.0": [
+                    VersionConstraint(package="b", specifier=">=1.0", source="a"),
+                    VersionConstraint(package="c", specifier=">=1.0", source="a"),
+                ]
+            },
+        )
+        idx.add_package(
+            "b",
+            versions=["1.0.0"],
+            deps={
+                "1.0.0": [
+                    VersionConstraint(package="d", specifier=">=1.0", source="b"),
+                ]
+            },
+        )
+        idx.add_package(
+            "c",
+            versions=["1.0.0"],
+            deps={
+                "1.0.0": [
+                    VersionConstraint(package="d", specifier=">=1.0", source="c"),
+                ]
+            },
+        )
         idx.add_package("d", versions=["1.0.0"], deps={"1.0.0": []})
 
         resolver = DependencyResolver(index=idx)
@@ -850,20 +979,24 @@ class TestEdgeCases:
         idx = MockPackageIndex()
         idx.add_package("zope.interface", versions=["6.0", "5.5"], deps={"6.0": []})
         resolver = DependencyResolver(index=idx)
-        result = resolver.resolve([
-            VersionConstraint(package="zope-interface", specifier=">=5.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="zope-interface", specifier=">=5.0"),
+            ]
+        )
         # Mock index normalizes — should find the package
-        pkg = result.get_package("zope.interface")
+        _pkg = result.get_package("zope.interface")
         # May or may not resolve depending on normalization, but should not crash
         assert result.iterations > 0
 
     def test_conflict_suggests_fix(self, conflicting_index):
         resolver = DependencyResolver(index=conflicting_index, strategy=ResolutionStrategy.NEWEST)
-        result = resolver.resolve([
-            VersionConstraint(package="pkg-a", specifier=">=2.0.0"),
-            VersionConstraint(package="pkg-b", specifier=">=1.0.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="pkg-a", specifier=">=2.0.0"),
+                VersionConstraint(package="pkg-b", specifier=">=1.0.0"),
+            ]
+        )
         if result.has_conflicts:
             for conflict in result.conflicts:
                 if conflict.suggested_fix:
@@ -871,9 +1004,11 @@ class TestEdgeCases:
 
     def test_resolve_strategy_attribute(self, simple_index):
         resolver = DependencyResolver(index=simple_index, strategy=ResolutionStrategy.OLDEST)
-        result = resolver.resolve([
-            VersionConstraint(package="requests", specifier=">=2.28.0"),
-        ])
+        result = resolver.resolve(
+            [
+                VersionConstraint(package="requests", specifier=">=2.28.0"),
+            ]
+        )
         assert result.strategy_used == ResolutionStrategy.OLDEST
 
     def test_resolve_max_iterations(self):
@@ -882,9 +1017,9 @@ class TestEdgeCases:
         for i in range(100):
             idx.add_package(f"pkg-{i}", versions=["1.0.0"], deps={"1.0.0": []})
         resolver = DependencyResolver(index=idx, max_iterations=5)
-        result = resolver.resolve([
-            VersionConstraint(package=f"pkg-{i}", specifier=">=1.0") for i in range(100)
-        ])
+        result = resolver.resolve(
+            [VersionConstraint(package=f"pkg-{i}", specifier=">=1.0") for i in range(100)]
+        )
         assert result.iterations <= 5
 
 

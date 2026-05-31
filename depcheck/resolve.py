@@ -7,9 +7,9 @@ solver that resolves compatible version sets across a full dependency graph.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-import hashlib
 from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
@@ -17,8 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from packaging.specifiers import SpecifierSet
-from packaging.version import Version, InvalidVersion
-
+from packaging.version import InvalidVersion, Version
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -283,6 +282,7 @@ class PyPIPackageIndex(PackageIndex):
             return self._cache[package]
         try:
             from depcheck.pypi import fetch_package_info
+
             info = fetch_package_info(package)
             if info and "releases" in info:
                 versions = list(info["releases"].keys())
@@ -296,6 +296,7 @@ class PyPIPackageIndex(PackageIndex):
     def get_dependencies(self, package: str, version: str) -> list[VersionConstraint]:
         try:
             from depcheck.pypi import fetch_package_info
+
             info = fetch_package_info(package)
             if info and "releases" in info:
                 release = info["releases"].get(version, [])
@@ -311,6 +312,7 @@ class PyPIPackageIndex(PackageIndex):
     def get_package_hash(self, package: str, version: str) -> str:
         try:
             from depcheck.pypi import fetch_package_info
+
             info = fetch_package_info(package)
             if info and "releases" in info:
                 release = info["releases"].get(version, [])
@@ -326,6 +328,7 @@ class PyPIPackageIndex(PackageIndex):
     def is_yanked(self, package: str, version: str) -> bool:
         try:
             from depcheck.pypi import fetch_package_info
+
             info = fetch_package_info(package)
             if info and "releases" in info:
                 release = info["releases"].get(version, [])
@@ -399,7 +402,9 @@ class DependencyResolver:
             pkg_constraints = constraints_by_package.get(norm, [])
             if not pkg_constraints:
                 # Transitive dep with no direct constraint — any version ok
-                pkg_constraints = [VersionConstraint(package=norm, specifier=">=0.0.0", source="transitive")]
+                pkg_constraints = [
+                    VersionConstraint(package=norm, specifier=">=0.0.0", source="transitive")
+                ]
 
             # Find compatible version
             version = self._find_compatible_version(norm, pkg_constraints, resolved)
@@ -411,7 +416,10 @@ class DependencyResolver:
                     Conflict(
                         conflict_type=ConflictType.VERSION_CONFLICT,
                         package=norm,
-                        message=f"No compatible version found for {norm} with constraints: {merged}",
+                        message=(
+                    f"No compatible version found for {norm}"
+                    f" with constraints: {merged}"
+                ),
                         constraints=pkg_constraints,
                         suggested_fix=self._suggest_fix(norm, pkg_constraints),
                     )
@@ -425,7 +433,8 @@ class DependencyResolver:
                 version=version,
                 constraints=pkg_constraints,
                 dependencies=[d.package for d in deps],
-                is_transitive=norm not in {re.sub(r"[-_.]+", "-", r.package).lower() for r in requirements},
+                is_transitive=norm
+                not in {re.sub(r"[-_.]+", "-", r.package).lower() for r in requirements},
                 source="pypi",
                 hash_sha256=self.index.get_package_hash(norm, version),
                 python_version=self.index.get_python_constraint(norm, version),
@@ -550,7 +559,9 @@ class DependencyResolver:
                 f"Constraints {specifiers} from {sources} may be incompatible. "
                 f"Consider loosening one or more constraints."
             )
-        return f"No version of '{package}' satisfies {specifiers}. Check if the package is published."
+        return (
+            f"No version of '{package}' satisfies {specifiers}. Check if the package is published."
+        )
 
     def _detect_circular_deps(self, resolved: dict[str, ResolvedPackage]) -> list[list[str]]:
         """Detect circular dependencies in the resolved set."""
@@ -620,11 +631,13 @@ def find_duplicate_deps(resolved: list[ResolvedPackage]) -> list[dict[str, Any]]
     duplicates = []
     for norm, pkgs in name_groups.items():
         if len(pkgs) > 1:
-            duplicates.append({
-                "normalized_name": norm,
-                "variants": [p.name for p in pkgs],
-                "versions": [p.version for p in pkgs],
-            })
+            duplicates.append(
+                {
+                    "normalized_name": norm,
+                    "variants": [p.name for p in pkgs],
+                    "versions": [p.version for p in pkgs],
+                }
+            )
     return duplicates
 
 
@@ -742,13 +755,13 @@ def _generate_poetry_lockfile(result: ResolutionResult) -> str:
     lines = [
         "# This file is automatically @generated by depcheck.",
         "# It is not intended for manual editing.",
-        '[[package]]',
+        "[[package]]",
     ]
     for pkg in sorted(result.resolved, key=lambda p: p.normalized_name):
         lines.append(f'name = "{pkg.name}"')
         lines.append(f'version = "{pkg.version}"')
         if pkg.dependencies:
-            lines.append(f'dependencies = {json.dumps(pkg.dependencies)}')
+            lines.append(f"dependencies = {json.dumps(pkg.dependencies)}")
         lines.append("")
         lines.append("[[package]]")
 
@@ -757,13 +770,15 @@ def _generate_poetry_lockfile(result: ResolutionResult) -> str:
         lines.pop()
 
     # Add metadata
-    lines.extend([
-        "",
-        "[metadata]",
-        f'lock-version = "1.0"',
-        f'python-versions = "3.12"',
-        f'content-hash = "{_hash_result(result)}"',
-    ])
+    lines.extend(
+        [
+            "",
+            "[metadata]",
+            'lock-version = "1.0"',
+            'python-versions = "3.12"',
+            f'content-hash = "{_hash_result(result)}"',
+        ]
+    )
 
     return "\n".join(lines) + "\n"
 
@@ -825,7 +840,9 @@ def _parse_requirements_lockfile(path: Path) -> list[VersionConstraint]:
             name = match.group(1).strip()
             spec = match.group(2).strip()
             if spec:
-                constraints.append(VersionConstraint(package=name, specifier=spec, source=str(path)))
+                constraints.append(
+                    VersionConstraint(package=name, specifier=spec, source=str(path))
+                )
     return constraints
 
 
@@ -886,10 +903,13 @@ def analyze_conflicts(result: ResolutionResult) -> ConflictAnalysis:
             analysis.python_incompatibilities.append(conflict)
 
     analysis.total_conflicts = len(result.conflicts)
-    analysis.critical_conflicts = len([
-        c for c in result.conflicts
-        if c.conflict_type in (ConflictType.VERSION_CONFLICT, ConflictType.CIRCULAR_DEPENDENCY)
-    ])
+    analysis.critical_conflicts = len(
+        [
+            c
+            for c in result.conflicts
+            if c.conflict_type in (ConflictType.VERSION_CONFLICT, ConflictType.CIRCULAR_DEPENDENCY)
+        ]
+    )
     analysis.has_circular_deps = len(analysis.circular_deps) > 0
     analysis.has_version_conflicts = len(analysis.version_conflicts) > 0
 
@@ -954,9 +974,7 @@ def resolve_project(
     constraints = []
     for dep in requirements:
         spec = dep.specifier or (f"=={dep.version}" if dep.version else ">=0.0.0")
-        constraints.append(
-            VersionConstraint(package=dep.name, specifier=spec, source="project")
-        )
+        constraints.append(VersionConstraint(package=dep.name, specifier=spec, source="project"))
 
     # Also parse any lockfile
     lockfile_constraints = _find_and_parse_lockfile(path)
@@ -1002,12 +1020,16 @@ def render_resolve_table(result: ResolutionResult, *, console: Any = None) -> No
         console = Console()
 
     # Summary
-    console.print(f"\n[bold]Dependency Resolution Results[/bold]")
-    console.print(f"Strategy: {result.strategy_used.value} | Iterations: {result.iterations} | "
-                  f"Time: {result.resolution_time_ms:.1f}ms")
-    console.print(f"Resolved: [green]{len(result.resolved)}[/green] | "
-                  f"Conflicts: [red]{result.conflict_count}[/red] | "
-                  f"Unresolved: [yellow]{len(result.unresolved)}[/yellow]")
+    console.print("\n[bold]Dependency Resolution Results[/bold]")
+    console.print(
+        f"Strategy: {result.strategy_used.value} | Iterations: {result.iterations} | "
+        f"Time: {result.resolution_time_ms:.1f}ms"
+    )
+    console.print(
+        f"Resolved: [green]{len(result.resolved)}[/green] | "
+        f"Conflicts: [red]{result.conflict_count}[/red] | "
+        f"Unresolved: [yellow]{len(result.unresolved)}[/yellow]"
+    )
 
     # Resolved packages table
     if result.resolved:
@@ -1020,9 +1042,7 @@ def render_resolve_table(result: ResolutionResult, *, console: Any = None) -> No
 
         for pkg in sorted(result.resolved, key=lambda p: p.normalized_name):
             dep_type = "transitive" if pkg.is_transitive else "direct"
-            constraint_str = ", ".join(
-                c.specifier for c in pkg.constraints[:3] if c.specifier
-            )
+            constraint_str = ", ".join(c.specifier for c in pkg.constraints[:3] if c.specifier)
             if len(pkg.constraints) > 3:
                 constraint_str += f" (+{len(pkg.constraints) - 3} more)"
             table.add_row(
@@ -1068,10 +1088,7 @@ def render_lockfile_diff_table(
     added = set(new_pkgs) - set(old_pkgs)
     removed = set(old_pkgs) - set(new_pkgs)
     common = set(old_pkgs) & set(new_pkgs)
-    changed = {
-        n for n in common
-        if old_pkgs[n].version != new_pkgs[n].version
-    }
+    changed = {n for n in common if old_pkgs[n].version != new_pkgs[n].version}
     unchanged = common - changed
 
     table = Table(title="Lockfile Diff", show_lines=True)
@@ -1092,13 +1109,20 @@ def render_lockfile_diff_table(
             "[yellow]changed[/yellow]",
         )
     for name in sorted(unchanged):
-        table.add_row(old_pkgs[name].name, old_pkgs[name].version, new_pkgs[name].version, "[dim]unchanged[/dim]")
+        table.add_row(
+            old_pkgs[name].name,
+            old_pkgs[name].version,
+            new_pkgs[name].version,
+            "[dim]unchanged[/dim]",
+        )
 
     console.print(table)
-    console.print(f"\nAdded: [green]{len(added)}[/green] | "
-                  f"Removed: [red]{len(removed)}[/red] | "
-                  f"Changed: [yellow]{len(changed)}[/yellow] | "
-                  f"Unchanged: [dim]{len(unchanged)}[/dim]")
+    console.print(
+        f"\nAdded: [green]{len(added)}[/green] | "
+        f"Removed: [red]{len(removed)}[/red] | "
+        f"Changed: [yellow]{len(changed)}[/yellow] | "
+        f"Unchanged: [dim]{len(unchanged)}[/dim]"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1168,4 +1192,5 @@ def _hash_result(result: ResolutionResult) -> str:
 def _timestamp() -> str:
     """Return ISO 8601 timestamp."""
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).isoformat()

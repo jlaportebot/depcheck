@@ -75,7 +75,7 @@ def main() -> None:
     "denied_licenses",
     multiple=True,
     help="Specific SPDX license IDs to deny. Repeat for multiple. "
-    'E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0',
+    "E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0",
 )
 @click.option(
     "--quiet",
@@ -109,9 +109,7 @@ def scan(
             "public_domain": LicenseCategory.PUBLIC_DOMAIN,
         }
         allowed_categories = [
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         ]
 
     denied_list: list[str] | None = None
@@ -450,40 +448,32 @@ def export(
         written = write_sbom_to_file(sbom, format=fmt, output_path=output_file)
         if not quiet:
             console.print(f"[green]SBOM written to {written}[/green]")
-            console.print(
-                f"[dim]{sbom.total} components exported in {fmt} format[/dim]"
-            )
+            console.print(f"[dim]{sbom.total} components exported in {fmt} format[/dim]")
         sys.exit(0)
 
     # Output to stdout
     if fmt == "cyclonedx":
         content = render_cyclonedx(sbom)
         if quiet:
-            clean_console = Console(
-                quiet=False, force_terminal=False, no_color=True
-            )
+            clean_console = Console(quiet=False, force_terminal=False, no_color=True)
         else:
-            clean_console = Console(
-                force_terminal=False, no_color=True
-            )
+            clean_console = Console(force_terminal=False, no_color=True)
         clean_console.print(content)
     elif fmt == "spdx":
         content = render_spdx(sbom)
         if quiet:
-            clean_console = Console(
-                quiet=False, force_terminal=False, no_color=True
-            )
+            clean_console = Console(quiet=False, force_terminal=False, no_color=True)
         else:
-            clean_console = Console(
-                force_terminal=False, no_color=True
-            )
+            clean_console = Console(force_terminal=False, no_color=True)
         clean_console.print(content)
     elif fmt == "summary":
         if json_output:
             content = render_summary_json(sbom)
-            clean_console = Console(
-                quiet=False, force_terminal=False, no_color=True
-            ) if quiet else Console(force_terminal=False, no_color=True)
+            clean_console = (
+                Console(quiet=False, force_terminal=False, no_color=True)
+                if quiet
+                else Console(force_terminal=False, no_color=True)
+            )
             clean_console.print(content)
     elif not quiet:
         render_summary_table(sbom, console=console)
@@ -518,7 +508,7 @@ def export(
     "denied_licenses",
     multiple=True,
     help="Specific SPDX license IDs to deny. Repeat for multiple. "
-    'E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0',
+    "E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0",
 )
 @click.option(
     "--deny-copyleft",
@@ -600,9 +590,7 @@ def license(
             "proprietary": LicenseCategory.PROPRIETARY,
         }
         allowed_categories = {
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         }
 
     denied_ids: set[str] | None = None
@@ -662,9 +650,7 @@ def license(
         compliant_count=sum(1 for e in entries if e.is_compliant),
         non_compliant_count=sum(1 for e in entries if not e.is_compliant),
         uncategorized_count=sum(
-            1
-            for e in entries
-            if e.license_info.category == LicenseCategory.UNKNOWN
+            1 for e in entries if e.license_info.category == LicenseCategory.UNKNOWN
         ),
         policy=policy,
     )
@@ -779,9 +765,11 @@ def outdated(
     # Render output
     if output_json:
         content = render_outdated_json(outdated_report)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_outdated_table(outdated_report, console=console)
@@ -811,8 +799,7 @@ def outdated(
         if should_fail:
             if not quiet:
                 console.print(
-                    f"[red]✗ Outdated dependencies found: --fail-on {fail_on} "
-                    f"condition met[/red]"
+                    f"[red]✗ Outdated dependencies found: --fail-on {fail_on} condition met[/red]"
                 )
             sys.exit(1)
 
@@ -1046,9 +1033,7 @@ def watch(
             "public_domain": LicenseCategory.PUBLIC_DOMAIN,
         }
         allowed_categories = [
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         ]
 
     denied_list: list[str] | None = None
@@ -1173,9 +1158,7 @@ def graph(
             "public_domain": LicenseCategory.PUBLIC_DOMAIN,
         }
         allowed_categories = [
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         ]
 
     denied_list: list[str] | None = None
@@ -1337,9 +1320,11 @@ def resolve(
                 f"{result.resolution_time_ms:.1f}ms"
             )
     elif output_json:
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(render_resolve_json(result))
     else:
         if not quiet:
@@ -1421,9 +1406,11 @@ def pin(
     )
 
     if output_json:
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(render_pin_json(result))
     elif not quiet:
         render_pin_table(result, console=console)
@@ -1513,9 +1500,11 @@ def verify(
         sys.exit(2)
 
     if output_json:
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(render_integrity_json(report))
     elif not quiet:
         render_integrity_table(report, console=console)
@@ -1587,9 +1576,11 @@ def drift(
     report = detect_pin_drift(project_path=path)
 
     if output_json:
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(render_drift_json(report))
     elif not quiet:
         render_drift_table(report, console=console)

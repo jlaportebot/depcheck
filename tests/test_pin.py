@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 from depcheck.pin import (
     IntegrityReport,
@@ -18,9 +14,6 @@ from depcheck.pin import (
     PinPolicyRule,
     PinResult,
     Severity,
-    detect_pin_drift,
-    load_pin_policy,
-    pin_packages,
     read_pinfile,
     render_drift_json,
     render_drift_table,
@@ -29,11 +22,8 @@ from depcheck.pin import (
     render_pin_json,
     render_pin_table,
     unpin_packages,
-    update_pins,
-    verify_integrity,
     write_pinfile,
 )
-
 
 # ---------------------------------------------------------------------------
 # PinnedPackage tests
@@ -58,7 +48,9 @@ class TestPinnedPackage:
         assert p.pin_specifier == ">=1.2.3"
 
     def test_pin_specifier_custom(self):
-        p = PinnedPackage(name="foo", version="1.2.3", policy=PinPolicy.RANGE, specifier=">=1.2.3,<2.0.0")
+        p = PinnedPackage(
+            name="foo", version="1.2.3", policy=PinPolicy.RANGE, specifier=">=1.2.3,<2.0.0"
+        )
         assert p.pin_specifier == ">=1.2.3,<2.0.0"
 
     def test_has_hash_true(self):
@@ -75,6 +67,7 @@ class TestPinnedPackage:
 
     def test_verify_hash_valid(self):
         import hashlib
+
         content = b"test content"
         sha = hashlib.sha256(content).hexdigest()
         p = PinnedPackage(name="foo", version="1.0.0", hash_sha256=sha)
@@ -82,8 +75,9 @@ class TestPinnedPackage:
 
     def test_verify_hash_mismatch(self):
         import hashlib
+
         content = b"test content"
-        sha = hashlib.sha256(content).hexdigest()
+        _sha = hashlib.sha256(content).hexdigest()
         p = PinnedPackage(name="foo", version="1.0.0", hash_sha256="0" * 64)
         assert p.verify_hash(content) == IntegrityStatus.HASH_MISMATCH
 
@@ -112,13 +106,22 @@ class TestPinnedPackage:
         assert p.verify_version("1.0.0") == IntegrityStatus.YANKED
 
     def test_verify_version_deprecated(self):
-        p = PinnedPackage(name="foo", version="1.0.0", policy=PinPolicy.EXACT, deprecated=True, deprecation_message="Use bar instead")
+        p = PinnedPackage(
+            name="foo",
+            version="1.0.0",
+            policy=PinPolicy.EXACT,
+            deprecated=True,
+            deprecation_message="Use bar instead",
+        )
         assert p.verify_version("1.0.0") == IntegrityStatus.DEPRECATED
 
     def test_to_dict(self):
         p = PinnedPackage(
-            name="foo", version="1.0.0", policy=PinPolicy.EXACT,
-            hash_sha256="abc" + "0" * 61, source="pypi",
+            name="foo",
+            version="1.0.0",
+            policy=PinPolicy.EXACT,
+            hash_sha256="abc" + "0" * 61,
+            source="pypi",
         )
         d = p.to_dict()
         assert d["name"] == "foo"
@@ -200,7 +203,9 @@ class TestPinPolicyConfig:
 class TestPinfileIO:
     def test_write_and_read_pinfile(self, tmp_path):
         pinned = [
-            PinnedPackage(name="requests", version="2.31.0", policy=PinPolicy.EXACT, hash_sha256="a" * 64),
+            PinnedPackage(
+                name="requests", version="2.31.0", policy=PinPolicy.EXACT, hash_sha256="a" * 64
+            ),
             PinnedPackage(name="urllib3", version="2.0.7", policy=PinPolicy.EXACT),
         ]
         path = write_pinfile(pinned, project_path=str(tmp_path))
@@ -251,11 +256,14 @@ class TestPinfileIO:
 class TestIntegrityReport:
     def test_total(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path=".",
             checks=[
                 IntegrityCheckResult("a", "1.0", "1.0", IntegrityStatus.VALID, Severity.OK, "ok"),
-                IntegrityCheckResult("b", "1.0", "2.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "bad"),
+                IntegrityCheckResult(
+                    "b", "1.0", "2.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "bad"
+                ),
             ],
         )
         assert report.total == 2
@@ -265,6 +273,7 @@ class TestIntegrityReport:
 
     def test_is_clean(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path=".",
             checks=[
@@ -275,16 +284,20 @@ class TestIntegrityReport:
 
     def test_not_clean(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path=".",
             checks=[
-                IntegrityCheckResult("a", "1.0", "2.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "bad"),
+                IntegrityCheckResult(
+                    "a", "1.0", "2.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "bad"
+                ),
             ],
         )
         assert not report.is_clean
 
     def test_overall_severity_ok(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path=".",
             checks=[
@@ -295,21 +308,32 @@ class TestIntegrityReport:
 
     def test_overall_severity_critical(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path=".",
             checks=[
-                IntegrityCheckResult("a", "1.0", "2.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "bad"),
+                IntegrityCheckResult(
+                    "a", "1.0", "2.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "bad"
+                ),
             ],
         )
         assert report.overall_severity == Severity.CRITICAL
 
     def test_to_dict(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path="/test",
             checks=[
                 IntegrityCheckResult("a", "1.0", "1.0", IntegrityStatus.VALID, Severity.OK, "ok"),
-                IntegrityCheckResult("b", "2.0", "1.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "mismatch"),
+                IntegrityCheckResult(
+                    "b",
+                    "2.0",
+                    "1.0",
+                    IntegrityStatus.VERSION_MISMATCH,
+                    Severity.CRITICAL,
+                    "mismatch",
+                ),
             ],
         )
         d = report.to_dict()
@@ -327,6 +351,7 @@ class TestIntegrityReport:
 class TestIntegrityCheckResult:
     def test_to_dict(self):
         from depcheck.pin import IntegrityCheckResult
+
         check = IntegrityCheckResult(
             package="foo",
             installed_version="1.0.1",
@@ -349,10 +374,12 @@ class TestIntegrityCheckResult:
 
 class TestPinResult:
     def test_total_pinned(self):
-        result = PinResult(pinned=[
-            PinnedPackage(name="a", version="1.0"),
-            PinnedPackage(name="b", version="2.0"),
-        ])
+        result = PinResult(
+            pinned=[
+                PinnedPackage(name="a", version="1.0"),
+                PinnedPackage(name="b", version="2.0"),
+            ]
+        )
         assert result.total_pinned == 2
 
     def test_to_dict(self):
@@ -375,11 +402,14 @@ class TestPinResult:
 class TestPinRendering:
     def test_render_pin_table(self):
         from io import StringIO
+
         from rich.console import Console
 
         result = PinResult(
             pinned=[
-                PinnedPackage(name="requests", version="2.31.0", policy=PinPolicy.EXACT, hash_sha256="a" * 64),
+                PinnedPackage(
+                    name="requests", version="2.31.0", policy=PinPolicy.EXACT, hash_sha256="a" * 64
+                ),
                 PinnedPackage(name="flask", version="3.0.0", policy=PinPolicy.MINIMUM),
             ],
             lockfile_path="/tmp/pin.json",
@@ -391,14 +421,23 @@ class TestPinRendering:
 
     def test_render_integrity_table(self):
         from io import StringIO
+
         from rich.console import Console
+
         from depcheck.pin import IntegrityCheckResult
 
         report = IntegrityReport(
             project_path="/test",
             checks=[
                 IntegrityCheckResult("a", "1.0", "1.0", IntegrityStatus.VALID, Severity.OK, "ok"),
-                IntegrityCheckResult("b", "2.0", "1.0", IntegrityStatus.VERSION_MISMATCH, Severity.CRITICAL, "mismatch"),
+                IntegrityCheckResult(
+                    "b",
+                    "2.0",
+                    "1.0",
+                    IntegrityStatus.VERSION_MISMATCH,
+                    Severity.CRITICAL,
+                    "mismatch",
+                ),
             ],
         )
         console = Console(file=StringIO(), width=200)
@@ -408,15 +447,28 @@ class TestPinRendering:
 
     def test_render_drift_table(self):
         from io import StringIO
+
         from rich.console import Console
+
         from depcheck.pin import PinDrift
 
-        report = IntegrityReport(project_path=".")
+        _report = IntegrityReport(project_path=".")
         from depcheck.pin import PinDriftReport
+
         drift_report = PinDriftReport(
             drifts=[
-                PinDrift(package="requests", pinned_version="2.28.0", latest_version="2.31.0", drift_type="minor"),
-                PinDrift(package="flask", pinned_version="2.0.0", latest_version="3.0.0", drift_type="major"),
+                PinDrift(
+                    package="requests",
+                    pinned_version="2.28.0",
+                    latest_version="2.31.0",
+                    drift_type="minor",
+                ),
+                PinDrift(
+                    package="flask",
+                    pinned_version="2.0.0",
+                    latest_version="3.0.0",
+                    drift_type="major",
+                ),
             ],
             up_to_date_count=5,
             total_pinned=7,
@@ -434,6 +486,7 @@ class TestPinRendering:
 
     def test_render_integrity_json(self):
         from depcheck.pin import IntegrityCheckResult
+
         report = IntegrityReport(
             project_path="/test",
             checks=[
@@ -446,8 +499,13 @@ class TestPinRendering:
 
     def test_render_drift_json(self):
         from depcheck.pin import PinDrift, PinDriftReport
+
         report = PinDriftReport(
-            drifts=[PinDrift(package="foo", pinned_version="1.0", latest_version="2.0", drift_type="major")],
+            drifts=[
+                PinDrift(
+                    package="foo", pinned_version="1.0", latest_version="2.0", drift_type="major"
+                )
+            ],
             total_pinned=5,
         )
         json_str = render_drift_json(report)
@@ -463,25 +521,42 @@ class TestPinRendering:
 class TestPinDrift:
     def test_drift_is_significant_major(self):
         from depcheck.pin import PinDrift
-        drift = PinDrift(package="foo", pinned_version="1.0", latest_version="2.0", drift_type="major")
+
+        drift = PinDrift(
+            package="foo", pinned_version="1.0", latest_version="2.0", drift_type="major"
+        )
         assert drift.is_significant is True
 
     def test_drift_is_not_significant_patch(self):
         from depcheck.pin import PinDrift
-        drift = PinDrift(package="foo", pinned_version="1.0.0", latest_version="1.0.1", drift_type="patch")
+
+        drift = PinDrift(
+            package="foo", pinned_version="1.0.0", latest_version="1.0.1", drift_type="patch"
+        )
         assert drift.is_significant is False
 
     def test_drift_is_significant_security(self):
         from depcheck.pin import PinDrift
+
         drift = PinDrift(
-            package="foo", pinned_version="1.0.0", latest_version="1.0.1",
-            drift_type="patch", is_security_update=True,
+            package="foo",
+            pinned_version="1.0.0",
+            latest_version="1.0.1",
+            drift_type="patch",
+            is_security_update=True,
         )
         assert drift.is_significant is True
 
     def test_drift_to_dict(self):
         from depcheck.pin import PinDrift
-        drift = PinDrift(package="foo", pinned_version="1.0", latest_version="2.0", drift_type="major", is_security_update=True)
+
+        drift = PinDrift(
+            package="foo",
+            pinned_version="1.0",
+            latest_version="2.0",
+            drift_type="major",
+            is_security_update=True,
+        )
         d = drift.to_dict()
         assert d["package"] == "foo"
         assert d["is_significant"] is True
@@ -490,26 +565,52 @@ class TestPinDrift:
 class TestPinDriftReport:
     def test_significant_drifts(self):
         from depcheck.pin import PinDrift, PinDriftReport
-        report = PinDriftReport(drifts=[
-            PinDrift(package="a", pinned_version="1.0", latest_version="2.0", drift_type="major"),
-            PinDrift(package="b", pinned_version="1.0.0", latest_version="1.0.1", drift_type="patch"),
-            PinDrift(package="c", pinned_version="1.0", latest_version="1.1", drift_type="minor"),
-        ])
+
+        report = PinDriftReport(
+            drifts=[
+                PinDrift(
+                    package="a", pinned_version="1.0", latest_version="2.0", drift_type="major"
+                ),
+                PinDrift(
+                    package="b", pinned_version="1.0.0", latest_version="1.0.1", drift_type="patch"
+                ),
+                PinDrift(
+                    package="c", pinned_version="1.0", latest_version="1.1", drift_type="minor"
+                ),
+            ]
+        )
         assert len(report.significant_drifts) == 2  # major + minor
 
     def test_security_drifts(self):
         from depcheck.pin import PinDrift, PinDriftReport
-        report = PinDriftReport(drifts=[
-            PinDrift(package="a", pinned_version="1.0", latest_version="2.0", drift_type="major", is_security_update=True),
-            PinDrift(package="b", pinned_version="1.0", latest_version="1.1", drift_type="minor"),
-        ])
+
+        report = PinDriftReport(
+            drifts=[
+                PinDrift(
+                    package="a",
+                    pinned_version="1.0",
+                    latest_version="2.0",
+                    drift_type="major",
+                    is_security_update=True,
+                ),
+                PinDrift(
+                    package="b", pinned_version="1.0", latest_version="1.1", drift_type="minor"
+                ),
+            ]
+        )
         assert len(report.security_drifts) == 1
 
     def test_to_dict(self):
         from depcheck.pin import PinDrift, PinDriftReport
+
         report = PinDriftReport(
-            drifts=[PinDrift(package="a", pinned_version="1.0", latest_version="2.0", drift_type="major")],
-            total_pinned=5, up_to_date_count=4,
+            drifts=[
+                PinDrift(
+                    package="a", pinned_version="1.0", latest_version="2.0", drift_type="major"
+                )
+            ],
+            total_pinned=5,
+            up_to_date_count=4,
         )
         d = report.to_dict()
         assert d["total_pinned"] == 5
@@ -591,6 +692,7 @@ class TestPinPolicyConfigAdvanced:
 class TestPinnedPackageHashVerification:
     def test_verify_sha256_valid(self):
         import hashlib
+
         content = b"hello world"
         sha = hashlib.sha256(content).hexdigest()
         p = PinnedPackage(name="pkg", version="1.0", hash_sha256=sha)
@@ -598,6 +700,7 @@ class TestPinnedPackageHashVerification:
 
     def test_verify_md5_valid(self):
         import hashlib
+
         content = b"hello world"
         md5 = hashlib.md5(content).hexdigest()
         p = PinnedPackage(name="pkg", version="1.0", hash_md5=md5)
@@ -605,6 +708,7 @@ class TestPinnedPackageHashVerification:
 
     def test_verify_blake2b_valid(self):
         import hashlib
+
         content = b"hello world"
         blake = hashlib.blake2b(content, digest_size=32).hexdigest()
         p = PinnedPackage(name="pkg", version="1.0", hash_blake2b=blake)
@@ -616,6 +720,7 @@ class TestPinnedPackageHashVerification:
 
     def test_verify_multiple_hashes_first_fails(self):
         import hashlib
+
         content = b"hello"
         md5 = hashlib.md5(content).hexdigest()
         p = PinnedPackage(name="pkg", version="1.0", hash_sha256="wrong", hash_md5=md5)
@@ -633,12 +738,15 @@ class TestPinVerifyWorkflow:
         """Write a pinfile, read it, and verify all packages have correct data."""
         pinned = [
             PinnedPackage(
-                name="requests", version="2.31.0",
-                policy=PinPolicy.EXACT, hash_sha256="a" * 64,
+                name="requests",
+                version="2.31.0",
+                policy=PinPolicy.EXACT,
+                hash_sha256="a" * 64,
                 pinned_at="2024-01-01T00:00:00Z",
             ),
             PinnedPackage(
-                name="flask", version="3.0.0",
+                name="flask",
+                version="3.0.0",
                 policy=PinPolicy.COMPATIBLE,
             ),
         ]
@@ -648,7 +756,9 @@ class TestPinVerifyWorkflow:
         read_back = read_pinfile(project_path=str(tmp_path))
         assert len(read_back) == 2
 
-        for orig, read in zip(sorted(pinned, key=lambda p: p.name), sorted(read_back, key=lambda p: p.name)):
+        for orig, read in zip(
+            sorted(pinned, key=lambda p: p.name), sorted(read_back, key=lambda p: p.name)
+        ):
             assert orig.name == read.name
             assert orig.version == read.version
             assert orig.policy == read.policy
@@ -725,6 +835,11 @@ class TestEdgeCases:
         assert p.is_editable is True
 
     def test_pinned_package_is_vcs(self):
-        p = PinnedPackage(name="my-pkg", version="0.0.0", is_vcs=True, vcs_url="git+https://github.com/org/repo.git")
+        p = PinnedPackage(
+            name="my-pkg",
+            version="0.0.0",
+            is_vcs=True,
+            vcs_url="git+https://github.com/org/repo.git",
+        )
         assert p.is_vcs is True
         assert p.vcs_url.startswith("git+")
