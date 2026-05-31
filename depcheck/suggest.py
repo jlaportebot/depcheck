@@ -21,7 +21,7 @@ from typing import Any
 from packaging.version import InvalidVersion, Version
 
 from depcheck.models import HealthStatus, PackageReport, ScanResult
-from depcheck.scanner import normalize_package_name
+from depcheck.scanner import normalize_package_name, scan_project
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -693,8 +693,6 @@ def suggest_alternatives(
         )
 
     if scan_result is None:
-        from depcheck.scanner import scan_project
-
         scan_result = scan_project(
             project_path=str(project_path),
             check_vulnerabilities=check_vulnerabilities,
@@ -916,4 +914,4 @@ def render_suggest_table(result: SuggestResult, *, console: Any = None) -> None:
 
 def render_suggest_json(result: SuggestResult) -> str:
     """Render suggestions as JSON."""
-    return json.dumps(result.to_dict(), indent=2)
+    return json.dumps(result.to_dict(), indent=2, ensure_ascii=True)

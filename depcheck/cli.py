@@ -1648,10 +1648,7 @@ def suggest(
     )
 
     if output_json:
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
-        clean_console.print(render_suggest_json(result))
+        print(render_suggest_json(result))
     else:
         render_suggest_table(result, console=console)
 
