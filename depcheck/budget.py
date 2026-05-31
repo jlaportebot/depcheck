@@ -490,9 +490,8 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
             f"[bold]depcheck budget[/bold] — Dependency Budget Report\n"
             f"[dim]Project: {report.project_path}[/dim]\n"
             f"[{status_color}]{status_icon} "
-f"{'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
-    f"[/{status_color}]",
-            border_style=status_color,
+f"[{'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
+border_style=status_color,
         )
     )
 
