@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 
 import click
@@ -10,7 +11,7 @@ from rich.console import Console
 from depcheck import __version__
 from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
-from depcheck.scanner import scan_project
+from depcheck.scanner import normalize_package_name, scan_project
 
 
 @click.group()
@@ -1695,6 +1696,408 @@ def scorecard(
 
     # Exit with error if grade is D or F
     if result.grade.value in ("D", "F"):
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("query", nargs=-1, required=True)
+@click.option(
+    "--limit",
+    type=int,
+    default=10,
+    help="Maximum number of results to return (default: 10).",
+)
+@click.option(
+    "--category",
+    type=click.Choice(
+        ["web", "data", "testing", "cli", "database", "security", "ml", "devtools"],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Search by well-known category instead of query.",
+)
+@click.option(
+    "--license",
+    "license_filter",
+    type=click.Choice(
+        ["permissive", "copyleft", "public_domain", "proprietary"],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Filter results by license category.",
+)
+@click.option(
+    "--python",
+    "python_version",
+    default=None,
+    help="Filter by Python version compatibility (e.g., '3.11').",
+)
+@click.option(
+    "--min-score",
+    type=float,
+    default=0.0,
+    help="Minimum health score to include (0-100).",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output search results as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def search(
+    query: tuple[str, ...],
+    limit: int,
+    category: str | None,
+    license_filter: str | None,
+    python_version: str | None,
+    min_score: float,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Search for packages on PyPI with health scoring.
+
+    QUERY is the package name or keyword to search for.
+    Shows health scores, license info, dependency counts, and
+    maintenance status for each result.
+
+    Examples:
+
+    \b
+    depcheck search requests
+    depcheck search "http client"
+    depcheck search --category web --limit 5
+    depcheck search --license permissive --min-score 70 flask
+    depcheck search --python 3.11 asyncio
+    depcheck search --json pytest
+    """
+    from depcheck.search import (
+        render_search_json,
+        render_search_table,
+        search_by_category,
+        search_packages,
+    )
+
+    console = Console(quiet=quiet)
+    query_str = " ".join(query)
+
+    if category:
+        results = search_by_category(
+            category=category,
+            limit=limit,
+            min_score=min_score,
+        )
+    else:
+        results = search_packages(
+            query=query_str,
+            limit=limit,
+            license_filter=license_filter,
+            python_version=python_version,
+            min_score=min_score,
+        )
+
+    if results.errors and not results.results:
+        for error in results.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
+        clean_console.print(render_search_json(results))
+    elif not quiet:
+        render_search_table(results, console=console)
+
+    if not results.results:
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output size report as JSON.",
+)
+@click.option(
+    "--compare",
+    multiple=True,
+    help="Compare sizes of specific packages (repeat for each). "
+    "E.g., --compare flask --compare django.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def size(
+    path: str,
+    output_json: bool,
+    compare: tuple[str, ...],
+    quiet: bool,
+) -> None:
+    """Analyze dependency sizes and disk footprint.
+
+    Shows download size, estimated install size, and size category
+    for each dependency. Identifies the largest packages and suggests
+    lighter alternatives where available.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Use --compare to compare sizes of specific packages instead of
+    analyzing a project.
+
+    Examples:
+
+    \b
+    depcheck size
+    depcheck size --json
+    depcheck size /path/to/project
+    depcheck size --compare flask --compare django --compare fastapi
+    """
+    from depcheck.size import (
+        compare_package_sizes,
+        render_size_comparison,
+        render_size_json,
+        render_size_table,
+        analyze_project_sizes,
+    )
+
+    console = Console(quiet=quiet)
+
+    if compare:
+        # Compare mode: compare specific packages
+        packages = compare_package_sizes(list(compare))
+        if output_json:
+            clean_console = (
+                Console(quiet=False, force_terminal=False, no_color=True)
+                if quiet
+                else Console(force_terminal=False, no_color=True)
+            )
+            clean_console.print(
+                json.dumps(
+                    [p.to_dict() for p in packages],
+                    indent=2,
+                )
+            )
+        elif not quiet:
+            render_size_comparison(packages, console=console)
+        return
+
+    # Project analysis mode
+    report = analyze_project_sizes(project_path=path)
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
+        clean_console.print(render_size_json(report))
+    elif not quiet:
+        render_size_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--max-packages",
+    type=int,
+    default=None,
+    help="Maximum number of direct dependencies allowed.",
+)
+@click.option(
+    "--max-download-kb",
+    type=float,
+    default=None,
+    help="Maximum total download size in KB.",
+)
+@click.option(
+    "--max-install-kb",
+    type=float,
+    default=None,
+    help="Maximum total install size in KB.",
+)
+@click.option(
+    "--max-single-package-kb",
+    type=float,
+    default=None,
+    help="Maximum download size for a single package in KB.",
+)
+@click.option(
+    "--allow-license",
+    "allowed_licenses",
+    multiple=True,
+    type=click.Choice(
+        ["permissive", "copyleft", "public_domain", "proprietary"],
+        case_sensitive=False,
+    ),
+    help="Allowed license categories for budget compliance.",
+)
+@click.option(
+    "--deny-package",
+    "denied_packages",
+    multiple=True,
+    help="Package names to deny (repeat for each).",
+)
+@click.option(
+    "--require-package",
+    "required_packages",
+    multiple=True,
+    help="Package names that must be present (repeat for each).",
+)
+@click.option(
+    "--init",
+    "init_config",
+    is_flag=True,
+    default=False,
+    help="Create a default depcheck.budget.json config file.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output budget report as JSON.",
+)
+@click.option(
+    "--fail-on-violation",
+    is_flag=True,
+    default=False,
+    help="Exit with code 1 if any budget rules are violated.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def budget(
+    path: str,
+    max_packages: int | None,
+    max_download_kb: float | None,
+    max_install_kb: float | None,
+    max_single_package_kb: float | None,
+    allowed_licenses: tuple[str, ...],
+    denied_packages: tuple[str, ...],
+    required_packages: tuple[str, ...],
+    init_config: bool,
+    output_json: bool,
+    fail_on_violation: bool,
+    quiet: bool,
+) -> None:
+    """Check dependency budget compliance.
+
+    Analyzes your project's dependencies against budget constraints
+    (max count, max size, allowed licenses, denied/required packages).
+    Useful in CI to prevent dependency bloat.
+
+    Budget rules can be configured via CLI options or a
+    depcheck.budget.json file in the project root.
+
+    Examples:
+
+    \b
+    depcheck budget
+    depcheck budget --max-packages 20
+    depcheck budget --max-download-kb 100000 --fail-on-violation
+    depcheck budget --allow-license permissive --deny-package requests
+    depcheck budget --require-package pytest --require-package ruff
+    depcheck budget --init
+    depcheck budget --json
+    """
+    from depcheck.budget import (
+        BudgetConfig,
+        check_budget,
+        init_budget_file,
+        render_budget_json,
+        render_budget_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    # Init mode: create default config file
+    if init_config:
+        filepath = init_budget_file(path)
+        if not quiet:
+            console.print(f"[green]✓ Budget config created at {filepath}[/green]")
+        return
+
+    # Build config from CLI options
+    config = None
+    has_cli_overrides = any([
+        max_packages is not None,
+        max_download_kb is not None,
+        max_install_kb is not None,
+        max_single_package_kb is not None,
+        allowed_licenses,
+        denied_packages,
+        required_packages,
+    ])
+
+    if has_cli_overrides:
+        config = BudgetConfig()
+        if max_packages is not None:
+            config.max_packages = max_packages
+        if max_download_kb is not None:
+            config.max_total_download_kb = max_download_kb
+        if max_install_kb is not None:
+            config.max_total_install_kb = max_install_kb
+        if max_single_package_kb is not None:
+            config.max_single_package_kb = max_single_package_kb
+        if allowed_licenses:
+            config.allowed_license_categories = set(allowed_licenses)
+        if denied_packages:
+            config.denied_packages = {
+                normalize_package_name(p) for p in denied_packages
+            }
+        if required_packages:
+            config.required_packages = {
+                normalize_package_name(p) for p in required_packages
+            }
+
+    # Run budget check
+    report = check_budget(project_path=path, config=config)
+
+    if output_json:
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
+        clean_console.print(render_budget_json(report))
+    elif not quiet:
+        render_budget_table(report, console=console)
+
+    # Exit code
+    if fail_on_violation and not report.is_compliant:
+        if not quiet:
+            console.print("[red]✗ Budget violations detected[/red]")
         sys.exit(1)
 
 
