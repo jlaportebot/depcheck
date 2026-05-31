@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -1106,7 +1107,7 @@ class TestHistoryCLI:
         from click.testing import CliRunner
 
         from depcheck.cli import main
-        from depcheck.models import HealthStatus, PackageReport
+        from depcheck.models import HealthStatus, PackageReport, ScanResult
 
         mock_scan.return_value = ScanResult(
             packages=[

@@ -778,7 +778,7 @@ class TestRenderSuggestJson:
         assert "summary" in data
 
     def test_with_suggestions(self) -> None:
-        result = SuggestResult(
+        suggest_result = SuggestResult(
             project_path="/test",
             suggestions=[
                 PackageSuggestion(
@@ -788,10 +788,10 @@ class TestRenderSuggestJson:
                 ),
             ],
         )
-    json_str = render_suggest_json(result)
-    data = json.loads(json_str)
-    assert data["summary"]["total"] == 1
-    assert data["summary"]["keep"] == 1
+        json_str = render_suggest_json(suggest_result)
+        data = json.loads(json_str)
+        assert data["summary"]["total"] == 1
+        assert data["summary"]["keep"] == 1
 
 
 # ---------------------------------------------------------------------------
