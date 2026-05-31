@@ -13,7 +13,6 @@ Provides actionable migration advice with compatibility analysis.
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -22,8 +21,7 @@ from typing import Any
 from packaging.version import InvalidVersion, Version
 
 from depcheck.models import HealthStatus, PackageReport, ScanResult
-from depcheck.scanner import discover_dependencies, normalize_package_name
-
+from depcheck.scanner import normalize_package_name
 
 # ---------------------------------------------------------------------------
 # Enums

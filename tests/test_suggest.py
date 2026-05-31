@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,8 +14,8 @@ from depcheck.suggest import (
     AlternativeReason,
     MigrationDifficulty,
     PackageSuggestion,
-    SuggestResult,
     SuggestionConfidence,
+    SuggestResult,
     _build_recommendation,
     _determine_action,
     _determine_reasons,
@@ -27,7 +26,6 @@ from depcheck.suggest import (
     render_suggest_table,
     suggest_alternatives,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

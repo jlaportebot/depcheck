@@ -22,9 +22,9 @@ from typing import Any
 
 from packaging.version import InvalidVersion, Version
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
-from depcheck.scanner import discover_dependencies, normalize_package_name
-
+from depcheck.models import ScanResult
+from depcheck.pypi import PyPIClient
+from depcheck.scanner import scan_project
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -305,7 +305,7 @@ def _compute_cadence(stable_releases: list[ReleaseEvent]) -> ReleaseCadence:
     if not intervals:
         return ReleaseCadence.UNKNOWN
 
-    avg_interval = sum(intervals) / len(intervals)
+    sum(intervals) / len(intervals)
 
     # Use recent releases (last 4) for more accurate cadence
     recent_intervals = intervals[-4:] if len(intervals) >= 4 else intervals
@@ -931,3 +931,82 @@ def render_history_json(result: HistoryResult) -> str:
         JSON string.
     """
     return json.dumps(result.to_dict(), indent=2)
+
+
+def build_history_report(
+    project_path: str | Path,
+    packages: list[str] | None = None,
+    risk_threshold: str | None = None,
+) -> HistoryResult:
+    """Build a full history report for a project's dependencies.
+
+    This is the main entry point for the ``history`` CLI command.
+
+    Args:
+        project_path: Path to the project directory.
+        packages: Optional list of specific package names to analyze.
+            If None, all scanned dependencies are analyzed.
+        risk_threshold: If set, only include packages at or above this
+            risk level. One of: "low", "medium", "high", "critical".
+
+    Returns:
+        HistoryResult with timelines for each dependency.
+    """
+    project_path = Path(project_path).resolve()
+
+    if not project_path.is_dir():
+        return HistoryResult(
+            project_path=str(project_path),
+            errors=[f"Path is not a directory: {project_path}"],
+        )
+
+    try:
+        scan_result = scan_project(project_path)
+    except Exception as exc:
+        return HistoryResult(
+            project_path=str(project_path),
+            errors=[f"Scan failed: {exc}"],
+        )
+
+    if not scan_result.packages:
+        return HistoryResult(project_path=str(project_path))
+
+    timelines: list[PackageTimeline] = []
+    errors: list[str] = []
+
+    pypi_client = PyPIClient()
+
+    risk_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+    min_risk = risk_order.get(risk_threshold, 0) if risk_threshold else 0
+
+    for pkg in scan_result.packages:
+        if packages and pkg.name not in packages:
+            continue
+
+        try:
+            pypi_data = pypi_client.get_package_info(pkg.name)
+        except Exception:
+            pypi_data = {}
+
+        releases_data = pypi_data.get("releases", {})
+        installed = pkg.installed_version or ""
+        latest = pkg.latest_version or ""
+
+        tl = build_timeline(
+            package_name=pkg.name,
+            releases_data=releases_data,
+            installed_version=installed,
+            latest_version=latest,
+        )
+
+        pkg_risk_level = risk_order.get(tl.risk_level, 0)
+        if pkg_risk_level >= min_risk:
+            timelines.append(tl)
+
+    result = HistoryResult(
+        project_path=str(project_path),
+        timelines=timelines,
+        errors=errors,
+    )
+
+    return result

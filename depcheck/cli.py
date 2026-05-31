@@ -1590,5 +1590,145 @@ def drift(
         sys.exit(1)
 
 
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON.",
+)
+@click.option(
+    "--policy",
+    type=click.Choice(["relaxed", "standard", "strict"]),
+    default="standard",
+    help="Health policy threshold for recommendations (default: standard).",
+)
+@click.option(
+    "--min-score",
+    type=int,
+    default=0,
+    help="Minimum recommendation score (0-100) to include.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress non-essential output.",
+)
+def suggest(
+    path: str,
+    output_json: bool,
+    policy: str,
+    min_score: int,
+    quiet: bool,
+) -> None:
+    """Suggest healthier alternative dependencies.
+
+    Analyzes your project dependencies and recommends alternatives based on
+    maintenance health, popularity, and compatibility.
+
+    \b
+    Examples:
+        depcheck suggest
+        depcheck suggest /path/to/project --policy strict
+        depcheck suggest . --json > suggestions.json
+        depcheck suggest . --min-score 60
+    """
+    from depcheck.suggest import render_suggest_json, render_suggest_table, suggest_alternatives
+
+    console = Console(quiet=quiet)
+    result = suggest_alternatives(
+        project_path=path,
+    )
+
+    if output_json:
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(render_suggest_json(result))
+    else:
+        render_suggest_table(result, console=console)
+
+    if result.errors:
+        sys.exit(2)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=False, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON.",
+)
+@click.option(
+    "--package",
+    "packages",
+    multiple=True,
+    help="Specific packages to analyze (can be repeated).",
+)
+@click.option(
+    "--risk-threshold",
+    type=click.Choice(["low", "medium", "high", "critical"]),
+    default=None,
+    help="Only show packages at or above this risk level.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress non-essential output.",
+)
+def history(
+    path: str,
+    output_json: bool,
+    packages: tuple[str, ...],
+    risk_threshold: str | None,
+    quiet: bool,
+) -> None:
+    """Analyze release timeline and maintenance patterns.
+
+    Shows release cadence, version gaps, lifecycle stage, and risk
+    assessment for each dependency.
+
+    \b
+    Examples:
+        depcheck history
+        depcheck history /path/to/project --json
+        depcheck history . --package requests --package flask
+        depcheck history . --risk-threshold high
+    """
+    from depcheck.history import build_history_report, render_history_json, render_history_table, render_history_json, render_history_table
+
+    console = Console(quiet=quiet)
+    result = build_history_report(
+        project_path=path,
+        packages=list(packages) if packages else None,
+        risk_threshold=risk_threshold,
+    )
+
+    if output_json:
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(render_history_json(result))
+    else:
+        render_history_table(result, console=console)
+
+    if result.errors:
+        sys.exit(2)
+
+
 if __name__ == "__main__":
     main()
