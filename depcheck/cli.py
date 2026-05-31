@@ -1709,7 +1709,7 @@ def history(
         depcheck history . --package requests --package flask
         depcheck history . --risk-threshold high
     """
-    from depcheck.history import build_history_report, render_history_json, render_history_table, render_history_json, render_history_table
+    from depcheck.history import build_history_report, render_history_json, render_history_table
 
     console = Console(quiet=quiet)
     result = build_history_report(

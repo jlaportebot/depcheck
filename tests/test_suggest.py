@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -788,7 +788,67 @@ class TestRenderSuggestJson:
                 ),
             ],
         )
-        json_str = render_suggest_json(result)
-        data = json.loads(json_str)
-        assert data["summary"]["total"] == 1
-        assert data["summary"]["keep"] == 1
+    json_str = render_suggest_json(result)
+    data = json.loads(json_str)
+    assert data["summary"]["total"] == 1
+    assert data["summary"]["keep"] == 1
+
+
+# ---------------------------------------------------------------------------
+# CLI integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestSuggestCLI:
+    """Integration tests for the suggest CLI command."""
+
+    @patch("depcheck.cli.scan_project")
+    def test_suggest_help(self, mock_scan: MagicMock) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["suggest", "--help"])
+        assert result.exit_code == 0
+        assert "suggest" in result.output.lower() or "healthier" in result.output.lower()
+
+    @patch("depcheck.cli.scan_project")
+    def test_suggest_invalid_path(self, mock_scan: MagicMock) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["suggest", "/nonexistent/xyz"])
+        assert result.exit_code == 2
+
+    @patch("depcheck.suggest.scan_project")
+    def test_suggest_json_output(self, mock_scan: MagicMock, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        mock_scan.return_value = ScanResult(
+            packages=[_make_pkg(name="requests", status=HealthStatus.HEALTHY)],
+            project_path=str(tmp_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(main, ["suggest", str(tmp_path), "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "suggestions" in data
+
+    @patch("depcheck.suggest.scan_project")
+    def test_suggest_table_output(self, mock_scan: MagicMock, tmp_path: Path) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        mock_scan.return_value = ScanResult(
+            packages=[_make_pkg(name="requests", status=HealthStatus.HEALTHY)],
+            project_path=str(tmp_path),
+        )
+        runner = CliRunner()
+        result = runner.invoke(main, ["suggest", str(tmp_path)])
+        assert result.exit_code == 0

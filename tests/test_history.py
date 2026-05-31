@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -1067,3 +1067,79 @@ class TestRenderHistoryJson:
         json_str = render_history_json(result)
         data = json.loads(json_str)
         assert data["summary"]["active"] == 1
+
+
+# ---------------------------------------------------------------------------
+# CLI integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestHistoryCLI:
+    """Integration tests for the history CLI command."""
+
+    @patch("depcheck.cli.scan_project")
+    def test_history_help(self, mock_scan: MagicMock) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["history", "--help"])
+        assert result.exit_code == 0
+        assert "timeline" in result.output.lower() or "history" in result.output.lower()
+
+    @patch("depcheck.cli.scan_project")
+    def test_history_invalid_path(self, mock_scan: MagicMock) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["history", "/nonexistent/xyz"])
+        assert result.exit_code == 2
+
+    @patch("depcheck.history.scan_project")
+    @patch("depcheck.history.PyPIClient")
+    def test_history_json_output(
+        self, mock_pypi_cls: MagicMock, mock_scan: MagicMock, tmp_path: Path
+    ) -> None:
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+        from depcheck.models import HealthStatus, PackageReport
+
+        mock_scan.return_value = ScanResult(
+            packages=[
+                PackageReport(
+                    name="requests",
+                    installed_version="2.28.0",
+                    latest_version="2.31.0",
+                    status=HealthStatus.HEALTHY,
+                ),
+            ],
+            project_path=str(tmp_path),
+        )
+        mock_pypi_client = MagicMock()
+        mock_pypi_client.get_package_info.return_value = {
+            "releases": {
+                "2.28.0": [
+                    {
+                        "upload_time_iso_8601": "2022-06-29T00:00:00Z",
+                        "yanked": False,
+                    }
+                ],
+                "2.31.0": [
+                    {
+                        "upload_time_iso_8601": "2023-07-12T00:00:00Z",
+                        "yanked": False,
+                    }
+                ],
+            }
+        }
+        mock_pypi_cls.return_value = mock_pypi_client
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["history", str(tmp_path), "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "timelines" in data
