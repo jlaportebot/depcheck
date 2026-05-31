@@ -2130,5 +2130,881 @@ def budget(
         sys.exit(1)
 
 
+# ── New commands: risks, advisories, policy ────────────────────────────
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output risk report as JSON.",
+)
+@click.option(
+    "--severity-threshold",
+    type=click.Choice(["low", "medium", "high", "critical"]),
+    default="medium",
+    help="Minimum severity to report.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def risks(
+    path: str,
+    output_json: bool,
+    severity_threshold: str,
+    quiet: bool,
+) -> None:
+    """Assess multi-dimensional risk scores for dependencies.
+
+    Evaluates each dependency across vulnerability, maintenance, age,
+    popularity, and license risk dimensions. Produces a composite
+    risk score and remediation priority list.
+
+    PATH is the project directory to analyse (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck risks
+    depcheck risks --severity-threshold high
+    depcheck risks --json
+    """
+    from depcheck.risks import (
+        RiskSeverity,
+        assess_risks,
+        render_risks_json,
+        render_risks_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    severity_map = {
+        "low": RiskSeverity.LOW,
+        "medium": RiskSeverity.MEDIUM,
+        "high": RiskSeverity.HIGH,
+        "critical": RiskSeverity.CRITICAL,
+    }
+    threshold = severity_map.get(severity_threshold, RiskSeverity.MEDIUM)
+
+    report = assess_risks(project_path=path, min_severity=threshold)
+
+    if report.errors and not report.entries:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_risks_json(report)
+    elif not quiet:
+        render_risks_table(report, console=console)
+
+    if report.critical_count > 0:
+        if not quiet:
+            console.print(
+                f"[red]✗ {report.critical_count} critical-risk "
+                f"dependencies found[/red]"
+            )
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output advisory report as JSON.",
+)
+@click.option(
+    "--source",
+    type=click.Choice(["osv", "pypa", "github", "all"]),
+    default="all",
+    help="Advisory source to query.",
+)
+@click.option(
+    "--severity",
+    type=click.Choice(["critical", "high", "medium", "low"]),
+    default=None,
+    help="Filter advisories by minimum severity.",
+)
+@click.option(
+    "--patched-only",
+    is_flag=True,
+    default=False,
+    help="Only show advisories with a known fix.",
+)
+@click.option(
+    "--unpatched-only",
+    is_flag=True,
+    default=False,
+    help="Only show advisories without a known fix.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def advisories(
+    path: str,
+    output_json: bool,
+    source: str,
+    severity: str | None,
+    patched_only: bool,
+    unpatched_only: bool,
+    quiet: bool,
+) -> None:
+    """Check security advisories for project dependencies.
+
+    Queries multiple advisory databases (OSV, PyPA, GitHub) for
+    known vulnerabilities affecting your dependencies. Shows
+    severity, affected versions, and available fixes.
+
+    PATH is the project directory to check (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck advisories
+    depcheck advisories --source osv
+    depcheck advisories --severity high
+    depcheck advisories --unpatched-only
+    depcheck advisories --json
+    """
+    from depcheck.advisories import (
+        AdvisorySource,
+        render_advisories_json,
+        render_advisories_table,
+        run_advisories,
+        search_advisories,
+    )
+
+    console = Console(quiet=quiet)
+
+    source_map = {
+        "osv": [AdvisorySource.OSV],
+        "pypa": [AdvisorySource.PYPA],
+        "github": [AdvisorySource.GITHUB],
+        "all": [AdvisorySource.OSV, AdvisorySource.PYPA, AdvisorySource.GITHUB],
+    }
+    sources = source_map.get(source, source_map["all"])
+
+    report = run_advisories(
+        project_path=path,
+        check_vulnerabilities=True,
+        sources=sources,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Apply filters if specified
+    if severity or patched_only or unpatched_only:
+        for pkg_summary in report.packages:
+            filtered = pkg_summary.advisories
+            if severity:
+                filtered = [a for a in filtered if a.severity.upper() >= severity.upper()]
+            if patched_only:
+                filtered = [a for a in filtered if a.is_patchable]
+            if unpatched_only:
+                filtered = [a for a in filtered if not a.is_patchable]
+            pkg_summary.advisories = filtered
+            pkg_summary.total_advisories = len(filtered)
+
+    if output_json:
+        render_advisories_json(report)
+    elif not quiet:
+        render_advisories_table(report, console=console)
+
+    if report.total_critical > 0:
+        if not quiet:
+            console.print(
+                f"[red]✗ {report.total_critical} critical advisories "
+                f"found[/red]"
+            )
+        sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output policy report as JSON.",
+)
+@click.option(
+    "--no-vulns",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checks during policy evaluation.",
+)
+@click.option(
+    "--no-licenses",
+    is_flag=True,
+    default=False,
+    help="Skip license checks during policy evaluation.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def policy(
+    path: str,
+    output_json: bool,
+    no_vulns: bool,
+    no_licenses: bool,
+    quiet: bool,
+) -> None:
+    """Evaluate dependency policies and check compliance.
+
+    Loads policy rules from [tool.depcheck.policy] in pyproject.toml
+    and evaluates them against your project's dependencies. Reports
+    violations by severity (error, warning, info) with remediation
+    guidance. Exits with code 1 if any error-severity rules are
+    violated.
+
+    PATH is the project directory to check (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck policy
+    depcheck policy --json
+    depcheck policy --no-vulns
+    """
+    from depcheck.policy import (
+        PolicyConfig,
+        evaluate_policy,
+        render_policy_json,
+        render_policy_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = evaluate_policy(
+        project_path=path,
+        check_vulnerabilities=not no_vulns,
+        check_licenses=not no_licenses,
+    )
+
+    if report.errors and not report.violations and report.total_packages == 0:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_policy_json(report)
+    elif not quiet:
+        render_policy_table(report, console=console)
+
+    if not report.is_compliant:
+        if not quiet:
+            console.print(
+                f"[red]✗ Policy non-compliant: {report.error_count} "
+                f"error(s), compliance score {report.compliance_score}%[/red]"
+            )
+        sys.exit(1)
+
+
+# ── New commands: update, isolate, sizescore, depdrift, compat ─────────
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output update plan as JSON.",
+)
+@click.option(
+    "--pinned",
+    is_flag=True,
+    default=False,
+    help="Treat all exact-version deps as pinned (affects strategy).",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def update(
+    path: str,
+    output_json: bool,
+    pinned: bool,
+    no_vuln_check: bool,
+    quiet: bool,
+) -> None:
+    """Generate a safe, prioritized update plan for dependencies.
+
+    Analyzes your project's dependencies and produces a step-by-step
+    update plan ordered by priority (security fixes first, then
+    major → minor → patch). Each step includes pip commands, risk
+    assessment, and strategy recommendations.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck update
+    depcheck update --json
+    depcheck update --pinned
+    depcheck update /path/to/project
+    """
+    from depcheck.update import (
+        build_update_plan,
+        render_update_plan_json,
+        render_update_plan_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    result = scan_project(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+    )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Determine pinned packages
+    pinned_set: set[str] | None = None
+    if pinned:
+        pinned_set = {
+            pkg.name for pkg in result.packages
+            if pkg.installed_version and pkg.installed_version != "unknown"
+        }
+
+    plan = build_update_plan(result, pinned_packages=pinned_set)
+
+    if output_json:
+        content = render_update_plan_json(plan)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_update_plan_table(plan, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output isolation report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def isolate(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Analyze which dependencies can be safely removed.
+
+    Scans your project's source code for import statements and
+    cross-references them with declared dependencies to find packages
+    that are unused, transitive-only, or safely removable.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck isolate
+    depcheck isolate --json
+    depcheck isolate /path/to/project
+    """
+    from depcheck.isolate import (
+        analyze_isolation,
+        render_isolation_json,
+        render_isolation_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = analyze_isolation(project_path=Path(path))
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_isolation_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_isolation_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output size score report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def sizescore(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Analyze dependency sizes and bloat.
+
+    Checks download/install sizes of your dependencies, detects
+    size trends (bloat vs. lean), suggests lighter alternatives
+    for heavy packages, and computes a size efficiency score.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck sizescore
+    depcheck sizescore --json
+    depcheck sizescore /path/to/project
+    """
+    from depcheck.sizescore import (
+        build_size_report,
+        render_size_json,
+        render_size_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = build_size_report(project_path=path)
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_size_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_size_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--from-commit",
+    default=None,
+    help="Starting git commit for drift comparison.",
+)
+@click.option(
+    "--to-commit",
+    default=None,
+    help="Ending git commit for drift comparison.",
+)
+@click.option(
+    "--max-commits",
+    type=int,
+    default=100,
+    help="Maximum number of commits to traverse.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output drift report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def depdrift(
+    path: str,
+    from_commit: str | None,
+    to_commit: str | None,
+    max_commits: int,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Track dependency drift over time via git history.
+
+    Compares your project's dependency files across git commits to
+    detect version drift, package additions/removals, and pin erosion.
+    Computes drift velocity and identifies high-drift packages.
+
+    PATH is the project directory (defaults to current directory).
+    Must be a git repository.
+
+    Examples:
+
+    \b
+    depcheck depdrift
+    depcheck depdrift --json
+    depcheck depdrift --from-commit abc123 --to-commit def456
+    depcheck depdrift --max-commits 50
+    """
+    from depcheck.depdrift import (
+        build_drift_report,
+        render_drift_json,
+        render_drift_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = build_drift_report(
+        project_path=path,
+        from_commit=from_commit,
+        to_commit=to_commit,
+        max_commits=max_commits,
+    )
+
+    if report.errors and not report.entries:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_drift_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_drift_table(report, console=console)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--target",
+    "target_python",
+    default="3.13",
+    help="Target Python version for compatibility check.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output compatibility report as JSON.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def compat(
+    path: str,
+    target_python: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Check Python version compatibility of dependencies.
+
+    Analyzes your project's dependencies for compatibility with a
+    target Python version using PyPI metadata (Requires-Python and
+    classifiers). Identifies packages that will break on upgrade
+    and computes an upgrade readiness score.
+
+    PATH is the project directory (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck compat
+    depcheck compat --target 3.13
+    depcheck compat --target 3.11 --json
+    depcheck compat /path/to/project
+    """
+    from depcheck.compat import (
+        build_compat_report,
+        render_compat_json,
+        render_compat_table,
+    )
+
+    console = Console(quiet=quiet)
+
+    report = build_compat_report(
+        project_path=path,
+        target_python=target_python,
+    )
+
+    if report.errors and not report.packages:
+        for error in report.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        content = render_compat_json(report)
+        clean_console = Console(
+            quiet=False, force_terminal=False, no_color=True
+        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console.print(content)
+    elif not quiet:
+        render_compat_table(report, console=console)
+
+    # Exit with error if any packages are incompatible
+    if report.incompatible_count > 0:
+        sys.exit(1)
+
+
+# ── New commands: predict, stack ───────────────────────────────────────
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output predictions as JSON.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(["moderate", "high", "critical"]),
+    default=None,
+    help="Exit with code 1 if deprecation risk meets threshold.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def predict(
+    path: str,
+    output_json: bool,
+    no_vuln_check: bool,
+    fail_on: str | None,
+    quiet: bool,
+) -> None:
+    """Predict version releases and detect deprecation risk for dependencies.
+
+    Analyzes package release history to predict next version numbers,
+    estimate release cadence, detect deprecation signals, and calculate
+    a comprehensive deprecation risk score for each dependency.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck predict
+    depcheck predict --json
+    depcheck predict --fail-on high
+    depcheck predict /path/to/project
+    """
+    from depcheck.predict import (
+        DeprecationRiskLevel,
+        render_predict_json,
+        render_predict_table,
+        run_predict,
+    )
+
+    console = Console(quiet=quiet)
+
+    result = run_predict(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+    )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_predict_json(result)
+    elif not quiet:
+        render_predict_table(result, console=console)
+
+    if fail_on:
+        threshold_map = {
+            "moderate": DeprecationRiskLevel.MODERATE,
+            "high": DeprecationRiskLevel.HIGH,
+            "critical": DeprecationRiskLevel.CRITICAL,
+        }
+        threshold = threshold_map.get(fail_on.lower(), DeprecationRiskLevel.CRITICAL)
+        level_order = {
+            DeprecationRiskLevel.LOW: 0,
+            DeprecationRiskLevel.MODERATE: 1,
+            DeprecationRiskLevel.HIGH: 2,
+            DeprecationRiskLevel.CRITICAL: 3,
+        }
+        if level_order.get(result.overall_deprecation_risk, 0) >= level_order.get(
+            threshold, 3
+        ):
+            if not quiet:
+                console.print(
+                    f"[red]✗ Predict failed: deprecation risk "
+                    f"{result.overall_deprecation_risk.value} "
+                    f"meets or exceeds --fail-on {fail_on} threshold[/red]"
+                )
+            sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output stack analysis as JSON.",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Also check license chain compliance.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def stack(
+    path: str,
+    output_json: bool,
+    check_licenses: bool,
+    quiet: bool,
+) -> None:
+    """Analyze your project's tech stack and detect conflicts.
+
+    Automatically detects the technology stack by analyzing dependencies
+    and configuration files. Checks for version conflicts, known
+    incompatibilities between packages, and optionally checks license
+    chain compliance across your dependency tree.
+
+    PATH is the project directory to analyze (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck stack
+    depcheck stack --json
+    depcheck stack --check-licenses
+    depcheck stack /path/to/project
+    """
+    from depcheck.stack import render_stack_json, render_stack_table, run_stack
+
+    console = Console(quiet=quiet)
+
+    result = run_stack(
+        project_path=path,
+        check_licenses=check_licenses,
+    )
+
+    if result.errors and not result.components:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    if output_json:
+        render_stack_json(result)
+    elif not quiet:
+        render_stack_table(result, console=console)
+
+    # Exit with error if there are critical conflicts
+    has_critical = any(
+        c.severity.value == "critical" for c in result.conflicts
+    )
+    if has_critical:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main()
