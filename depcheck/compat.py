@@ -212,6 +212,7 @@ def check_version_compatibility(
     if requires_python:
         try:
             from packaging.specifiers import SpecifierSet
+
             spec = SpecifierSet(requires_python)
             if target_version not in spec:
                 # Try with micro version
@@ -268,6 +269,7 @@ def check_breaking_on_upgrade(
 
     try:
         from packaging.specifiers import SpecifierSet
+
         spec = SpecifierSet(requires_python)
 
         current_ok = current_version in spec or f"{current_version}.0" in spec
@@ -450,12 +452,12 @@ def render_compat_table(report: CompatReport, console: Console | None = None) ->
     summary = f"{py_str}: " + ", ".join(parts)
     score_pct = f"{report.readiness_score * 100:.0f}%"
     score_color = (
-    "green"
-    if report.readiness_score >= 0.9
-    else "yellow"
-    if report.readiness_score >= 0.7
-    else "red"
-)
+        "green"
+        if report.readiness_score >= 0.9
+        else "yellow"
+        if report.readiness_score >= 0.7
+        else "red"
+    )
     summary += f" • Readiness: [{score_color}]{score_pct}[/{score_color}]"
 
     console.print()
@@ -491,9 +493,9 @@ def render_compat_table(report: CompatReport, console: Console | None = None) ->
     if breaking:
         console.print()
         console.print(
-    f"[red bold]⚠ {len(breaking)} package(s) will break"
-    f" on Python {report.target_python}:[/red bold]"
-)
+            f"[red bold]⚠ {len(breaking)} package(s) will break"
+            f" on Python {report.target_python}:[/red bold]"
+        )
         for p in breaking:
             console.print(f"  • {p.name}: {p.upgrade_note}")
 

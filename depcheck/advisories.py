@@ -114,6 +114,7 @@ class AdvisoryEntry:
         # Return the earliest fix version
         try:
             from packaging.version import Version
+
             return str(min(Version(v) for v in fix_versions))
         except Exception:
             return fix_versions[0]
@@ -263,9 +264,7 @@ def _fetch_osv_advisories(
     return entries
 
 
-def _fetch_github_advisories(
-    package_name: str, ecosystem: str = "PIP"
-) -> list[AdvisoryEntry]:
+def _fetch_github_advisories(package_name: str, ecosystem: str = "PIP") -> list[AdvisoryEntry]:
     """Fetch advisories from GitHub Advisory Database.
 
     Uses the GitHub REST API to search for advisories affecting a package.
@@ -305,9 +304,7 @@ def _fetch_github_advisories(
                 for rng in vuln.get("vulnerable_range", "").split(","):
                     rng = rng.strip()
                     if rng:
-                        affected_ranges.append(
-                            AffectedRange(introduced=rng)
-                        )
+                        affected_ranges.append(AffectedRange(introduced=rng))
                 # Check for patched versions
                 patched = vuln.get("patched_versions", "")
                 if patched and affected_ranges:
@@ -386,7 +383,8 @@ def _fetch_pypa_advisory(package_name: str) -> list[AdvisoryEntry]:
                 if "CVSS" in score_str:
                     parts = score_str.split("/")
                     impact_values = [
-                        p.split(":")[1] for p in parts
+                        p.split(":")[1]
+                        for p in parts
                         if any(p.startswith(x) for x in ("C:", "I:", "A:"))
                     ]
                     if all(v == "N" for v in impact_values):
@@ -409,9 +407,7 @@ def _fetch_pypa_advisory(package_name: str) -> list[AdvisoryEntry]:
                         if "fixed" in event:
                             fixed = event["fixed"]
                     if introduced:
-                        affected_ranges.append(
-                            AffectedRange(introduced=introduced, fixed=fixed)
-                        )
+                        affected_ranges.append(AffectedRange(introduced=introduced, fixed=fixed))
 
             aliases = vuln_data.get("aliases", [])
             url_link = f"https://osv.dev/vulnerability/{vuln_id}"

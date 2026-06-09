@@ -125,9 +125,8 @@ class TestDetectConflicts:
         # Single package in a rule shouldn't trigger
         conflicts = detect_conflicts(["django"])
         django_conflicts = [
-    c for c in conflicts
-    if "django" in c.packages and "flask" in c.packages
-]
+            c for c in conflicts if "django" in c.packages and "flask" in c.packages
+        ]
         assert len(django_conflicts) == 0
 
     def test_multiple_conflicts(self) -> None:
@@ -291,18 +290,14 @@ class TestDetectPythonVersion:
     def test_from_pyproject_toml(self, tmp_path: object) -> None:
 
         project = tmp_path  # type: ignore
-        (project / "pyproject.toml").write_text(
-            '[project]\nrequires-python = ">=3.10"\n'
-        )
+        (project / "pyproject.toml").write_text('[project]\nrequires-python = ">=3.10"\n')
         version = _detect_python_version(project)
         assert version == "3.10"
 
     def test_from_poetry(self, tmp_path: object) -> None:
 
         project = tmp_path  # type: ignore
-        (project / "pyproject.toml").write_text(
-            '[tool.poetry.dependencies]\npython = ">=3.9"\n'
-        )
+        (project / "pyproject.toml").write_text('[tool.poetry.dependencies]\npython = ">=3.9"\n')
         version = _detect_python_version(project)
         assert version == "3.9"
 

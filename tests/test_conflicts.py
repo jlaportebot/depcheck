@@ -272,6 +272,7 @@ class TestExtractVersionConstraints:
         rm.nodes["werkzeug"] = DependencyNode(name="werkzeug", direct=False)
 
         mock_pypi = MagicMock()
+
         def mock_info(name: str) -> dict:
             if name == "flask":
                 return {

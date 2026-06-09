@@ -312,9 +312,7 @@ def _resolve_transitive_deps(
         max_depth: Maximum depth to resolve.
     """
     # BFS through dependency tree
-    queue: list[tuple[str, int]] = [
-        (name, 0) for name in repo_map.direct_dependencies
-    ]
+    queue: list[tuple[str, int]] = [(name, 0) for name in repo_map.direct_dependencies]
     visited: set[str] = set(repo_map.direct_dependencies)
 
     while queue:
@@ -520,11 +518,7 @@ def render_repomap_tree(repo_map: RepoMap, console: Console | None = None) -> No
         _add_transitive_branch(branch, node, repo_map, visited=set())
 
     # Show transitive-only deps
-    transitive = [
-        name
-        for name in repo_map.nodes
-        if name not in repo_map.direct_dependencies
-    ]
+    transitive = [name for name in repo_map.nodes if name not in repo_map.direct_dependencies]
     if transitive:
         trans_tree = tree.add("🔸 [yellow]Transitive Dependencies[/yellow]")
         for name in sorted(transitive):
@@ -612,21 +606,16 @@ def render_impact_table(impact: ImpactReport, console: Console | None = None) ->
     )
 
     if impact.removed_directly:
-        console.print(
-            "  [red]✗ Directly removed:[/red] "
-            + ", ".join(impact.removed_directly)
-        )
+        console.print("  [red]✗ Directly removed:[/red] " + ", ".join(impact.removed_directly))
 
     if impact.removed_transitively:
         console.print(
-            "  [red]✗ Transitively removed:[/red] "
-            + ", ".join(impact.removed_transitively)
+            "  [red]✗ Transitively removed:[/red] " + ", ".join(impact.removed_transitively)
         )
 
     if impact.affected_packages:
         console.print(
-            "  [yellow]⚠ Affected (orphaned):[/yellow] "
-            + ", ".join(impact.affected_packages)
+            "  [yellow]⚠ Affected (orphaned):[/yellow] " + ", ".join(impact.affected_packages)
         )
 
     if impact.total_impact == 0:

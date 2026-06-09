@@ -283,13 +283,10 @@ def _classify_conflict(
     if not compatible_versions:
         # No version satisfies all constraints — hard conflict
         [c.specifier for c in constraints if c.specifier]
-        constraint_strs = [
-            f"  {c.package} requires {c.target}{c.specifier}" for c in constraints
-        ]
+        constraint_strs = [f"  {c.package} requires {c.target}{c.specifier}" for c in constraints]
         return (
             ConflictSeverity.HARD,
-            "No compatible version found. Conflicting specifiers:\n"
-            + "\n".join(constraint_strs),
+            "No compatible version found. Conflicting specifiers:\n" + "\n".join(constraint_strs),
         )
 
     if len(compatible_versions) <= 2:
@@ -448,12 +445,12 @@ def render_conflict_table(report: ConflictReport, console: Console | None = None
 
     # Summary panel
     severity_color = (
-    "red"
-    if report.hard_conflict_count > 0
-    else "yellow"
-    if report.soft_conflict_count > 0
-    else "green"
-)
+        "red"
+        if report.hard_conflict_count > 0
+        else "yellow"
+        if report.soft_conflict_count > 0
+        else "green"
+    )
     summary = (
         f"[bold]Packages Analyzed:[/bold] {report.total_packages_analyzed}  "
         f"[bold]Constraints:[/bold] {report.total_constraints}  "

@@ -388,8 +388,8 @@ class TestSearchPackages:
     @patch("depcheck.search.PyPIClient")
     @patch("depcheck.search.httpx.Client")
     def test_search_returns_results(
-    self, mock_http_cls: MagicMock, mock_pypi_cls: MagicMock
-) -> None:
+        self, mock_http_cls: MagicMock, mock_pypi_cls: MagicMock
+    ) -> None:
         # Mock HTTP client for simple index
         mock_http = MagicMock()
         mock_http.get.return_value = MagicMock(status_code=404)
@@ -399,9 +399,7 @@ class TestSearchPackages:
         mock_pypi = MagicMock()
         mock_pypi.__enter__ = MagicMock(return_value=mock_pypi)
         mock_pypi.__exit__ = MagicMock(return_value=False)
-        mock_pypi.get_package_info.return_value = _make_pypi_info(
-            name="flask", version="3.0.0"
-        )
+        mock_pypi.get_package_info.return_value = _make_pypi_info(name="flask", version="3.0.0")
         mock_pypi_cls.return_value = mock_pypi
 
         results = search_packages("flask", limit=5)

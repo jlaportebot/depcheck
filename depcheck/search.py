@@ -528,39 +528,114 @@ def search_by_category(
     # Curated list of popular packages by category
     _category_packages: dict[str, list[str]] = {
         "web": [
-            "flask", "django", "fastapi", "starlette", "aiohttp",
-            "sanic", "tornado", "bottle", "pyramid", "quart",
-            "httpx", "requests", "uvicorn", "gunicorn", "werkzeug",
+            "flask",
+            "django",
+            "fastapi",
+            "starlette",
+            "aiohttp",
+            "sanic",
+            "tornado",
+            "bottle",
+            "pyramid",
+            "quart",
+            "httpx",
+            "requests",
+            "uvicorn",
+            "gunicorn",
+            "werkzeug",
         ],
         "data": [
-            "pandas", "numpy", "polars", "dask", "pyarrow",
-            "scipy", "matplotlib", "seaborn", "plotly", "altair",
-            "sqlalchemy", "petl", "agate", "tablib", "openpyxl",
+            "pandas",
+            "numpy",
+            "polars",
+            "dask",
+            "pyarrow",
+            "scipy",
+            "matplotlib",
+            "seaborn",
+            "plotly",
+            "altair",
+            "sqlalchemy",
+            "petl",
+            "agate",
+            "tablib",
+            "openpyxl",
         ],
         "testing": [
-            "pytest", "unittest2", "nose2", "hypothesis", "faker",
-            "pytest-cov", "pytest-mock", "responses", "freezegun",
-            "coverage", "tox", "nox", "ward", "mutmut",
+            "pytest",
+            "unittest2",
+            "nose2",
+            "hypothesis",
+            "faker",
+            "pytest-cov",
+            "pytest-mock",
+            "responses",
+            "freezegun",
+            "coverage",
+            "tox",
+            "nox",
+            "ward",
+            "mutmut",
         ],
         "cli": [
-            "click", "typer", "argparse", "rich", "textual",
-            "prompt-toolkit", "docopt", "fire", "cement", "cleo",
+            "click",
+            "typer",
+            "argparse",
+            "rich",
+            "textual",
+            "prompt-toolkit",
+            "docopt",
+            "fire",
+            "cement",
+            "cleo",
         ],
         "database": [
-            "sqlalchemy", "alembic", "psycopg2", "pymongo", "redis",
-            "sqlite-utils", "dataset", "peewee", "tortoise-orm", "orm",
+            "sqlalchemy",
+            "alembic",
+            "psycopg2",
+            "pymongo",
+            "redis",
+            "sqlite-utils",
+            "dataset",
+            "peewee",
+            "tortoise-orm",
+            "orm",
         ],
         "security": [
-            "cryptography", "pyjwt", "passlib", "bcrypt", "argon2-cffi",
-            "pyotp", "certifi", "oauthlib", "pyopenssl", "paramiko",
+            "cryptography",
+            "pyjwt",
+            "passlib",
+            "bcrypt",
+            "argon2-cffi",
+            "pyotp",
+            "certifi",
+            "oauthlib",
+            "pyopenssl",
+            "paramiko",
         ],
         "ml": [
-            "scikit-learn", "tensorflow", "torch", "xgboost", "lightgbm",
-            "catboost", "transformers", "jax", "keras", "onnxruntime",
+            "scikit-learn",
+            "tensorflow",
+            "torch",
+            "xgboost",
+            "lightgbm",
+            "catboost",
+            "transformers",
+            "jax",
+            "keras",
+            "onnxruntime",
         ],
         "devtools": [
-            "black", "ruff", "mypy", "pylint", "flake8",
-            "isort", "pyright", "pre-commit", "tox", "setuptools",
+            "black",
+            "ruff",
+            "mypy",
+            "pylint",
+            "flake8",
+            "isort",
+            "pyright",
+            "pre-commit",
+            "tox",
+            "setuptools",
         ],
     }
 
@@ -571,9 +646,9 @@ def search_by_category(
         return SearchResults(
             query=f"category:{category}",
             errors=[
-    f"Unknown category '{category}'. "
-    f"Choose from: web, data, testing, cli, database, security, ml, devtools"
-],
+                f"Unknown category '{category}'. "
+                f"Choose from: web, data, testing, cli, database, security, ml, devtools"
+            ],
         )
 
     results = SearchResults(query=f"category:{category}")
@@ -616,7 +691,7 @@ def render_search_table(results: SearchResults, console: Console | None = None) 
     console.print(
         Panel(
             f"[bold]depcheck search[/bold] — {results.total} "
-f"result{'s' if results.total != 1 else ''} "
+            f"result{'s' if results.total != 1 else ''} "
             f"for '[cyan]{results.query}[/cyan]'",
             border_style="blue",
         )
@@ -662,8 +737,10 @@ f"result{'s' if results.total != 1 else ''} "
             score_str = f"[red]{r.score:.0f}[/red]"
 
         # License color
-        lic_color = "green" if r.license_category == "permissive" else (
-            "yellow" if r.license_category == "copyleft" else "white"
+        lic_color = (
+            "green"
+            if r.license_category == "permissive"
+            else ("yellow" if r.license_category == "copyleft" else "white")
         )
         lic_str = r.license_spdx or "Unknown"
 

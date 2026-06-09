@@ -249,9 +249,7 @@ def _score_licenses(result: ScanResult) -> CategoryScore:
 
     license_issue_count = result.license_issues_count
     unknown_count = sum(
-        1
-        for p in result.packages
-        if p.license_info is None or p.license_info.spdx_id == ""
+        1 for p in result.packages if p.license_info is None or p.license_info.spdx_id == ""
     )
 
     raw_score = 100 - (license_issue_count * 20) - (unknown_count * 5)
@@ -507,9 +505,8 @@ def generate_markdown_report(scorecard: ScorecardResult) -> str:
         )
 
     lines.append(
-    f"| **Overall** | **{scorecard.overall_score:.0f}/100**"
-    f" | | **{scorecard.grade.value}** | |"
-)
+        f"| **Overall** | **{scorecard.overall_score:.0f}/100** | | **{scorecard.grade.value}** | |"
+    )
 
     if scorecard.top_suggestions:
         lines.append("")
@@ -552,8 +549,7 @@ def render_scorecard(scorecard: ScorecardResult, console: Console | None = None)
     # Main grade panel
     console.print(
         Panel(
-            f"[bold {grade_color}]{scorecard.grade.value}[/] "
-            f"({scorecard.overall_score:.0f}/100)",
+            f"[bold {grade_color}]{scorecard.grade.value}[/] ({scorecard.overall_score:.0f}/100)",
             title="Dependency Health Scorecard",
             border_style=grade_color,
         )
@@ -575,8 +571,8 @@ def render_scorecard(scorecard: ScorecardResult, console: Console | None = None)
 
         table.add_row(
             cat.category,
-        f"[{score_color}]{cat.score:.0f}[/]",
-        f"[{score_color}]{bar}[/]",
+            f"[{score_color}]{cat.score:.0f}[/]",
+            f"[{score_color}]{bar}[/]",
             f"{cat.weight:.0%}",
             f"{cat.weighted_score:.1f}",
             cat.details,
@@ -585,10 +581,10 @@ def render_scorecard(scorecard: ScorecardResult, console: Console | None = None)
     # Total row
     table.add_row(
         "[bold]OVERALL[/bold]",
-    f"[bold {grade_color}]{scorecard.overall_score:.0f}[/]",
-    "",
-    "",
-    f"[bold {grade_color}]{scorecard.grade.value}[/]",
+        f"[bold {grade_color}]{scorecard.overall_score:.0f}[/]",
+        "",
+        "",
+        f"[bold {grade_color}]{scorecard.grade.value}[/]",
         "",
     )
 

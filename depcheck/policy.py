@@ -154,7 +154,9 @@ class PolicyReport:
         """
         if self.total_packages == 0:
             return 100.0
-        failing_pkgs = len(set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR))  # noqa: E501
+        failing_pkgs = len(
+            set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR)
+        )  # noqa: E501
         return round((1 - failing_pkgs / self.total_packages) * 100, 1)
 
     def to_dict(self) -> dict[str, Any]:
@@ -374,9 +376,7 @@ class PolicyConfig:
 _SEV_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "UNKNOWN": 0}
 
 
-def _evaluate_license_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_license_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate a license policy rule against a package."""
     if pkg.license_info is None:
         if rule.strict_unknown:
@@ -396,8 +396,7 @@ def _evaluate_license_rule(
 
     # Check deny list
     if rule.deny_licenses and any(
-        d.upper() == spdx or d.lower() == category
-        for d in rule.deny_licenses
+        d.upper() == spdx or d.lower() == category for d in rule.deny_licenses
     ):
         return Violation(
             rule_name=rule.name,
@@ -423,8 +422,7 @@ def _evaluate_license_rule(
 
     # Check allow list (if specified, only these are allowed)
     if rule.allow_licenses and not any(
-        a.upper() == spdx or a.lower() == category
-        for a in rule.allow_licenses
+        a.upper() == spdx or a.lower() == category for a in rule.allow_licenses
     ):
         return Violation(
             rule_name=rule.name,
@@ -439,9 +437,7 @@ def _evaluate_license_rule(
     return None
 
 
-def _evaluate_age_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate an age policy rule against a package."""
     if rule.max_age_days is None:
         return None
@@ -450,9 +446,9 @@ def _evaluate_age_rule(
         return None  # Can't determine age
 
     try:
-        last_release = datetime.datetime.strptime(
-            pkg.last_release_date, "%Y-%m-%d"
-        ).replace(tzinfo=datetime.timezone.utc)
+        last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
+            tzinfo=datetime.timezone.utc
+        )
         days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
         if days_since > rule.max_age_days:
@@ -471,9 +467,7 @@ def _evaluate_age_rule(
     return None
 
 
-def _evaluate_pinning_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_pinning_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate a version pinning rule against a package."""
     if not rule.require_pinned:
         return None
@@ -492,15 +486,14 @@ def _evaluate_pinning_rule(
     return None
 
 
-def _evaluate_version_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_version_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate minimum/maximum version rules."""
     if rule.require_version_min:
         min_ver = rule.require_version_min.get(pkg.name)
         if min_ver:
             try:
                 from packaging.version import Version
+
                 if Version(pkg.installed_version) < Version(min_ver):
                     return Violation(
                         rule_name=rule.name,
@@ -519,6 +512,7 @@ def _evaluate_version_rule(
         if max_ver:
             try:
                 from packaging.version import Version
+
                 if Version(pkg.installed_version) > Version(max_ver):
                     return Violation(
                         rule_name=rule.name,
@@ -535,9 +529,7 @@ def _evaluate_version_rule(
     return None
 
 
-def _evaluate_vulnerability_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_vulnerability_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate a vulnerability policy rule against a package."""
     if not rule.max_severity or not pkg.vulnerabilities:
         return None
@@ -560,9 +552,7 @@ def _evaluate_vulnerability_rule(
     return None
 
 
-def _evaluate_maintenance_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate a maintenance policy rule against a package."""
     if rule.min_maintained_days is None:
         return None
@@ -580,9 +570,9 @@ def _evaluate_maintenance_rule(
 
     if pkg.last_release_date:
         try:
-            last_release = datetime.datetime.strptime(
-                pkg.last_release_date, "%Y-%m-%d"
-            ).replace(tzinfo=datetime.timezone.utc)
+            last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
+                tzinfo=datetime.timezone.utc
+            )
             days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
             if days_since > rule.min_maintained_days:
@@ -601,9 +591,7 @@ def _evaluate_maintenance_rule(
     return None
 
 
-def _evaluate_package_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> Violation | None:
+def _evaluate_package_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None:
     """Evaluate a package allowlist/denylist rule."""
     if rule.deny_packages and pkg.name in rule.deny_packages:
         return Violation(
@@ -630,9 +618,7 @@ def _evaluate_package_rule(
     return None
 
 
-def _evaluate_rule(
-    rule: PolicyRule, pkg: PackageReport
-) -> list[Violation]:
+def _evaluate_rule(rule: PolicyRule, pkg: PackageReport) -> list[Violation]:
     """Evaluate a single policy rule against a package.
 
     Returns a list of violations (may be empty).
@@ -820,8 +806,10 @@ def render_policy_table(report: PolicyReport, console: Console | None = None) ->
         sorted_violations = sorted(
             report.violations,
             key=lambda v: (
-                0 if v.severity == RuleSeverity.ERROR
-                else 1 if v.severity == RuleSeverity.WARNING
+                0
+                if v.severity == RuleSeverity.ERROR
+                else 1
+                if v.severity == RuleSeverity.WARNING
                 else 2
             ),
         )

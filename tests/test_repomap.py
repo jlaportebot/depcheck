@@ -125,34 +125,55 @@ class TestRepoMap:
 
         # Direct deps
         rm.nodes["requests"] = DependencyNode(
-            name="requests", version="2.31.0", direct=True, depth=0,
+            name="requests",
+            version="2.31.0",
+            direct=True,
+            depth=0,
             dependencies=["urllib3", "certifi"],
         )
         rm.nodes["flask"] = DependencyNode(
-            name="flask", version="3.0.0", direct=True, depth=0,
+            name="flask",
+            version="3.0.0",
+            direct=True,
+            depth=0,
             dependencies=["werkzeug", "jinja2"],
         )
 
         # Transitive deps
         rm.nodes["urllib3"] = DependencyNode(
-            name="urllib3", version="2.0.0", direct=False, depth=1,
+            name="urllib3",
+            version="2.0.0",
+            direct=False,
+            depth=1,
             dependents=["requests"],
         )
         rm.nodes["certifi"] = DependencyNode(
-            name="certifi", version="2023.7.22", direct=False, depth=1,
+            name="certifi",
+            version="2023.7.22",
+            direct=False,
+            depth=1,
             dependents=["requests"],
         )
         rm.nodes["werkzeug"] = DependencyNode(
-            name="werkzeug", version="3.0.0", direct=False, depth=1,
+            name="werkzeug",
+            version="3.0.0",
+            direct=False,
+            depth=1,
             dependents=["flask"],
         )
         rm.nodes["jinja2"] = DependencyNode(
-            name="jinja2", version="3.1.2", direct=False, depth=1,
+            name="jinja2",
+            version="3.1.2",
+            direct=False,
+            depth=1,
             dependents=["flask"],
             dependencies=["markupsafe"],
         )
         rm.nodes["markupsafe"] = DependencyNode(
-            name="markupsafe", version="2.1.3", direct=False, depth=2,
+            name="markupsafe",
+            version="2.1.3",
+            direct=False,
+            depth=2,
             dependents=["jinja2"],
         )
 

@@ -627,9 +627,7 @@ def _determine_action(pkg: PackageReport, alternatives: list[Alternative]) -> st
     return "keep"
 
 
-def _build_recommendation(
-    pkg: PackageReport, action: str, alternatives: list[Alternative]
-) -> str:
+def _build_recommendation(pkg: PackageReport, action: str, alternatives: list[Alternative]) -> str:
     """Build a human-readable recommendation string."""
     if action == "keep":
         return f"{pkg.name} looks healthy - no action needed."

@@ -25,10 +25,10 @@ from depcheck.scanner import discover_dependencies
 
 # Size categories in KB
 SIZE_CATEGORIES = {
-    "tiny": 50,       # < 50 KB
-    "small": 500,     # < 500 KB
-    "medium": 5000,   # < 5 MB
-    "large": 50000,   # < 50 MB
+    "tiny": 50,  # < 50 KB
+    "small": 500,  # < 500 KB
+    "medium": 5000,  # < 5 MB
+    "large": 50000,  # < 50 MB
     "huge": float("inf"),  # >= 50 MB
 }
 
@@ -167,6 +167,7 @@ def compute_size_score(size_kb: float, file_count: int, has_wheel: bool) -> floa
 
     # Base score from size (log scale)
     import math
+
     score = max(0.0, 1.0 - math.log10(max(size_kb, 1)) / 5.0)
 
     # Bonus for having wheels (faster install, smaller footprint)
@@ -495,10 +496,10 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
         console.print(f"[red]⚠ {len(bloated)} package(s) show growing size trends (bloat):[/red]")
         for p in bloated:
             alts = (
-    f" — alternatives: {', '.join(p.lighter_alternatives)}"
-    if p.lighter_alternatives
-    else ""
-)
+                f" — alternatives: {', '.join(p.lighter_alternatives)}"
+                if p.lighter_alternatives
+                else ""
+            )
             console.print(f"  • {p.name} ({format_size(p.total_size_kb)}){alts}")
 
 

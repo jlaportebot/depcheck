@@ -417,9 +417,8 @@ class DependencyResolver:
                         conflict_type=ConflictType.VERSION_CONFLICT,
                         package=norm,
                         message=(
-                    f"No compatible version found for {norm}"
-                    f" with constraints: {merged}"
-                ),
+                            f"No compatible version found for {norm} with constraints: {merged}"
+                        ),
                         constraints=pkg_constraints,
                         suggested_fix=self._suggest_fix(norm, pkg_constraints),
                     )

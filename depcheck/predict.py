@@ -589,7 +589,7 @@ def detect_deprecation_signals(
         signals.no_maintainer_response = True
         details.append(
             f"No maintainer activity in {release_pattern.days_since_last_release}"
-        f" days (>730 threshold)"
+            f" days (>730 threshold)"
         )
 
     signals.signal_count = sum(
@@ -865,9 +865,7 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
 
     # Header
     console.print()
-    overall_icon, overall_color = _RISK_STYLES.get(
-        result.overall_deprecation_risk, ("?", "white")
-    )
+    overall_icon, overall_color = _RISK_STYLES.get(result.overall_deprecation_risk, ("?", "white"))
     console.print(
         f"[bold]depcheck predict[/bold] — Deprecation Risk Analysis for "
         f"[cyan]{result.project_path}[/cyan]"
@@ -938,10 +936,8 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
 
         # Signals count
         signals_count = (
-        str(pred.deprecation_signals.signal_count)
-        if pred.deprecation_signals
-        else "0"
-    )
+            str(pred.deprecation_signals.signal_count) if pred.deprecation_signals else "0"
+        )
 
         # Next version estimate
         next_ver = "—"
@@ -965,16 +961,20 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
     console.print(pkg_table)
 
     # Deprecation signals detail for at-risk packages
-    at_risk = [p for p in result.packages if p.deprecation_risk in (
-        DeprecationRiskLevel.HIGH, DeprecationRiskLevel.CRITICAL
-    )]
+    at_risk = [
+        p
+        for p in result.packages
+        if p.deprecation_risk in (DeprecationRiskLevel.HIGH, DeprecationRiskLevel.CRITICAL)
+    ]
     if at_risk:
         console.print()
         console.print("[bold red]⚠ Deprecation Signals Detail[/bold red]")
         for pred in at_risk:
             if pred.deprecation_signals and pred.deprecation_signals.signal_details:
-                console.print(f"\n  [bold]{pred.package_name}[/bold] "
-                              f"(score: {pred.deprecation_risk_score:.0f})")
+                console.print(
+                    f"\n  [bold]{pred.package_name}[/bold] "
+                    f"(score: {pred.deprecation_risk_score:.0f})"
+                )
                 for detail in pred.deprecation_signals.signal_details:
                     console.print(f"    [red]•[/red] {detail}")
 

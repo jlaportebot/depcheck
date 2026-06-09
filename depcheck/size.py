@@ -471,15 +471,13 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
     if report.category_breakdown:
         breakdown = "  ".join(
             f"[{category_colors.get(cat, 'white')}]{cat}: {count}"
-f"[/{category_colors.get(cat, 'white')}]"
+            f"[/{category_colors.get(cat, 'white')}]"
             for cat, count in sorted(report.category_breakdown.items())
         )
         summary_parts.append(f"[bold]Size breakdown:[/bold] {breakdown}")
 
     if report.largest_packages:
-        summary_parts.append(
-            f"[bold]Largest:[/bold] {', '.join(report.largest_packages[:3])}"
-        )
+        summary_parts.append(f"[bold]Largest:[/bold] {', '.join(report.largest_packages[:3])}")
 
     console.print(Panel("\n".join(summary_parts), title="Size Summary", border_style="blue"))
     console.print()
@@ -504,8 +502,8 @@ def render_size_comparison(
 
     console.print()
     console.print(
-    Panel("[bold]depcheck size[/bold] — Package Size Comparison", border_style="blue")
-)
+        Panel("[bold]depcheck size[/bold] — Package Size Comparison", border_style="blue")
+    )
 
     table = Table(
         show_header=True,
@@ -528,8 +526,12 @@ def render_size_comparison(
         is_smallest = smallest and pkg.name == smallest.name and pkg.download_size_kb > 0
         winner = "[green]✓ smallest[/green]" if is_smallest else ""
         cat_colors = {
-            "tiny": "green", "small": "green", "medium": "yellow",
-            "large": "red", "very_large": "red bold", "unknown": "dim",
+            "tiny": "green",
+            "small": "green",
+            "medium": "yellow",
+            "large": "red",
+            "very_large": "red bold",
+            "unknown": "dim",
         }
         color = cat_colors.get(pkg.category, "white")
 

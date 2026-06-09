@@ -45,22 +45,22 @@ class LifecycleStage(Enum):
 class ReleaseCadence(Enum):
     """How frequently a package releases."""
 
-    RAPID = "rapid"       # Multiple releases per month
-    REGULAR = "regular"   # Monthly to quarterly
-    SLOW = "slow"         # Quarterly to yearly
+    RAPID = "rapid"  # Multiple releases per month
+    REGULAR = "regular"  # Monthly to quarterly
+    SLOW = "slow"  # Quarterly to yearly
     INFREQUENT = "infrequent"  # Less than yearly
-    DORMANT = "dormant"    # No releases in 2+ years
+    DORMANT = "dormant"  # No releases in 2+ years
     UNKNOWN = "unknown"
 
 
 class VersionGap(Enum):
     """How far behind the installed version is from latest."""
 
-    CURRENT = "current"       # On latest version
-    PATCH_BEHIND = "patch_behind"   # 1-2 patch versions behind
-    MINOR_BEHIND = "minor_behind"   # 1+ minor versions behind
-    MAJOR_BEHIND = "major_behind"   # 1+ major versions behind
-    VERY_BEHIND = "very_behind"    # 2+ major versions behind
+    CURRENT = "current"  # On latest version
+    PATCH_BEHIND = "patch_behind"  # 1-2 patch versions behind
+    MINOR_BEHIND = "minor_behind"  # 1+ minor versions behind
+    MAJOR_BEHIND = "major_behind"  # 1+ major versions behind
+    VERY_BEHIND = "very_behind"  # 2+ major versions behind
     UNKNOWN = "unknown"
 
 
@@ -118,7 +118,7 @@ class PackageTimeline:
 
     # Derived insights
     health_trend: str = "stable"  # "improving", "stable", "declining", "unknown"
-    risk_level: str = "low"       # "low", "medium", "high", "critical"
+    risk_level: str = "low"  # "low", "medium", "high", "critical"
     insights: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -311,13 +311,13 @@ def _compute_cadence(stable_releases: list[ReleaseEvent]) -> ReleaseCadence:
     recent_intervals = intervals[-4:] if len(intervals) >= 4 else intervals
     recent_avg = sum(recent_intervals) / len(recent_intervals)
 
-    if recent_avg <= 14:      # ~2 weeks
+    if recent_avg <= 14:  # ~2 weeks
         return ReleaseCadence.RAPID
-    elif recent_avg <= 90:    # ~3 months
+    elif recent_avg <= 90:  # ~3 months
         return ReleaseCadence.REGULAR
-    elif recent_avg <= 365:   # ~1 year
+    elif recent_avg <= 365:  # ~1 year
         return ReleaseCadence.SLOW
-    elif recent_avg <= 730:   # ~2 years
+    elif recent_avg <= 730:  # ~2 years
         return ReleaseCadence.INFREQUENT
     else:
         return ReleaseCadence.DORMANT
@@ -465,9 +465,9 @@ def _compute_health_trend(stable_releases: list[ReleaseEvent]) -> str:
 
     ratio = second_avg / first_avg
 
-    if ratio > 2.0:     # Releases slowed to less than half the frequency
+    if ratio > 2.0:  # Releases slowed to less than half the frequency
         return "declining"
-    elif ratio < 0.5:   # Releases more than doubled in frequency
+    elif ratio < 0.5:  # Releases more than doubled in frequency
         return "improving"
     else:
         return "stable"
@@ -595,8 +595,7 @@ def _generate_insights(timeline: PackageTimeline) -> list[str]:
     if timeline.days_since_last_release > 365:
         years = timeline.days_since_last_release / 365.25
         insights.append(
-            f"Last release was {timeline.days_since_last_release} days ago "
-            f"({years:.1f} years)."
+            f"Last release was {timeline.days_since_last_release} days ago ({years:.1f} years)."
         )
 
     # Yanked releases insights
@@ -797,9 +796,7 @@ def analyze_history(
 
     # Sort by risk level (highest first), then by name
     risk_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
-    result.timelines.sort(
-        key=lambda t: (risk_order.get(t.risk_level, 3), t.package)
-    )
+    result.timelines.sort(key=lambda t: (risk_order.get(t.risk_level, 3), t.package))
 
     return result
 

@@ -516,12 +516,8 @@ def render_pin_table(report: PinReport, console: Console | None = None) -> None:
 
     # Health score panel
     score_color = (
-    "green"
-    if report.health_score >= 80
-    else "yellow"
-    if report.health_score >= 60
-    else "red"
-)
+        "green" if report.health_score >= 80 else "yellow" if report.health_score >= 60 else "red"
+    )
     summary = (
         f"[bold]Dependencies:[/bold] {report.total_dependencies}  "
         f"[bold]Pinned:[/bold] {report.pinned_count} ({report.pin_coverage:.0f}%)  "

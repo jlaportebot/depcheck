@@ -388,19 +388,19 @@ class TestAnalyzeProjectSizes:
             ["pyproject.toml"],
         )
         mock_fetch.side_effect = [
-        PackageSize(
-            name="flask",
-            version="3.0.0",
-            wheel_size_kb=500,
-            estimated_install_kb=1250,
-            category="small",
-        ),
-        PackageSize(
-            name="click",
-            version="8.1.0",
-            wheel_size_kb=200,
-            estimated_install_kb=500,
-            category="tiny",
+            PackageSize(
+                name="flask",
+                version="3.0.0",
+                wheel_size_kb=500,
+                estimated_install_kb=1250,
+                category="small",
+            ),
+            PackageSize(
+                name="click",
+                version="8.1.0",
+                wheel_size_kb=200,
+                estimated_install_kb=500,
+                category="tiny",
             ),
         ]
         report = analyze_project_sizes(str(tmp_path))

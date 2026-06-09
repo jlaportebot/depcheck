@@ -326,9 +326,7 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
         f"[bold]Large:[/bold] {len(report.large_packages)}  "
         f"[bold]Bloated:[/bold] {len(report.bloated_packages)}"
     )
-    console.print(
-        Panel(summary_text, title="Dependency Size Report", border_style="blue")
-    )
+    console.print(Panel(summary_text, title="Dependency Size Report", border_style="blue"))
 
     # Sort by download size descending
     sorted_packages = sorted(
@@ -436,6 +434,4 @@ def render_size_bar_chart(report: SizeReport, console: Console | None = None) ->
         color = "red" if pkg.is_bloated else "yellow" if pkg.is_large else "green"
         bar = "█" * bar_len
 
-        console.print(
-            f"  {pkg.name:<20} [{color}]{bar}[/{color}] {size_mb:.1f} MB"
-        )
+        console.print(f"  {pkg.name:<20} [{color}]{bar}[/{color}] {size_mb:.1f} MB")

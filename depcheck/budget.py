@@ -141,8 +141,8 @@ class BudgetConfig:
             config.denied_packages = {normalize_package_name(p) for p in data["denied_packages"]}
         if "required_packages" in data:
             config.required_packages = {
-        normalize_package_name(p) for p in data["required_packages"]
-    }
+                normalize_package_name(p) for p in data["required_packages"]
+            }
         return config
 
     @classmethod
@@ -265,9 +265,7 @@ def check_budget(
         report.config = config
 
     if not project_path.is_dir():
-        report.violations.append(
-            BudgetRule(name="project_path", metric="path", severity="error")
-        )
+        report.violations.append(BudgetRule(name="project_path", metric="path", severity="error"))
         return report
 
     # Discover dependencies
@@ -331,15 +329,17 @@ def check_budget(
                 total_install += size_info.estimated_install_kb
 
             except Exception:
-                package_details.append({
-                    "name": dep.name,
-                    "version": dep.version or "unknown",
-                    "download_kb": 0,
-                    "install_kb": 0,
-                    "category": "unknown",
-                    "license": "",
-                    "license_category": "unknown",
-                })
+                package_details.append(
+                    {
+                        "name": dep.name,
+                        "version": dep.version or "unknown",
+                        "download_kb": 0,
+                        "install_kb": 0,
+                        "category": "unknown",
+                        "license": "",
+                        "license_category": "unknown",
+                    }
+                )
 
     report.package_details = package_details
     report.total_download_kb = total_download
@@ -394,7 +394,8 @@ def check_budget(
 
     # Rule 5: License category compliance
     non_compliant_licenses = [
-        p for p in package_details
+        p
+        for p in package_details
         if p.get("license_category", "unknown") not in config.allowed_license_categories
         and p.get("license_category", "unknown") != "unknown"
     ]
@@ -410,7 +411,8 @@ def check_budget(
 
     # Rule 6: Denied packages
     found_denied = [
-        p for p in package_details
+        p
+        for p in package_details
         if normalize_package_name(p.get("name", "")) in config.denied_packages
     ]
     rule = BudgetRule(
@@ -490,8 +492,8 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
             f"[bold]depcheck budget[/bold] — Dependency Budget Report\n"
             f"[dim]Project: {report.project_path}[/dim]\n"
             f"[{status_color}]{status_icon} "
-f"[{'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
-border_style=status_color,
+            f"[{'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
+            border_style=status_color,
         )
     )
 
@@ -568,9 +570,7 @@ border_style=status_color,
                 )
             else:
                 over_by = int(v.current - v.limit)
-                console.print(
-                    f"  [red]✗[/red] {v.name}: {over_by} {v.unit} over limit"
-                )
+                console.print(f"  [red]✗[/red] {v.name}: {over_by} {v.unit} over limit")
 
     # Warnings detail
     if report.warnings:
@@ -578,9 +578,7 @@ border_style=status_color,
         console.print("[bold yellow]Warnings:[/bold yellow]")
         for w in report.warnings:
             size_str = (
-                _human_size(w.remaining)
-                if 'kb' in w.metric
-                else f'{int(w.remaining)} {w.unit}'
+                _human_size(w.remaining) if "kb" in w.metric else f"{int(w.remaining)} {w.unit}"
             )
             console.print(
                 f"  [yellow]⚠[/yellow] {w.name}: {w.utilization:.0f}%"
@@ -606,8 +604,8 @@ border_style=status_color,
         pkg_table.add_column("License", min_width=12)
 
         for pkg in sorted(
-    report.package_details, key=lambda p: p.get("download_kb", 0), reverse=True
-):
+            report.package_details, key=lambda p: p.get("download_kb", 0), reverse=True
+        ):
             dl_kb = pkg.get("download_kb", 0)
             inst_kb = pkg.get("install_kb", 0)
             cat = pkg.get("category", "unknown")
@@ -615,12 +613,19 @@ border_style=status_color,
             lic_cat = pkg.get("license_category", "unknown")
 
             cat_colors = {
-                "tiny": "green", "small": "green", "medium": "yellow",
-                "large": "red", "very_large": "red bold", "unknown": "dim",
+                "tiny": "green",
+                "small": "green",
+                "medium": "yellow",
+                "large": "red",
+                "very_large": "red bold",
+                "unknown": "dim",
             }
             lic_colors = {
-                "permissive": "green", "copyleft": "yellow",
-                "public_domain": "green", "proprietary": "red", "unknown": "dim",
+                "permissive": "green",
+                "copyleft": "yellow",
+                "public_domain": "green",
+                "proprietary": "red",
+                "unknown": "dim",
             }
             cat_color = cat_colors.get(cat, "white")
             lic_color = lic_colors.get(lic_cat, "white")

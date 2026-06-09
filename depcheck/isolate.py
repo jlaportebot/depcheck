@@ -83,17 +83,73 @@ class IsolationReport:
 
 
 # Common stdlib modules that should not be confused with third-party packages
-STDLIB_MODULES = frozenset({
-    "abc", "argparse", "ast", "asyncio", "base64", "collections", "configparser",
-    "contextlib", "copy", "csv", "datetime", "decimal", "difflib", "email",
-    "enum", "fileinput", "fnmatch", "fractions", "functools", "glob", "gzip",
-    "hashlib", "heapq", "html", "http", "importlib", "inspect", "io", "itertools",
-    "json", "logging", "math", "multiprocessing", "operator", "os", "pathlib",
-    "pickle", "platform", "pprint", "queue", "re", "secrets", "shutil",
-    "signal", "socket", "sqlite3", "string", "struct", "subprocess", "sys",
-    "tarfile", "tempfile", "textwrap", "threading", "time", "traceback",
-    "typing", "unittest", "urllib", "uuid", "warnings", "xml", "zipfile",
-})
+STDLIB_MODULES = frozenset(
+    {
+        "abc",
+        "argparse",
+        "ast",
+        "asyncio",
+        "base64",
+        "collections",
+        "configparser",
+        "contextlib",
+        "copy",
+        "csv",
+        "datetime",
+        "decimal",
+        "difflib",
+        "email",
+        "enum",
+        "fileinput",
+        "fnmatch",
+        "fractions",
+        "functools",
+        "glob",
+        "gzip",
+        "hashlib",
+        "heapq",
+        "html",
+        "http",
+        "importlib",
+        "inspect",
+        "io",
+        "itertools",
+        "json",
+        "logging",
+        "math",
+        "multiprocessing",
+        "operator",
+        "os",
+        "pathlib",
+        "pickle",
+        "platform",
+        "pprint",
+        "queue",
+        "re",
+        "secrets",
+        "shutil",
+        "signal",
+        "socket",
+        "sqlite3",
+        "string",
+        "struct",
+        "subprocess",
+        "sys",
+        "tarfile",
+        "tempfile",
+        "textwrap",
+        "threading",
+        "time",
+        "traceback",
+        "typing",
+        "unittest",
+        "urllib",
+        "uuid",
+        "warnings",
+        "xml",
+        "zipfile",
+    }
+)
 
 # Map of common package names to their import names
 PACKAGE_TO_IMPORT = {
@@ -223,9 +279,21 @@ def scan_project_imports(project_path: Path) -> dict[str, list[str]]:
         # Skip common non-project directories
         rel = py_file.relative_to(project_path)
         skip_dirs = {
-            ".venv", "venv", "env", "__pycache__", ".git", ".tox",
-            "node_modules", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-            "dist", "build", "egg-info", ".eggs", "site-packages",
+            ".venv",
+            "venv",
+            "env",
+            "__pycache__",
+            ".git",
+            ".tox",
+            "node_modules",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            "dist",
+            "build",
+            "egg-info",
+            ".eggs",
+            "site-packages",
         }
         if any(part in skip_dirs for part in rel.parts):
             continue
@@ -482,9 +550,8 @@ def render_isolation_table(report: IsolationReport, console: Console | None = No
         console.print(f"  [dim]$[/dim] pip uninstall {names}")
         console.print()
         console.print(
-    "[dim]Note: Review before removing —"
-    " some packages may be used at runtime.[/dim]"
-)
+            "[dim]Note: Review before removing — some packages may be used at runtime.[/dim]"
+        )
 
 
 def render_isolation_json(report: IsolationReport) -> str:

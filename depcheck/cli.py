@@ -1717,9 +1717,11 @@ def history(
     )
 
     if output_json:
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(render_history_json(result))
     else:
         render_history_table(result, console=console)
@@ -2079,15 +2081,17 @@ def budget(
 
     # Build config from CLI options
     config = None
-    has_cli_overrides = any([
-        max_packages is not None,
-        max_download_kb is not None,
-        max_install_kb is not None,
-        max_single_package_kb is not None,
-        allowed_licenses,
-        denied_packages,
-        required_packages,
-    ])
+    has_cli_overrides = any(
+        [
+            max_packages is not None,
+            max_download_kb is not None,
+            max_install_kb is not None,
+            max_single_package_kb is not None,
+            allowed_licenses,
+            denied_packages,
+            required_packages,
+        ]
+    )
 
     if has_cli_overrides:
         config = BudgetConfig()
@@ -2102,13 +2106,9 @@ def budget(
         if allowed_licenses:
             config.allowed_license_categories = set(allowed_licenses)
         if denied_packages:
-            config.denied_packages = {
-                normalize_package_name(p) for p in denied_packages
-            }
+            config.denied_packages = {normalize_package_name(p) for p in denied_packages}
         if required_packages:
-            config.required_packages = {
-                normalize_package_name(p) for p in required_packages
-            }
+            config.required_packages = {normalize_package_name(p) for p in required_packages}
 
     # Run budget check
     report = check_budget(project_path=path, config=config)
@@ -2210,10 +2210,7 @@ def risks(
 
     if report.critical_count > 0:
         if not quiet:
-            console.print(
-                f"[red]✗ {report.critical_count} critical-risk "
-                f"dependencies found[/red]"
-            )
+            console.print(f"[red]✗ {report.critical_count} critical-risk dependencies found[/red]")
         sys.exit(1)
 
 
@@ -2334,10 +2331,7 @@ def advisories(
 
     if report.total_critical > 0:
         if not quiet:
-            console.print(
-                f"[red]✗ {report.total_critical} critical advisories "
-                f"found[/red]"
-            )
+            console.print(f"[red]✗ {report.total_critical} critical advisories found[/red]")
         sys.exit(1)
 
 
@@ -2509,7 +2503,8 @@ def update(
     pinned_set: set[str] | None = None
     if pinned:
         pinned_set = {
-            pkg.name for pkg in result.packages
+            pkg.name
+            for pkg in result.packages
             if pkg.installed_version and pkg.installed_version != "unknown"
         }
 
@@ -2517,9 +2512,11 @@ def update(
 
     if output_json:
         content = render_update_plan_json(plan)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_update_plan_table(plan, console=console)
@@ -2581,9 +2578,11 @@ def isolate(
 
     if output_json:
         content = render_isolation_json(report)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_isolation_table(report, console=console)
@@ -2645,9 +2644,11 @@ def sizescore(
 
     if output_json:
         content = render_size_json(report)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_size_table(report, console=console)
@@ -2735,9 +2736,11 @@ def depdrift(
 
     if output_json:
         content = render_drift_json(report)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_drift_table(report, console=console)
@@ -2811,9 +2814,11 @@ def compat(
 
     if output_json:
         content = render_compat_json(report)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_compat_table(report, console=console)
@@ -2917,9 +2922,7 @@ def predict(
             DeprecationRiskLevel.HIGH: 2,
             DeprecationRiskLevel.CRITICAL: 3,
         }
-        if level_order.get(result.overall_deprecation_risk, 0) >= level_order.get(
-            threshold, 3
-        ):
+        if level_order.get(result.overall_deprecation_risk, 0) >= level_order.get(threshold, 3):
             if not quiet:
                 console.print(
                     f"[red]✗ Predict failed: deprecation risk "
@@ -2997,9 +3000,7 @@ def stack(
         render_stack_table(result, console=console)
 
     # Exit with error if there are critical conflicts
-    has_critical = any(
-        c.severity.value == "critical" for c in result.conflicts
-    )
+    has_critical = any(c.severity.value == "critical" for c in result.conflicts)
     if has_critical:
         sys.exit(1)
 

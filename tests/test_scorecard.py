@@ -207,12 +207,14 @@ class TestScoreSecurity:
 
     def test_no_packages(self) -> None:
         from depcheck.models import ScanResult
+
         scan = ScanResult(project_path="/test", packages=[])
         cs = _score_security(scan)
         assert cs.score == 100.0  # No packages = no vulnerabilities
 
     def test_with_packages(self) -> None:
         from depcheck.models import PackageReport, ScanResult
+
         scan = ScanResult(
             project_path="/test",
             packages=[
@@ -229,12 +231,14 @@ class TestScoreFreshness:
 
     def test_no_packages(self) -> None:
         from depcheck.models import ScanResult
+
         scan = ScanResult(project_path="/test", packages=[])
         cs = _score_freshness(scan)
         assert cs.score == 100.0
 
     def test_with_packages(self) -> None:
         from depcheck.models import PackageReport, ScanResult
+
         scan = ScanResult(
             project_path="/test",
             packages=[
@@ -252,8 +256,12 @@ class TestScorePinning:
     @patch("depcheck.scorecard.build_pin_report")
     def test_pinning_score(self, mock_pin: MagicMock) -> None:
         from depcheck.pinpoint import PinReport
+
         mock_pin.return_value = PinReport(
-            project_path="/test", total_dependencies=5, pinned_count=4, health_score=80.0,
+            project_path="/test",
+            total_dependencies=5,
+            pinned_count=4,
+            health_score=80.0,
         )
         cs = _score_pinning("/test")
         assert 0 <= cs.score <= 100
@@ -265,6 +273,7 @@ class TestScoreLicenses:
 
     def test_no_packages(self) -> None:
         from depcheck.models import ScanResult
+
         scan = ScanResult(project_path="/test", packages=[])
         cs = _score_licenses(scan)
         assert cs.score >= 0
@@ -278,6 +287,7 @@ class TestScoreSize:
     def test_size_score(self, mock_size: MagicMock) -> None:
         from depcheck.depsize import SizeReport
         from depcheck.models import ScanResult
+
         mock_size.return_value = SizeReport(project_path="/test")
         scan = ScanResult(project_path="/test", packages=[])
         cs = _score_size("/test", scan)
@@ -290,6 +300,7 @@ class TestScoreMaintenance:
 
     def test_no_packages(self) -> None:
         from depcheck.models import ScanResult
+
         scan = ScanResult(project_path="/test", packages=[])
         cs = _score_maintenance(scan)
         assert cs.score >= 0
@@ -418,7 +429,10 @@ class TestBuildScorecard:
         )
         mock_size.return_value = SizeReport(project_path="/test")
         mock_pin.return_value = PinReport(
-            project_path="/test", total_dependencies=1, pinned_count=1, health_score=100.0,
+            project_path="/test",
+            total_dependencies=1,
+            pinned_count=1,
+            health_score=100.0,
         )
 
         result = build_scorecard("/test", check_vulnerabilities=False)

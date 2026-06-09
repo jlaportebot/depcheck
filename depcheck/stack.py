@@ -227,17 +227,15 @@ _INCOMPATIBILITY_RULES: list[dict[str, Any]] = [
         "packages": ["django", "fastapi"],
         "severity": ConflictSeverity.WARNING,
         "message": (
-        "Django and FastAPI are both web frameworks; "
-        "consider splitting APIs and web app."
-    ),
+            "Django and FastAPI are both web frameworks; consider splitting APIs and web app."
+        ),
     },
     {
         "packages": ["asyncio", "tornado"],
         "severity": ConflictSeverity.WARNING,
         "message": (
-        "Tornado has its own async loop; mixing with asyncio "
-        "requires careful handling."
-    ),
+            "Tornado has its own async loop; mixing with asyncio requires careful handling."
+        ),
     },
     {
         "packages": ["celery", "rq"],
@@ -301,8 +299,11 @@ _PYTHON_COMPAT: dict[str, dict[str, tuple[int, int]]] = {
     "django": {"3.2": (3, 8), "4.0": (3, 8), "4.1": (3, 8), "4.2": (3, 8), "5.0": (3, 10)},
     "flask": {"2.0": (3, 7), "2.1": (3, 7), "2.2": (3, 8), "2.3": (3, 8), "3.0": (3, 8)},
     "fastapi": {
-        "0.100": (3, 8), "0.101": (3, 8), "0.102": (3, 8),
-        "0.103": (3, 8), "0.104": (3, 8),
+        "0.100": (3, 8),
+        "0.101": (3, 8),
+        "0.102": (3, 8),
+        "0.103": (3, 8),
+        "0.104": (3, 8),
     },
     "celery": {"5.2": (3, 7), "5.3": (3, 8), "5.4": (3, 8)},
     "numpy": {"1.24": (3, 8), "1.25": (3, 9), "1.26": (3, 9), "2.0": (3, 9)},
@@ -442,8 +443,8 @@ def _detect_project_type(project_path: Path) -> str:
     if (project_path / "Dockerfile").exists():
         indicators.append("containerized")
     if (project_path / "docker-compose.yml").exists() or (
-    (project_path / "docker-compose.yaml").exists()
-):
+        (project_path / "docker-compose.yaml").exists()
+    ):
         indicators.append("containerized")
     if (project_path / ".github").is_dir():
         indicators.append("github-ci")
@@ -535,7 +536,7 @@ def _detect_python_version(project_path: Path) -> str:
     if setup_cfg.exists():
         try:
             content = setup_cfg.read_text(encoding="utf-8")
-            match = re.search(r'python_requires\s*=\s*>=?(\d+\.\d+)', content)
+            match = re.search(r"python_requires\s*=\s*>=?(\d+\.\d+)", content)
             if match:
                 return match.group(1)
         except (OSError, UnicodeDecodeError):
@@ -676,12 +677,22 @@ def check_license_chain(
 
     # Identify copyleft packages
     copyleft_ids = {
-        "GPL-2.0", "GPL-2.0-only", "GPL-2.0-or-later",
-        "GPL-3.0", "GPL-3.0-only", "GPL-3.0-or-later",
-        "AGPL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later",
-        "LGPL-2.0", "LGPL-2.1", "LGPL-3.0",
-        "MPL-2.0", "MPL-1.1",
-        "EUPL-1.2", "CPAL-1.0",
+        "GPL-2.0",
+        "GPL-2.0-only",
+        "GPL-2.0-or-later",
+        "GPL-3.0",
+        "GPL-3.0-only",
+        "GPL-3.0-or-later",
+        "AGPL-3.0",
+        "AGPL-3.0-only",
+        "AGPL-3.0-or-later",
+        "LGPL-2.0",
+        "LGPL-2.1",
+        "LGPL-3.0",
+        "MPL-2.0",
+        "MPL-1.1",
+        "EUPL-1.2",
+        "CPAL-1.0",
     }
 
     for name, spdx_id, category in package_licenses:
@@ -708,10 +719,10 @@ def check_license_chain(
         for entry in entries:
             if not entry.license_id or entry.license_id == "UNKNOWN":
                 continue
-            if (
-    entry.license_id not in copyleft_ids
-    and entry.category not in ("copyleft", "COPYLEFT")
-):
+            if entry.license_id not in copyleft_ids and entry.category not in (
+                "copyleft",
+                "COPYLEFT",
+            ):
                 entry.conflict_with = copyleft_packages
                 entry.note = (
                     f"Permissive license may be incompatible with copyleft: "
@@ -913,8 +924,7 @@ def render_stack_table(result: StackResult, console: Console | None = None) -> N
 
     console.print()
     console.print(
-        f"[bold]depcheck stack[/bold] — Tech Stack Analysis for "
-        f"[cyan]{result.project_path}[/cyan]"
+        f"[bold]depcheck stack[/bold] — Tech Stack Analysis for [cyan]{result.project_path}[/cyan]"
     )
     console.print(f" Project type: [bold]{result.project_type}[/bold]")
     console.print(f" Python version: [bold]{result.python_version}[/bold]")

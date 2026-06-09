@@ -360,10 +360,7 @@ class TestCheckBudget:
         from depcheck.size import PackageSize
 
         # Create many dependencies exceeding limit
-        deps = [
-            ParsedDependency(name=f"pkg-{i}", version="1.0.0")
-            for i in range(25)
-        ]
+        deps = [ParsedDependency(name=f"pkg-{i}", version="1.0.0") for i in range(25)]
         mock_discover.return_value = (deps, ["pyproject.toml"])
 
         mock_pypi = MagicMock()
@@ -422,9 +419,7 @@ class TestCheckBudget:
         report = check_budget(str(tmp_path), config=config)
 
         # Should have denied package violation
-        denied_rule = next(
-            (r for r in report.rules if r.metric == "denied_packages"), None
-        )
+        denied_rule = next((r for r in report.rules if r.metric == "denied_packages"), None)
         assert denied_rule is not None
         assert denied_rule.is_violated is True
         assert denied_rule.current == 1
@@ -464,9 +459,7 @@ class TestCheckBudget:
         report = check_budget(str(tmp_path), config=config)
 
         # Required packages rule should exist
-        required_rule = next(
-            (r for r in report.rules if r.metric == "required_packages"), None
-        )
+        required_rule = next((r for r in report.rules if r.metric == "required_packages"), None)
         assert required_rule is not None
         # Current = number of required that are present (0 of 2)
         assert required_rule.current == 0
@@ -533,11 +526,11 @@ class TestCheckBudget:
         mock_pypi.__exit__ = MagicMock(return_value=False)
         mock_pypi.get_package_info.return_value = {
             "info": {
-    "name": "gpl-pkg",
-    "version": "1.0.0",
-    "license": "GPL-3.0",
-    "classifiers": [],
-},
+                "name": "gpl-pkg",
+                "version": "1.0.0",
+                "license": "GPL-3.0",
+                "classifiers": [],
+            },
             "releases": {},
         }
         mock_pypi_cls.return_value = mock_pypi
@@ -551,9 +544,7 @@ class TestCheckBudget:
         report = check_budget(str(tmp_path), config=config)
 
         # Should have license violation (severity=warning)
-        license_rule = next(
-            (r for r in report.rules if r.metric == "license_category"), None
-        )
+        license_rule = next((r for r in report.rules if r.metric == "license_category"), None)
         assert license_rule is not None
         assert license_rule.current == 1  # 1 non-compliant license
 

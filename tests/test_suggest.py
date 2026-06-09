@@ -655,9 +655,7 @@ class TestSuggestAlternatives:
             project_path=str(tmp_path),
             scan_result=scan,
         )
-        req_suggestion = next(
-            s for s in result.suggestions if s.package == "requests"
-        )
+        req_suggestion = next(s for s in result.suggestions if s.package == "requests")
         assert len(req_suggestion.alternatives) >= 1
         assert any(a.name == "httpx" for a in req_suggestion.alternatives)
 

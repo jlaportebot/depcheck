@@ -152,7 +152,9 @@ class RiskEntry:
             "composite_score": round(self.composite_score, 4),
             "severity": self.severity.value,
             "dimension_scores": [ds.to_dict() for ds in self.dimension_scores],
-            "top_risk_dimension": self.top_risk_dimension.value if self.top_risk_dimension else None,  # noqa: E501
+            "top_risk_dimension": self.top_risk_dimension.value
+            if self.top_risk_dimension
+            else None,  # noqa: E501
             "remediation": self.remediation.value,
             "remediation_details": self.remediation_details,
             "is_direct": self.is_direct,
@@ -249,7 +251,9 @@ def _score_vulnerability(pkg: PackageReport) -> DimensionScore:
 
     # Normalize: 1 vuln with CRITICAL → 1.0, more vulns cap at 1.0
     score = min(total_weight / 1.0, 1.0)
-    patch_status = f", {patchable_count} patchable" if patchable_count > 0 else ", no patches available"  # noqa: E501
+    patch_status = (
+        f", {patchable_count} patchable" if patchable_count > 0 else ", no patches available"
+    )  # noqa: E501
 
     return DimensionScore(
         dimension=RiskDimension.VULNERABILITY,
@@ -278,9 +282,9 @@ def _score_maintenance(pkg: PackageReport) -> DimensionScore:
     age_risk = 0.0
     if pkg.last_release_date:
         try:
-            last_release = datetime.datetime.strptime(
-                pkg.last_release_date, "%Y-%m-%d"
-            ).replace(tzinfo=datetime.timezone.utc)
+            last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
+                tzinfo=datetime.timezone.utc
+            )
             days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
             if days_since > 730:  # 2+ years
@@ -399,10 +403,10 @@ def _score_license(pkg: PackageReport) -> DimensionScore:
 
     # License risk by category
     license_risk: dict[str, float] = {
-        "permissive": 0.0,     # MIT, Apache-2.0, BSD
+        "permissive": 0.0,  # MIT, Apache-2.0, BSD
         "weak_copyleft": 0.4,  # LGPL, MPL
-        "copyleft": 0.8,       # GPL, AGPL
-        "proprietary": 0.9,    # Proprietary
+        "copyleft": 0.8,  # GPL, AGPL
+        "proprietary": 0.9,  # Proprietary
         "public_domain": 0.0,  # Unlicense, CC0
         "unknown": 0.5,
     }
@@ -469,7 +473,10 @@ def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
         None,
     )
     if license_score and license_score.score >= 0.8:
-        return RemediationAction.AUDIT, "Audit license compliance; consider a permissively-licensed alternative"  # noqa: E501
+        return (
+            RemediationAction.AUDIT,
+            "Audit license compliance; consider a permissively-licensed alternative",
+        )  # noqa: E501
 
     # Check for outdated with moderate vulnerability
     if vuln_score and vuln_score.score >= 0.3:
@@ -477,7 +484,10 @@ def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
 
     # Check for unmaintained
     if maint_score and maint_score.score >= 0.5:
-        return RemediationAction.MONITOR, "Monitor for updates; consider alternatives if no activity soon"  # noqa: E501
+        return (
+            RemediationAction.MONITOR,
+            "Monitor for updates; consider alternatives if no activity soon",
+        )  # noqa: E501
 
     # Check for any low-level risk
     if entry.composite_score >= 0.2:
@@ -684,7 +694,11 @@ def render_risks_table(report: RiskReport, console: Console | None = None) -> No
     console.print(f"\n[bold]Risk Assessment: {report.project_path}[/bold]\n")
 
     # Summary panel
-    status = "[red]⚠ AT RISK[/red]" if report.critical_count + report.high_count > 0 else "[green]✓ LOW RISK[/green]"  # noqa: E501
+    status = (
+        "[red]⚠ AT RISK[/red]"
+        if report.critical_count + report.high_count > 0
+        else "[green]✓ LOW RISK[/green]"
+    )  # noqa: E501
     border = "red" if report.critical_count > 0 else "yellow" if report.high_count > 0 else "green"
 
     summary = (
