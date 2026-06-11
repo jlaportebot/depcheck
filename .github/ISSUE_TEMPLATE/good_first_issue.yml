@@ -1,0 +1,91 @@
+name: Good First Issue
+about: A curated task for new contributors
+title: "[GOOD FIRST ISSUE] "
+labels: ["good first issue", "help wanted"]
+assignees: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Welcome!** This issue is designed for first-time contributors. A maintainer will guide you — just ask questions.
+
+        **Mentor:** @maintainer (will be assigned)
+  - type: textarea
+    id: summary
+    attributes:
+      label: Task Summary
+      description: One-sentence description.
+      placeholder: "Add `--exclude-pkg` flag to `depcheck scan` to skip specific packages"
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What Needs Doing
+      description: Step-by-step breakdown.
+      placeholder: |
+        1. Open `src/depcheck/cli.py`, find `scan` command
+        2. Add `--exclude-pkg` / `-x` option with click (multiple=True)
+        3. Pass excluded packages to scanner
+        4. In `scanner.py`, filter out excluded packages from results
+        5. Add test in `tests/test_cli.py` and `tests/test_scanner.py`
+        6. Update README with new flag example
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files to Touch
+      description: Exact paths.
+      placeholder: |
+        - `src/depcheck/cli.py` (main)
+        - `src/depcheck/scanner.py` (filtering logic)
+        - `tests/test_cli.py` (test)
+        - `tests/test_scanner.py` (test)
+        - `README.md` (docs)
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How we'll know it's done.
+      placeholder: |
+        - [ ] `--exclude-pkg` flag works and skips specified packages
+        - [ ] Multiple packages can be excluded: `--exclude-pkg requests --exclude-pkg urllib3`
+        - [ ] Tests pass
+        - [ ] README updated
+        - [ ] `ruff check .` and `ruff format --check .` pass
+        - [ ] `pytest -v` passes
+    validations:
+      required: true
+  - type: textarea
+    id: pointers
+    attributes:
+      label: Helpful Pointers
+      placeholder: |
+        - See `scan` command in cli.py for similar flag patterns
+        - Scanner filtering logic in scanner.py `filter_results()` function
+        - Click docs: https://click.palletsprojects.com/
+        - Run `depcheck scan --help` to see current flags
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Estimated Difficulty
+      options:
+        - Very easy (30-60 min) — docs, CLI flags, simple tests
+        - Easy (1-2 hours) — small code change, well-isolated
+        - Moderate (half day) — requires understanding a component
+    validations:
+      required: true
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: For the Contributor
+      options:
+        - label: I've read CONTRIBUTING.md
+          required: true
+        - label: I'll ask questions if stuck
+          required: true
+        - label: I'll submit a PR when ready
+          required: true

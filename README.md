@@ -1,7 +1,11 @@
 # depcheck
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/jlaportebot/depcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/jlaportebot/depcheck/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/depcheck.svg)](https://pypi.org/project/depcheck/)
+[![Python versions](https://img.shields.io/pypi/pyversions/depcheck.svg)](https://pypi.org/project/depcheck/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
 
 **A dependency health checker for Python projects.**
 
@@ -29,7 +33,7 @@
 pip install depcheck
 ```
 
-## Usage
+## Quick Start
 
 ### Scan the current directory
 
@@ -207,17 +211,6 @@ depcheck why numpy --no-vuln-check
 
 `depcheck why` resolves the full dependency graph and finds all paths from your direct dependencies to the target package — answering the common question: *why is this package in my project?*
 
-## Diff Change Types
-
-| Change | Symbol | Meaning |
-|--------|--------|---------|
-| Added | `+` | Package exists only in the new file |
-| Removed | `-` | Package exists only in the old file |
-| Upgraded | `↑` | Pinned version increased |
-| Downgraded | `↓` | Pinned version decreased |
-| Specifier changed | `~` | Version specifier changed (e.g., `>=2.0` → `>=3.0`) |
-| Unpinned | `⚠` | Went from pinned version to version range |
-| Pinned | `✓` | Went from version range to pinned version |
 ## Health Status
 
 Each package is assigned a health status with color-coded output:
@@ -251,54 +244,39 @@ All formats include package names, versions, and [PURLs](https://github.com/pack
 | 1 | Failed due to `--fail-on` condition met |
 | 2 | Error during scanning |
 
-## Screenshots
-
-<!-- Screenshots coming soon! -->
-
-*Placeholder — screenshots will be added after first release.*
-
-## How It Works
-
-1. **Discovery** — `depcheck` looks for `requirements.txt`, `pyproject.toml`, or `Pipfile` in your project directory
-2. **Parsing** — Extracts package names and version specifiers
-3. **PyPI Lookup** — Queries the PyPI JSON API for each package to get latest versions, release dates, yanked status, and license metadata
-4. **Vulnerability Check** — Queries the [OSV.dev API](https://osv.dev) for known vulnerabilities affecting each package version
-5. **License Classification** — Normalizes license identifiers to SPDX IDs, classifies them into categories (permissive, copyleft, restricted, public domain), and checks against your compliance policy
-6. **Report** — Displays a rich, color-coded summary table with license compliance status
-
 ## Contributing
 
-Contributions are welcome! Here's how you can help:
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-1. **Fork** the repository at [github.com/jlaportebot/depcheck](https://github.com/jlaportebot/depcheck)
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development setup
+**Quick start for contributors:**
 
 ```bash
 git clone https://github.com/jlaportebot/depcheck.git
 cd depcheck
+python -m venv .venv
+source .venv/bin/activate
 pip install -e ".[dev]"
-```
 
-### Running tests
+# Run tests
+pytest -v
 
-```bash
-pytest
-```
-
-### Code style
-
-This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting.
-
-```bash
+# Lint & format
 ruff check .
-ruff format .
+ruff format --check .
 ```
+
+**Good first issues:** Look for the [`good first issue` label](https://github.com/jlaportebot/depcheck/issues?q=label%3A%22good+first+issue%22) — we'll mentor you through it.
+
+**Questions?** Open a [Discussion](https://github.com/jlaportebot/depcheck/discussions) or [issue](https://github.com/jlaportebot/depcheck/issues/new/choose).
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE) for details.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+
+## Code of Conduct
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). We follow the Contributor Covenant.

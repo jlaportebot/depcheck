@@ -1,0 +1,88 @@
+name: Bug Report
+about: Something isn't working
+title: "[BUG] "
+labels: ["bug"]
+assignees: ""
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for the bug report! Please fill out what you can."
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What Happened
+      description: Clear description of the bug.
+      placeholder: "depcheck scan crashes with KeyError when pyproject.toml has optional dependencies..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to trigger it.
+      placeholder: |
+        1. Create pyproject.toml with [project.optional-dependencies]
+        2. Run `depcheck scan`
+        3. Observe KeyError
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      placeholder: "Should handle optional dependencies gracefully"
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: Error traceback, logs, output.
+      placeholder: |
+        Traceback (most recent call last):
+          File ".../scanner.py", line 42, in parse_pyproject
+            data["project"]["dependencies"]
+        KeyError: 'dependencies'
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: depcheck Version
+      description: Run `depcheck --version` or `pip show depcheck`
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      placeholder: "3.11.5"
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install Method
+      options:
+        - pip install depcheck
+        - pip install -e . (editable)
+        - Docker / other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Sample pyproject.toml/requirements.txt (anonymized), config, anything else relevant.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I searched existing issues (open + closed)
+          required: true
+        - label: I'm on the latest release
+          required: true
+        - label: This isn't a usage question (use Discussions instead)
+          required: true

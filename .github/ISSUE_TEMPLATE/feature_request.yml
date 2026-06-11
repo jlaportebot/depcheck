@@ -1,0 +1,73 @@
+name: Feature Request
+about: Propose a new feature or enhancement
+title: "[FEAT] "
+labels: ["enhancement"]
+assignees: ""
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for the idea! Describe what you'd like to see."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Motivation
+      description: What problem does this solve? Why is it needed?
+      placeholder: "No way to exclude specific packages from vulnerability scanning..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should it work? CLI flags, config options, API.
+      placeholder: "Add `--exclude-pkg` flag to `depcheck scan` that takes a comma-separated list of packages to skip..."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What else did you think of?
+      placeholder: "Could filter in post-processing, but CLI flag is more discoverable"
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Small (CLI flag, config option, single function)
+        - Medium (new command, export format, scanner feature)
+        - Large (major architecture change)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI (commands, flags, output formatting)
+        - Scanner (parsing, discovery, PyPI/OSV calls)
+        - Vulnerability data (OSV integration, CVEs)
+        - Licenses (classification, compliance, SPDX)
+        - Export (SBOM formats: CycloneDX, SPDX, custom)
+        - Diff (comparison, drift detection)
+        - Graph (visualization, D3.js, HTML)
+        - Outdated analysis (upgrade paths, risk)
+        - Watch (file monitoring)
+        - Tests / CI / tooling
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: willingness
+    attributes:
+      label: Willingness
+      options:
+        - label: I'll implement this (assign me)
+        - label: I can test / review
+        - label: Just the idea
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Mockups, links to related issues, references.

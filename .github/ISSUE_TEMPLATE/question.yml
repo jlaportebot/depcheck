@@ -1,0 +1,51 @@
+name: Question / Help
+about: Ask a question about using depcheck
+title: "[QUESTION] "
+labels: ["question"]
+assignees: ""
+body:
+  - type: markdown
+    attributes:
+      value: "Got a question? Ask away."
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What do you need help with?
+      placeholder: "How do I configure depcheck to only fail on high-severity CVEs? The --fail-on vulnerable flag seems to catch everything..."
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - CLI usage
+        - Configuration (pyproject.toml, config file)
+        - Vulnerability scanning (OSV, CVEs)
+        - License compliance
+        - SBOM export (CycloneDX, SPDX)
+        - Dependency graph / visualization
+        - CI/CD integration
+        - Installation / dependencies
+        - Contributing / development
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What Have You Tried?
+      description: Docs, search, experiments — helps us give a better answer.
+      placeholder: "Read README, checked CLI help, tried --fail-on vulnerable:high but got error..."
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-check
+      options:
+        - label: I checked the README
+          required: false
+        - label: I searched existing issues/discussions
+          required: false
+        - label: This isn't a bug report (use Bug Report template instead)
+          required: true
