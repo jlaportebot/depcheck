@@ -46,6 +46,13 @@ dev = [
  "ruff>=0.1",
 ]
 
+[dependency-groups]
+dev = [
+ "pytest>=7.0",
+ "pytest-cov>=4.0",
+ "ruff>=0.1",
+]
+
 [project.urls]
 Homepage = "https://github.com/jlaportebot/depcheck"
 Repository = "https://github.com/jlaportebot/depcheck"
@@ -60,3 +67,8 @@ select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = [
+    "--cov=depcheck",
+    "--cov-report=term-missing",
+    "--cov-fail-under=75",
+]

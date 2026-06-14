@@ -52,6 +52,7 @@ class TestStatusIcon:
         # Test with a value not in the enum (edge case)
         class FakeStatus:
             pass
+
         # This should fall back to default
         assert _status_icon(FakeStatus()) == "⚪"
 

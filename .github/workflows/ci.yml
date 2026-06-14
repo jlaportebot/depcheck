@@ -32,4 +32,4 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -v
+          pytest -v --cov=depcheck --cov-report=term-missing --cov-fail-under=75
