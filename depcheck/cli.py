@@ -152,6 +152,117 @@ def scan(
     type=click.Path(exists=True, file_okay=False, dir_okay=True),
 )
 @click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--check-licenses",
+    is_flag=True,
+    default=False,
+    help="Include license compliance info in annotations.",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(
+        ["vulnerable", "outdated", "unmaintained", "license", "any"],
+        case_sensitive=False,
+    ),
+    default=None,
+    help="Exit with code 1 if the specified condition is met.",
+)
+@click.option(
+    "--output",
+    "output_file",
+    type=click.Path(dir_okay=False, writable=True),
+    default=None,
+    help="Write annotations to file instead of stdout (useful for GitHub Actions).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def annotations(
+    path: str,
+    no_vuln_check: bool,
+    check_licenses: bool,
+    fail_on: str | None,
+    output_file: str | None,
+    quiet: bool,
+) -> None:
+    """Generate GitHub Actions annotations for dependency issues.
+
+    Outputs annotations in GitHub Actions format:
+    ::error|warning|notice file=...,line=...::message
+
+    This is useful for CI/CD pipelines to surface dependency issues
+    directly in the GitHub Actions log and PR checks.
+
+    PATH is the project directory to scan (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck annotations
+    depcheck annotations --output annotations.txt
+    depcheck annotations --fail-on vulnerable
+    depcheck annotations /path/to/project
+    """
+    from depcheck.output import render_github_annotations
+    from depcheck.scanner import scan_project
+
+    console = Console(quiet=quiet)
+
+    # Run the scan
+    result = scan_project(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=check_licenses,
+    )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Generate annotations
+    annotations_list = render_github_annotations(result)
+
+    # Output annotations
+    if output_file:
+        with open(output_file, "w") as f:
+            for ann in annotations_list:
+                f.write(
+                    f"::{ann['type']} file={ann['file']},line={ann['line']}::{ann['message']}\n"
+                )
+        if not quiet:
+            console.print(f"[green]Annotations written to {output_file}[/green]")
+            console.print(f"[dim]{len(annotations_list)} annotations generated[/dim]")
+    else:
+        for ann in annotations_list:
+            print(f"::{ann['type']} file={ann['file']},line={ann['line']}::{ann['message']}")
+
+    # Determine exit code based on fail-on criteria
+    exit_code = determine_exit_code(result, fail_on)
+    if exit_code != 0 and not quiet:
+        if fail_on:
+            console.print(
+                f"[red]✗ Annotations check failed: --fail-on {fail_on} condition met[/red]"
+            )
+
+    sys.exit(exit_code)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
     "--json",
     "output_json",
     is_flag=True,

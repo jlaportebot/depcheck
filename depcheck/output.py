@@ -279,3 +279,102 @@ def determine_exit_code(result: ScanResult, fail_on: str | None = None) -> int:
         return 1 if has_any else 0
     else:
         return 0
+
+
+def render_github_annotations(result: ScanResult) -> list[dict]:
+    """Render scan results as GitHub Actions annotations.
+
+    Args:
+        result: The scan result to render.
+
+    Returns:
+        List of annotation dictionaries compatible with GitHub Actions
+        `::notice|warning|error file=...,line=...::message` format.
+        Each dict has keys: type (error|warning|notice), file, line, message.
+    """
+    annotations: list[dict] = []
+
+    for pkg in result.packages:
+        # Vulnerabilities -> error annotations (one per vulnerability)
+        if pkg.vulnerabilities:
+            for vuln in pkg.vulnerabilities:
+                severity_label = vuln.severity.capitalize() if vuln.severity else "Unknown"
+                msg = (
+                    f"{pkg.name} {pkg.installed_version}: "
+                    f"{vuln.vuln_id} ({severity_label}) - {vuln.summary}"
+                )
+                annotations.append(
+                    {
+                        "type": "error",
+                        "file": "pyproject.toml",  # Generic file since we don't track exact location
+                        "line": 1,
+                        "message": msg,
+                    }
+                )
+
+        # Yanked/Removed -> error annotations
+        if pkg.status == HealthStatus.YANKED:
+            annotations.append(
+                {
+                    "type": "error",
+                    "file": "pyproject.toml",
+                    "line": 1,
+                    "message": f"{pkg.name} {pkg.installed_version}: Version yanked from PyPI",
+                }
+            )
+        elif pkg.status == HealthStatus.REMOVED:
+            annotations.append(
+                {
+                    "type": "error",
+                    "file": "pyproject.toml",
+                    "line": 1,
+                    "message": f"{pkg.name} {pkg.installed_version}: Package removed from PyPI",
+                }
+            )
+
+        # Outdated -> warning annotations
+        if pkg.status == HealthStatus.OUTDATED:
+            annotations.append(
+                {
+                    "type": "warning",
+                    "file": "pyproject.toml",
+                    "line": 1,
+                    "message": (
+                        f"{pkg.name}: installed {pkg.installed_version}, "
+                        f"latest {pkg.latest_version} available"
+                    ),
+                }
+            )
+
+        # Unmaintained -> warning annotations
+        if pkg.status == HealthStatus.UNMAINTAINED:
+            annotations.append(
+                {
+                    "type": "warning",
+                    "file": "pyproject.toml",
+                    "line": 1,
+                    "message": (
+                        f"{pkg.name} {pkg.installed_version}: No updates in 1+ year (unmaintained)"
+                    ),
+                }
+            )
+
+        # License issues -> warning annotations
+        if pkg.license_info and not pkg.license_info.is_compliant:
+            lic = pkg.license_info
+            msg = (
+                f"{pkg.name}: License compliance issue - "
+                f"{lic.spdx_id or 'Unknown'} ({lic.category})"
+            )
+            if lic.compliance_note:
+                msg += f" - {lic.compliance_note}"
+            annotations.append(
+                {
+                    "type": "warning",
+                    "file": "pyproject.toml",
+                    "line": 1,
+                    "message": msg,
+                }
+            )
+
+    return annotations
