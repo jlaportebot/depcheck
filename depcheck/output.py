@@ -306,7 +306,7 @@ def render_github_annotations(result: ScanResult) -> list[dict]:
                 annotations.append(
                     {
                         "type": "error",
-                        "file": "pyproject.toml",  # Generic file since we don't track exact location
+                        "file": "pyproject.toml",  # Generic file (no exact location)
                         "line": 1,
                         "message": msg,
                     }
