@@ -1186,7 +1186,17 @@ def watch(
     "output_path",
     default=None,
     type=click.Path(),
-    help="Output HTML file path (default: ./depcheck-graph.html).",
+    help=(
+        "Output file path (default: ./depcheck-graph.html for HTML, "
+        "./depcheck-graph.mmd for Mermaid)."
+    ),
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["html", "mermaid"], case_sensitive=False),
+    default="html",
+    help="Output format: html (interactive D3.js graph) or mermaid (Mermaid.js diagram).",
 )
 @click.option(
     "--max-depth",
@@ -1231,6 +1241,7 @@ def watch(
 def graph(
     path: str,
     output_path: str | None,
+    output_format: str,
     max_depth: int,
     no_vuln_check: bool,
     check_licenses: bool,
@@ -1238,13 +1249,10 @@ def graph(
     denied_licenses: tuple[str, ...],
     quiet: bool,
 ) -> None:
-    """Generate an interactive dependency graph as an HTML file.
+    """Generate a dependency graph visualization.
 
-    Produces a self-contained HTML file with a D3.js force-directed graph
-    showing your project's dependency tree. Nodes are color-coded by health
-    status: green (healthy), yellow (outdated), red (vulnerable), gray
-    (unmaintained), orange (yanked). The graph supports zoom, pan, search,
-    and click-to-inspect package details.
+    Produces either an interactive HTML file with a D3.js force-directed graph
+    or a Mermaid.js diagram for embedding in Markdown documentation.
 
     PATH is the project directory to analyze (defaults to current directory).
 
@@ -1253,10 +1261,12 @@ def graph(
     \b
     depcheck graph
     depcheck graph /path/to/project -o deps.html
+    depcheck graph --format mermaid -o deps.mmd
+    depcheck graph --format mermaid
     depcheck graph --max-depth 5 --check-licenses
     depcheck graph --no-vuln-check --quiet
     """
-    from depcheck.graph import write_graph_html
+    from depcheck.graph import generate_graph, write_graph_mermaid
     from depcheck.licenses import LicenseCategory
 
     console = Console(quiet=quiet)
@@ -1283,9 +1293,9 @@ def graph(
     if not quiet:
         console.print("[bold]Resolving dependency tree...[/bold]")
 
-    output = write_graph_html(
+    # Generate the graph data
+    graph_data = generate_graph(
         project_path=path,
-        output_path=output_path,
         max_depth=max_depth,
         check_vulnerabilities=not no_vuln_check,
         check_licenses=should_check_licenses,
@@ -1293,9 +1303,29 @@ def graph(
         denied_licenses=denied_list,
     )
 
-    if not quiet:
-        console.print(f"[green]✓ Dependency graph written to {output}[/green]")
-        console.print("  Open in a browser to explore the interactive visualization.")
+    # Determine output path default based on format
+    if output_path is None:
+        if output_format.lower() == "mermaid":
+            output_path = "depcheck-graph.mmd"
+        else:
+            output_path = "depcheck-graph.html"
+
+    # Write output based on format
+    if output_format.lower() == "mermaid":
+        output = write_graph_mermaid(graph_data, output_path)
+        if not quiet:
+            console.print(f"[green]✓ Mermaid diagram written to {output}[/green]")
+            console.print("  Embed in Markdown with ``mermaid ... ``")
+    else:
+        from depcheck.graph import render_graph_html
+
+        html_content = render_graph_html(graph_data)
+        output_path = Path(output_path)
+        output_path.write_text(html_content, encoding="utf-8")
+        output = output_path
+        if not quiet:
+            console.print(f"[green]✓ Dependency graph written to {output}[/green]")
+            console.print("  Open in a browser to explore the interactive visualization.")
 
 
 @main.command()
