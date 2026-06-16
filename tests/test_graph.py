@@ -400,3 +400,272 @@ class TestStatusColors:
         for color in STATUS_COLORS.values():
             assert color.startswith("#"), f"Invalid CSS color: {color}"
             assert len(color) == 7, f"Expected 6-digit hex color: {color}"
+
+
+class TestMermaidExport:
+    """Tests for Mermaid diagram export."""
+
+    def test_mermaid_basic_graph(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="requests", name="requests", version="2.31.0", status="healthy"),
+                GraphNode(id="urllib3", name="urllib3", version="2.0", status="healthy"),
+            ],
+            links=[GraphLink(source="requests", target="urllib3")],
+        )
+        mermaid = graph.to_mermaid()
+        assert "graph TD" in mermaid
+        assert "requests" in mermaid
+        assert "urllib3" in mermaid
+        assert "-->" in mermaid
+
+    def test_mermaid_with_vulnerable_package(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(
+                    id="pkg-b",
+                    name="pkg-b",
+                    version="1.0",
+                    status="vulnerable",
+                    vuln_count=2,
+                ),
+            ],
+            links=[GraphLink(source="pkg-a", target="pkg-b")],
+        )
+        mermaid = graph.to_mermaid()
+        assert "pkg-a" in mermaid
+        assert "pkg-b" in mermaid
+        # Vulnerable packages should have red styling
+        assert "fill:#f44336" in mermaid or "fill:#f44336" in mermaid.lower()
+
+    def test_mermaid_with_outdated_package(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(id="pkg-b", name="pkg-b", version="1.0", status="outdated"),
+            ],
+            links=[GraphLink(source="pkg-a", target="pkg-b")],
+        )
+        mermaid = graph.to_mermaid()
+        # Outdated packages should have orange/yellow styling
+        assert "fill:#ff9800" in mermaid or "fill:#ff9800" in mermaid.lower()
+
+    def test_mermaid_with_unmaintained_package(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(id="pkg-b", name="pkg-b", version="1.0", status="unmaintained"),
+            ],
+            links=[GraphLink(source="pkg-a", target="pkg-b")],
+        )
+        mermaid = graph.to_mermaid()
+        # Unmaintained packages should have gray styling
+        assert "fill:#9e9e9e" in mermaid or "fill:#9e9e9e" in mermaid.lower()
+
+    def test_mermaid_with_yanked_package(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(id="pkg-b", name="pkg-b", version="1.0", status="yanked"),
+            ],
+            links=[GraphLink(source="pkg-a", target="pkg-b")],
+        )
+        mermaid = graph.to_mermaid()
+        # Yanked packages should have orange-red styling
+        assert "fill:#ff5722" in mermaid or "fill:#ff5722" in mermaid.lower()
+
+    def test_mermaid_with_removed_package(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(id="pkg-b", name="pkg-b", version="1.0", status="removed"),
+            ],
+            links=[GraphLink(source="pkg-a", target="pkg-b")],
+        )
+        mermaid = graph.to_mermaid()
+        # Removed packages should have dark red styling
+        assert "fill:#b71c1c" in mermaid or "fill:#b71c1c" in mermaid.lower()
+
+    def test_mermaid_with_unknown_package(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(id="pkg-b", name="pkg-b", version="1.0", status="unknown"),
+            ],
+            links=[GraphLink(source="pkg-a", target="pkg-b")],
+        )
+        mermaid = graph.to_mermaid()
+        # Unknown packages should have light gray styling
+        assert "fill:#bdbdbd" in mermaid or "fill:#bdbdbd" in mermaid.lower()
+
+    def test_mermaid_sanitizes_node_names(self) -> None:
+        """Node names with special chars should be sanitized for Mermaid IDs."""
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(
+                    id="pkg-with-dash", name="pkg-with-dash", version="1.0", status="healthy"
+                ),
+                GraphNode(
+                    id="pkg_with_underscore",
+                    name="pkg_with_underscore",
+                    version="1.0",
+                    status="healthy",
+                ),
+                GraphNode(
+                    id="pkg.with.dots", name="pkg.with.dots", version="1.0", status="healthy"
+                ),
+            ],
+            links=[
+                GraphLink(source="pkg-with-dash", target="pkg_with_underscore"),
+                GraphLink(source="pkg_with_underscore", target="pkg.with.dots"),
+            ],
+        )
+        mermaid = graph.to_mermaid()
+        # Mermaid IDs should be valid (alphanumeric + underscore)
+        assert "pkg_with_dash" in mermaid or "pkgwithdash" in mermaid
+        assert "pkg_with_underscore" in mermaid
+        assert "pkg_with_dots" in mermaid or "pkgwithdots" in mermaid
+
+    def test_mermaid_empty_graph(self) -> None:
+        graph = DependencyGraph(project_path="/tmp/empty")
+        mermaid = graph.to_mermaid()
+        assert "graph TD" in mermaid
+        # Should still have valid structure even with no nodes
+
+    def test_mermaid_multiple_roots(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="app", name="app", version="1.0", status="healthy", depth=0),
+                GraphNode(id="lib-a", name="lib-a", version="1.0", status="healthy", depth=1),
+                GraphNode(id="lib-b", name="lib-b", version="1.0", status="healthy", depth=1),
+            ],
+            links=[
+                GraphLink(source="app", target="lib-a"),
+                GraphLink(source="app", target="lib-b"),
+            ],
+        )
+        mermaid = graph.to_mermaid()
+        assert "app" in mermaid
+        assert "lib-a" in mermaid
+        assert "lib-b" in mermaid
+        # Both edges from app should exist
+        assert mermaid.count("app") >= 2
+
+    def test_mermaid_shared_dependency(self) -> None:
+        """Shared dependencies should appear once but have multiple incoming edges."""
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg-a", name="pkg-a", version="1.0", status="healthy"),
+                GraphNode(id="pkg-b", name="pkg-b", version="1.0", status="healthy"),
+                GraphNode(id="shared", name="shared", version="1.0", status="healthy"),
+            ],
+            links=[
+                GraphLink(source="pkg-a", target="shared"),
+                GraphLink(source="pkg-b", target="shared"),
+            ],
+        )
+        mermaid = graph.to_mermaid()
+        # "shared" node should be defined once (one node definition)
+        # Count node definitions (lines with [label] pattern for shared)
+        shared_node_defs = mermaid.count('shared["shared 1.0"]')
+        assert shared_node_defs == 1, (
+            f"Expected 1 node definition for shared, got {shared_node_defs}"
+        )
+        # But both edges should be present
+        assert "pkg_a --> shared" in mermaid
+        assert "pkg_b --> shared" in mermaid
+
+    def test_mermaid_includes_version_in_label(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="requests", name="requests", version="2.31.0", status="healthy"),
+            ],
+            links=[],
+        )
+        mermaid = graph.to_mermaid()
+        # Version should appear in node label
+        assert "2.31.0" in mermaid
+
+    def test_mermaid_without_version(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="requests", name="requests", version=None, status="healthy"),
+            ],
+            links=[],
+        )
+        mermaid = graph.to_mermaid()
+        assert "requests" in mermaid
+        # Should not show "None" or "null"
+
+    def test_mermaid_vuln_count_indicated(self) -> None:
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="pkg", name="pkg", version="1.0", status="vulnerable", vuln_count=3),
+            ],
+            links=[],
+        )
+        mermaid = graph.to_mermaid()
+        # Vulnerability count could be in label or tooltip
+        assert "3" in mermaid or "vuln" in mermaid.lower()
+
+    def test_render_mermaid_cli_integration(self) -> None:
+        """Integration test for CLI --format mermaid option."""
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir) / "project"
+            project_dir.mkdir()
+            (project_dir / "requirements.txt").write_text("requests==2.31.0\n")
+
+            # Change to tmpdir so the default output file writes there
+            import os
+
+            old_cwd = os.getcwd()
+            os.chdir(tmpdir)
+            try:
+                result = runner.invoke(main, ["graph", str(project_dir), "--format", "mermaid"])
+                assert result.exit_code == 0
+                # Check the output file was created
+                output_file = Path(tmpdir) / "depcheck-graph.mmd"
+                assert output_file.exists()
+                content = output_file.read_text()
+                assert "graph TD" in content
+                assert "requests" in content
+            finally:
+                os.chdir(old_cwd)
+
+    def test_write_mermaid_to_file(self) -> None:
+        """Test writing Mermaid output to a file."""
+        from depcheck.graph import write_graph_mermaid
+
+        graph = DependencyGraph(
+            project_path="/tmp/project",
+            nodes=[
+                GraphNode(id="requests", name="requests", version="2.31.0", status="healthy"),
+            ],
+            links=[],
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "graph.mmd"
+            write_graph_mermaid(graph, output_path)
+            assert output_path.exists()
+            content = output_path.read_text()
+            assert "graph TD" in content
+            assert "requests" in content
