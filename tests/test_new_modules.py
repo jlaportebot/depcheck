@@ -1639,6 +1639,7 @@ class TestSummaryCommand:
         result = runner.invoke(main, ["summary", str(tmp_path), "--json"])
         assert result.exit_code == 0
         import json
+
         data = json.loads(result.output)
         assert "grade" in data
         assert "score" in data

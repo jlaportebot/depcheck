@@ -3239,18 +3239,10 @@ def summary(
         check_licenses=not no_license_check,
     )
 
-    outdated_count = sum(
-        1 for p in scan_result.packages if p.status.value == "outdated"
-    )
-    unmaintained_count = sum(
-        1 for p in scan_result.packages if p.status.value == "unmaintained"
-    )
-    yanked_count = sum(
-        1 for p in scan_result.packages if p.status.value == "yanked"
-    )
-    removed_count = sum(
-        1 for p in scan_result.packages if p.status.value == "removed"
-    )
+    outdated_count = sum(1 for p in scan_result.packages if p.status.value == "outdated")
+    unmaintained_count = sum(1 for p in scan_result.packages if p.status.value == "unmaintained")
+    yanked_count = sum(1 for p in scan_result.packages if p.status.value == "yanked")
+    removed_count = sum(1 for p in scan_result.packages if p.status.value == "removed")
     license_issues_count = sum(
         1
         for p in scan_result.packages
@@ -3342,4 +3334,3 @@ def summary(
     elif grade == "C" and not quiet:
         msg = f"\n[bold yellow]⚠ Project health is {grade} — review recommended[/bold yellow]"
         console.print(msg)
-
