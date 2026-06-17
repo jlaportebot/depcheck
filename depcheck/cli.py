@@ -3146,6 +3146,190 @@ def stack(
         sys.exit(1)
 
 
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output configuration as JSON.",
+)
+@click.option(
+    "--validate",
+    is_flag=True,
+    default=False,
+    help="Validate configuration and report any issues.",
+)
+@click.option(
+    "--init",
+    "init_config",
+    is_flag=True,
+    default=False,
+    help="Generate a default depcheck configuration file.",
+)
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, writable=True),
+    default=None,
+    help="Write configuration to file instead of stdout.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def config(
+    path: str,
+    output_json: bool,
+    validate: bool,
+    init_config: bool,
+    output_path: str | None,
+    quiet: bool,
+) -> None:
+    """Show, validate, or generate depcheck configuration.
+
+    Loads configuration from pyproject.toml [tool.depcheck] section,
+    merges with defaults, and displays the effective configuration.
+
+    Examples:
+
+    \b
+    depcheck config
+    depcheck config --json
+    depcheck config --validate
+    depcheck config --init
+    depcheck config --init --output pyproject.toml
+    depcheck config /path/to/project --validate
+    """
+    from depcheck.config import (
+        generate_default_config,
+        load_config,
+        validate_config,
+    )
+
+    console = Console(quiet=quiet)
+
+    if init_config:
+        # Generate default configuration
+        content = generate_default_config(path)
+        if output_path:
+            Path(output_path).write_text(content, encoding="utf-8")
+            if not quiet:
+                console.print(f"[green]✓ Configuration written to {output_path}[/green]")
+        else:
+            if not quiet:
+                # Use markup=False to prevent Rich from interpreting [[...]] as markup
+                console.print(content, markup=False)
+        return
+
+    # Load and display/validate configuration
+    config = load_config(path)
+
+    if validate:
+        issues = validate_config(config)
+        if output_json:
+            import json
+
+            clean_console = (
+                Console(quiet=False, force_terminal=False, no_color=True)
+                if quiet
+                else Console(force_terminal=False, no_color=True)
+            )
+            clean_console.print(json.dumps({"valid": len(issues) == 0, "issues": issues}, indent=2))
+        elif not quiet:
+            if issues:
+                console.print("[red]Configuration issues found:[/red]")
+                for issue in issues:
+                    console.print(f"  [red]✗[/red] {issue}")
+            else:
+                console.print("[green]✓ Configuration is valid[/green]")
+
+        if issues:
+            sys.exit(1)
+        return
+
+    # Display configuration
+    if output_json:
+        if not quiet:
+            import json
+
+            clean_console = (
+                Console(quiet=False, force_terminal=False, no_color=True)
+                if quiet
+                else Console(force_terminal=False, no_color=True)
+            )
+            clean_console.print(json.dumps(config.to_dict(), indent=2))
+    elif not quiet:
+        from rich.panel import Panel
+        from rich.table import Table
+
+        console.print(Panel("[bold]depcheck configuration[/bold]", border_style="cyan"))
+        console.print()
+
+        # Scan config table
+        scan_table = Table(
+            title="Scan Configuration", show_header=True, header_style="bold cyan"
+        )
+        scan_table.add_column("Setting", style="bold")
+        scan_table.add_column("Value")
+        scan = config.scan
+        allowed = ", ".join(scan.allowed_license_categories) or "(none)"
+        denied = ", ".join(scan.denied_licenses) or "(none)"
+        scan_table.add_row("check_vulnerabilities", str(scan.check_vulnerabilities))
+        scan_table.add_row("check_licenses", str(scan.check_licenses))
+        scan_table.add_row("allowed_license_categories", allowed)
+        scan_table.add_row("denied_licenses", denied)
+        scan_table.add_row("fail_on", scan.fail_on or "(none)")
+        scan_table.add_row("quiet", str(scan.quiet))
+        scan_table.add_row("output_json", str(scan.output_json))
+        console.print(scan_table)
+        console.print()
+
+        # Budget config table
+        budget_table = Table(
+            title="Budget Configuration", show_header=True, header_style="bold cyan"
+        )
+        budget_table.add_column("Setting", style="bold")
+        budget_table.add_column("Value")
+        budget = config.budget
+        budget_table.add_row("max_packages", str(budget.max_packages))
+        budget_table.add_row("max_total_download_kb", str(budget.max_total_download_kb))
+        budget_table.add_row("max_total_install_kb", str(budget.max_total_install_kb))
+        budget_table.add_row("max_single_package_kb", str(budget.max_single_package_kb))
+        budget_table.add_row("max_transitive_depth", str(budget.max_transitive_depth))
+        allowed_b = ", ".join(sorted(budget.allowed_license_categories)) or "(none)"
+        denied_b = ", ".join(sorted(budget.denied_packages)) or "(none)"
+        required_b = ", ".join(sorted(budget.required_packages)) or "(none)"
+        budget_table.add_row("allowed_license_categories", allowed_b)
+        budget_table.add_row("denied_packages", denied_b)
+        budget_table.add_row("required_packages", required_b)
+        console.print(budget_table)
+        console.print()
+
+        # Policy config table
+        policy_table = Table(
+            title="Policy Rules", show_header=True, header_style="bold cyan"
+        )
+        policy_table.add_column("Name", style="bold")
+        policy_table.add_column("Category")
+        policy_table.add_column("Severity")
+        policy_table.add_column("Description")
+        for rule in config.policy.rules:
+            policy_table.add_row(
+                rule.name, rule.category.value, rule.severity.value, rule.description
+            )
+        if not config.policy.rules:
+            policy_table.add_row("(no rules configured)", "", "", "")
+        console.print(policy_table)
+
+
 if __name__ == "__main__":
     main()
 
