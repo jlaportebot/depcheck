@@ -1596,3 +1596,52 @@ class TestCLICommands:
         result = runner.invoke(main, ["policy", "--help"])
         assert "--no-vulns" in result.output
         assert "--no-licenses" in result.output
+
+
+# ─── Summary Command Tests ──────────────────────────────────────────────
+
+
+class TestSummaryCommand:
+    """Tests for the summary command."""
+
+    def test_summary_command_exists(self):
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["summary", "--help"])
+        assert result.exit_code == 0
+        assert "summary" in result.output.lower()
+
+    def test_summary_command_on_empty_project(self, tmp_path):
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        # Create an empty pyproject.toml
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n')
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["summary", str(tmp_path)])
+        assert result.exit_code == 0
+        # Should show a grade for empty project
+        assert any(g in result.output for g in ["A", "B", "C", "D", "F"])
+
+    def test_summary_command_json_output(self, tmp_path):
+        from click.testing import CliRunner
+
+        from depcheck.cli import main
+
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n')
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["summary", str(tmp_path), "--json"])
+        assert result.exit_code == 0
+        import json
+        data = json.loads(result.output)
+        assert "grade" in data
+        assert "score" in data
+        assert "vulnerabilities" in data
+        assert "outdated" in data
+        assert "unmaintained" in data

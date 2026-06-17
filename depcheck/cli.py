@@ -3148,3 +3148,198 @@ def stack(
 
 if __name__ == "__main__":
     main()
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output results as JSON (useful for CI/CD pipelines).",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster but less comprehensive).",
+)
+@click.option(
+    "--no-license-check",
+    is_flag=True,
+    default=False,
+    help="Skip license compliance checking.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def summary(
+    path: str,
+    output_json: bool,
+    no_vuln_check: bool,
+    no_license_check: bool,
+    quiet: bool,
+) -> None:
+    """Show a quick health summary with a letter grade for your project.
+
+    Calculates an overall dependency health score (0-100) and maps it
+    to a letter grade (A-F). Displays key metrics: vulnerabilities,
+    outdated packages, unmaintained packages, and license issues.
+
+    PATH is the project directory to scan (defaults to current directory).
+
+    Examples:
+
+    \b
+    depcheck summary
+    depcheck summary --json
+    depcheck summary /path/to/project
+    depcheck summary --no-vuln-check --quiet
+    """
+    from depcheck.audit import run_audit
+    from depcheck.scanner import scan_project
+
+    console = Console(quiet=quiet)
+
+    # Run the audit to get comprehensive risk scoring
+    result = run_audit(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=not no_license_check,
+    )
+
+    # Convert risk score (0-100, lower is better) to letter grade
+    # A: 0-10, B: 11-30, C: 31-50, D: 51-70, F: 71-100
+    score = round(result.risk_score, 1)
+    if score <= 10:
+        grade = "A"
+    elif score <= 30:
+        grade = "B"
+    elif score <= 50:
+        grade = "C"
+    elif score <= 70:
+        grade = "D"
+    else:
+        grade = "F"
+
+    # Count key metrics from scan result
+    vuln_count = result.severity_breakdown.total
+
+    scan_result = scan_project(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=not no_license_check,
+    )
+
+    outdated_count = sum(
+        1 for p in scan_result.packages if p.status.value == "outdated"
+    )
+    unmaintained_count = sum(
+        1 for p in scan_result.packages if p.status.value == "unmaintained"
+    )
+    yanked_count = sum(
+        1 for p in scan_result.packages if p.status.value == "yanked"
+    )
+    removed_count = sum(
+        1 for p in scan_result.packages if p.status.value == "removed"
+    )
+    license_issues_count = sum(
+        1
+        for p in scan_result.packages
+        if p.license_info and p.license_info.spdx_id and not p.license_info.is_compliant
+    )
+
+    if output_json:
+        import json
+
+        output = {
+            "grade": grade,
+            "score": score,
+            "risk_level": result.risk_level.value,
+            "total_packages": result.total_packages,
+            "vulnerabilities": {
+                "total": vuln_count,
+                "critical": result.severity_breakdown.critical,
+                "high": result.severity_breakdown.high,
+                "medium": result.severity_breakdown.medium,
+                "low": result.severity_breakdown.low,
+            },
+            "outdated": outdated_count,
+            "unmaintained": unmaintained_count,
+            "yanked": yanked_count,
+            "removed": removed_count,
+            "license_issues": license_issues_count,
+            "files_scanned": result.files_scanned,
+            "errors": result.errors,
+        }
+        # Use print() for clean JSON output without Rich formatting
+        print(json.dumps(output, indent=2))
+    elif not quiet:
+        # Render a nice table
+        from rich.panel import Panel
+        from rich.table import Table
+
+        # Grade panel with color
+        grade_colors = {"A": "green", "B": "green", "C": "yellow", "D": "orange3", "F": "red"}
+        grade_color = grade_colors.get(grade, "white")
+
+        grade_panel = Panel(
+            f"[bold {grade_color}]{grade}[/bold {grade_color}]",
+            title=f"[bold]Health Grade[/bold] (Score: {score}/100)",
+            border_style=grade_color,
+            padding=(1, 4),
+        )
+        console.print(grade_panel)
+        console.print()
+
+        # Metrics table
+        table = Table(show_header=True, header_style="bold cyan", box=None)
+        table.add_column("Metric", style="bold")
+        table.add_column("Count", justify="right")
+
+        # Vulnerabilities by severity
+        if vuln_count > 0:
+            vuln_detail = (
+                f"[red]{vuln_count}[/red] "
+                f"(C:{result.severity_breakdown.critical} "
+                f"H:{result.severity_breakdown.high} "
+                f"M:{result.severity_breakdown.medium} "
+                f"L:{result.severity_breakdown.low})"
+            )
+            table.add_row("Vulnerabilities", vuln_detail)
+        else:
+            table.add_row("Vulnerabilities", "[green]0[/green]")
+
+        def fmt_count(count: int, color: str) -> str:
+            return f"[{color}]{count}[/{color}]" if count else "[green]0[/green]"
+
+        table.add_row("Outdated", fmt_count(outdated_count, "yellow"))
+        table.add_row("Unmaintained", fmt_count(unmaintained_count, "dim"))
+        table.add_row("Yanked", fmt_count(yanked_count, "orange3"))
+        table.add_row("Removed", fmt_count(removed_count, "red"))
+        table.add_row("License Issues", fmt_count(license_issues_count, "magenta"))
+        table.add_row("Total Packages", str(result.total_packages))
+
+        console.print(table)
+
+        if result.errors:
+            console.print()
+            for error in result.errors:
+                console.print(f"[dim]Warning: {error}[/dim]")
+
+    # Exit with error code if grade is D or F
+    if grade in ("D", "F") and not quiet:
+        console.print(f"\n[bold red]✗ Project health is {grade} — action recommended[/bold red]")
+        sys.exit(1)
+    elif grade == "C" and not quiet:
+        msg = f"\n[bold yellow]⚠ Project health is {grade} — review recommended[/bold yellow]"
+        console.print(msg)
+
