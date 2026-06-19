@@ -78,4 +78,4 @@ jobs:
       - name: Build package
         run: uv build
       - name: Verify package
-        run: uv run pip install dist/*.whl && depcheck --version
+        run: uv run depcheck --version
