@@ -59,7 +59,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --group audit
       - name: Run pip-audit
-        run: uv run pip-audit --desc --fail-on=HIGH,CRITICAL
+        run: uv run pip-audit --desc=on -f json -o /dev/null
 
   build:
     runs-on: ubuntu-latest
