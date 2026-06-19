@@ -125,10 +125,9 @@ class OSVClient:
 
                 if all(v == "N" for v in impact_values):
                     return "LOW"
-                elif any(v == "H" for v in impact_values):
+                if any(v == "H" for v in impact_values):
                     return "HIGH"
-                else:
-                    return "MEDIUM"
+                return "MEDIUM"
 
         # Try database_specific for GitHub Advisory severity
         db_specific = vuln_data.get("database_specific", {})

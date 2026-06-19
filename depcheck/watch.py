@@ -33,7 +33,7 @@ from depcheck.scanner import scan_project
 try:
     from depcheck.licenses import LicenseCategory
 except ImportError:
-    LicenseCategory = None  # type: ignore[assignment,misc]
+    LicenseCategory: type | None = None  # type: ignore[assignment,misc]
 
 # --- Default watched file patterns ---
 DEFAULT_WATCH_PATTERNS: list[str] = [
@@ -536,14 +536,13 @@ def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
         state.scan_history = state.scan_history[-config.max_history :]
 
     # Check exit-on-issue for initial scan
-    if config.exit_on_issue:
-        if _should_exit_on_issue(result, config.fail_on):
-            console.print(render_watch_dashboard(state))
-            alert = render_change_alert(record.status_changes)
-            if alert:
-                console.print(alert)
-            _render_scan_issues(result, console)
-            sys.exit(1)
+    if config.exit_on_issue and _should_exit_on_issue(result, config.fail_on):
+        console.print(render_watch_dashboard(state))
+        alert = render_change_alert(record.status_changes)
+        if alert:
+            console.print(alert)
+        _render_scan_issues(result, console)
+        sys.exit(1)
 
     # Main loop with Live display
     try:
@@ -608,9 +607,7 @@ def watch_loop(config: WatchConfig, console: Console | None = None) -> None:
                             sys.exit(1)
 
                 # Update dashboard
-                live.update(
-                    render_watch_dashboard(state, changed_files=changed if changed else None)
-                )
+                live.update(render_watch_dashboard(state, changed_files=changed or None))
 
     except KeyboardInterrupt:
         state.is_running = False
@@ -631,13 +628,13 @@ def _should_exit_on_issue(result: ScanResult, fail_on: str | None) -> bool:
     """
     if fail_on is None or fail_on == "any":
         return result.has_issues()
-    elif fail_on == "vulnerable":
+    if fail_on == "vulnerable":
         return result.vulnerable_count > 0
-    elif fail_on == "outdated":
+    if fail_on == "outdated":
         return result.outdated_count > 0
-    elif fail_on == "unmaintained":
+    if fail_on == "unmaintained":
         return result.unmaintained_count > 0
-    elif fail_on == "license":
+    if fail_on == "license":
         return result.license_issues_count > 0
     return False
 

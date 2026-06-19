@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -289,7 +289,7 @@ def _compute_cadence(stable_releases: list[ReleaseEvent]) -> ReleaseCadence:
     """
     if len(stable_releases) < 2:
         if len(stable_releases) == 1:
-            days_since = (datetime.now(tz=timezone.utc) - stable_releases[0].date).days
+            days_since = (datetime.now(tz=UTC) - stable_releases[0].date).days
             if days_since > 730:  # 2 years
                 return ReleaseCadence.DORMANT
         return ReleaseCadence.UNKNOWN
@@ -313,14 +313,13 @@ def _compute_cadence(stable_releases: list[ReleaseEvent]) -> ReleaseCadence:
 
     if recent_avg <= 14:  # ~2 weeks
         return ReleaseCadence.RAPID
-    elif recent_avg <= 90:  # ~3 months
+    if recent_avg <= 90:  # ~3 months
         return ReleaseCadence.REGULAR
-    elif recent_avg <= 365:  # ~1 year
+    if recent_avg <= 365:  # ~1 year
         return ReleaseCadence.SLOW
-    elif recent_avg <= 730:  # ~2 years
+    if recent_avg <= 730:  # ~2 years
         return ReleaseCadence.INFREQUENT
-    else:
-        return ReleaseCadence.DORMANT
+    return ReleaseCadence.DORMANT
 
 
 def _compute_lifecycle(
@@ -467,10 +466,9 @@ def _compute_health_trend(stable_releases: list[ReleaseEvent]) -> str:
 
     if ratio > 2.0:  # Releases slowed to less than half the frequency
         return "declining"
-    elif ratio < 0.5:  # Releases more than doubled in frequency
+    if ratio < 0.5:  # Releases more than doubled in frequency
         return "improving"
-    else:
-        return "stable"
+    return "stable"
 
 
 def _compute_risk_level(timeline: PackageTimeline) -> str:
@@ -526,12 +524,11 @@ def _compute_risk_level(timeline: PackageTimeline) -> str:
 
     if risk_score >= 8:
         return "critical"
-    elif risk_score >= 5:
+    if risk_score >= 5:
         return "high"
-    elif risk_score >= 3:
+    if risk_score >= 3:
         return "medium"
-    else:
-        return "low"
+    return "low"
 
 
 def _generate_insights(timeline: PackageTimeline) -> list[str]:
@@ -700,7 +697,7 @@ def build_timeline(
         timeline.last_release_date = stable_releases[-1].date
 
         # Days since last release
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         timeline.days_since_last_release = (now - stable_releases[-1].date).days
 
         # Compute intervals
@@ -985,7 +982,7 @@ def build_history_report(
         except Exception:
             pypi_data = {}
 
-        releases_data = pypi_data.get("releases", {})
+        releases_data = pypi_data.get("releases", {}) if pypi_data else {}
         installed = pkg.installed_version or ""
         latest = pkg.latest_version or ""
 

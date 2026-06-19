@@ -88,10 +88,10 @@ class TestRiskEntry:
 
         critical = RiskEntry(
             package="x", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL
-        )  # noqa: E501
+        )
         minimal = RiskEntry(
             package="y", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL
-        )  # noqa: E501
+        )
         assert critical.severity_rank > minimal.severity_rank
 
     def test_to_dict(self):
@@ -125,12 +125,12 @@ class TestRiskReport:
         entries = [
             RiskEntry(
                 package="safe", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL
-            ),  # noqa: E501
+            ),
             RiskEntry(
                 package="risky",
                 version="1.0",
                 composite_score=0.7,
-                severity=RiskSeverity.HIGH,  # noqa: E501
+                severity=RiskSeverity.HIGH,
                 remediation=RemediationAction.UPDATE,
             ),
         ]
@@ -146,21 +146,21 @@ class TestRiskReport:
                 package="ok",
                 version="1.0",
                 composite_score=0.1,
-                severity=RiskSeverity.MINIMAL,  # noqa: E501
+                severity=RiskSeverity.MINIMAL,
                 remediation=RemediationAction.NONE,
             ),
             RiskEntry(
                 package="needs-update",
                 version="1.0",
                 composite_score=0.7,
-                severity=RiskSeverity.HIGH,  # noqa: E501
+                severity=RiskSeverity.HIGH,
                 remediation=RemediationAction.UPDATE,
             ),
             RiskEntry(
                 package="needs-replace",
                 version="1.0",
                 composite_score=0.9,
-                severity=RiskSeverity.CRITICAL,  # noqa: E501
+                severity=RiskSeverity.CRITICAL,
                 remediation=RemediationAction.REPLACE,
             ),
         ]
@@ -402,7 +402,7 @@ class TestAssessRisks:
                 project_path=tmpdir,
                 packages=[
                     PackageReport(name="p", installed_version="1.0", status=HealthStatus.HEALTHY)
-                ],  # noqa: E501
+                ],
                 errors=[],
             )
             custom_weights = {
@@ -1411,7 +1411,7 @@ class TestEvaluatePolicy:
                 packages=[
                     PackageReport(
                         name="pkg-a", installed_version="1.0.0", status=HealthStatus.HEALTHY
-                    ),  # noqa: E501
+                    ),
                 ],
                 errors=[],
             )

@@ -241,7 +241,7 @@ def analyze_size_trend(
     ratio = newest_size / oldest_size
     if ratio > 1.2:
         return "growing"
-    elif ratio < 0.8:
+    if ratio < 0.8:
         return "shrinking"
     return "stable"
 
@@ -402,12 +402,11 @@ def format_size(size_kb: float) -> str:
     """
     if size_kb >= 1048576:  # >= 1 GB
         return f"{size_kb / 1048576:.1f} GB"
-    elif size_kb >= 1024:  # >= 1 MB
+    if size_kb >= 1024:  # >= 1 MB
         return f"{size_kb / 1024:.1f} MB"
-    elif size_kb >= 1:
+    if size_kb >= 1:
         return f"{size_kb:.0f} KB"
-    else:
-        return f"{size_kb * 1024:.0f} B"
+    return f"{size_kb * 1024:.0f} B"
 
 
 def render_size_table(report: SizeReport, console: Console | None = None) -> None:

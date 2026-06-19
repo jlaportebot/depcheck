@@ -27,7 +27,7 @@ from depcheck.scanner import (
 try:
     from depcheck.licenses import LicenseCategory
 except ImportError:
-    LicenseCategory = None  # type: ignore[assignment,misc]
+    LicenseCategory: type | None = None  # type: ignore[assignment,misc]
 
 
 @dataclass

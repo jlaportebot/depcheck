@@ -37,7 +37,7 @@ class StackCategory(enum.Enum):
     CLI = "cli"
     TESTING = "testing"
     LINTING = "linting"
-    TYPE_CHECKING = "type_checking"
+    TYPE_CHECKING_TOOL = "type_checking"
     CI_CD = "ci_cd"
     CONTAINER = "container"
     CLOUD = "cloud"
@@ -133,10 +133,10 @@ _PACKAGE_CATEGORIES: dict[str, StackCategory] = {
     "pyflakes": StackCategory.LINTING,
     "pycodestyle": StackCategory.LINTING,
     # Type checking
-    "mypy": StackCategory.TYPE_CHECKING,
-    "pyright": StackCategory.TYPE_CHECKING,
-    "pyre-check": StackCategory.TYPE_CHECKING,
-    "pytype": StackCategory.TYPE_CHECKING,
+    "mypy": StackCategory.TYPE_CHECKING_TOOL,
+    "pyright": StackCategory.TYPE_CHECKING_TOOL,
+    "pyre-check": StackCategory.TYPE_CHECKING_TOOL,
+    "pytype": StackCategory.TYPE_CHECKING_TOOL,
     # Cloud / AWS
     "boto3": StackCategory.CLOUD,
     "botocore": StackCategory.CLOUD,
@@ -790,7 +790,7 @@ def run_stack(
         )
         result.components.append(component)
 
-        cat_name = category.value
+        cat_name: str = category.value
         if cat_name not in categories:
             categories[cat_name] = []
         categories[cat_name].append(dep.name)
@@ -854,7 +854,7 @@ _CATEGORY_DISPLAY_ORDER = [
     StackCategory.CLI,
     StackCategory.TESTING,
     StackCategory.LINTING,
-    StackCategory.TYPE_CHECKING,
+    StackCategory.TYPE_CHECKING_TOOL,
     StackCategory.CLOUD,
     StackCategory.DATA_SCIENCE,
     StackCategory.ML_AI,
@@ -884,7 +884,7 @@ _CATEGORY_STYLES: dict[StackCategory, str] = {
     StackCategory.CLI: "green",
     StackCategory.TESTING: "green",
     StackCategory.LINTING: "yellow",
-    StackCategory.TYPE_CHECKING: "yellow",
+    StackCategory.TYPE_CHECKING_TOOL: "yellow",
     StackCategory.CLOUD: "blue",
     StackCategory.DATA_SCIENCE: "bold blue",
     StackCategory.ML_AI: "bold red",

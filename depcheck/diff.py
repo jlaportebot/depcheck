@@ -29,9 +29,9 @@ from depcheck.scanner import (
 )
 
 try:
-    from packaging.version import Version as _PackagingVersion  # noqa: F401
+    from packaging.version import Version as _PackagingVersion
 except ImportError:
-    _PackagingVersion = None  # type: ignore[assignment,misc]
+    _PackagingVersion: type | None = None  # type: ignore[assignment,misc]
 
 
 class DiffType(Enum):
@@ -158,11 +158,10 @@ def parse_dependency_file(filepath: Path) -> list[ParsedDependency]:
 
     if name == "pyproject.toml" or name.endswith(".toml"):
         return parse_pyproject_toml(filepath)
-    elif name == "pipfile":
+    if name == "pipfile":
         return parse_pipfile(filepath)
-    else:
-        # Default to requirements.txt format
-        return parse_requirements_txt(filepath)
+    # Default to requirements.txt format
+    return parse_requirements_txt(filepath)
 
 
 def compare_dependencies(
@@ -261,7 +260,7 @@ def _compare_versions(name: str, old: ParsedDependency, new: ParsedDependency) -
                     old_specifier=old_spec,
                     new_specifier=new_spec,
                 )
-            elif new_v < old_v:
+            if new_v < old_v:
                 return PackageDiff(
                     name=name,
                     diff_type=DiffType.DOWNGRADED,
@@ -270,16 +269,15 @@ def _compare_versions(name: str, old: ParsedDependency, new: ParsedDependency) -
                     old_specifier=old_spec,
                     new_specifier=new_spec,
                 )
-            else:
-                # Same version, but specifier changed
-                return PackageDiff(
-                    name=name,
-                    diff_type=DiffType.SPECIFIER_CHANGED,
-                    old_version=old_ver,
-                    new_version=new_ver,
-                    old_specifier=old_spec,
-                    new_specifier=new_spec,
-                )
+            # Same version, but specifier changed
+            return PackageDiff(
+                name=name,
+                diff_type=DiffType.SPECIFIER_CHANGED,
+                old_version=old_ver,
+                new_version=new_ver,
+                old_specifier=old_spec,
+                new_specifier=new_spec,
+            )
         except Exception:
             # Fallback to string comparison
             if old_ver != new_ver:

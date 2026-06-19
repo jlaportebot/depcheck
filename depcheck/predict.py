@@ -296,7 +296,7 @@ def analyze_release_pattern(
         return pattern
 
     releases_data = pypi_info.get("releases", {})
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
 
     stable_releases: list[ReleaseInfo] = []
     all_releases: list[ReleaseInfo] = []
@@ -941,11 +941,10 @@ def render_predict_table(result: PredictResult, console: Console | None = None) 
 
         # Next version estimate
         next_ver = "—"
-        if pred.version_prediction:
-            if pred.version_prediction.predicted_next_minor:
-                next_ver = pred.version_prediction.predicted_next_minor
-                if pred.version_prediction.estimated_days_to_next:
-                    next_ver += f" (~{pred.version_prediction.estimated_days_to_next:.0f}d)"
+        if pred.version_prediction and pred.version_prediction.predicted_next_minor:
+            next_ver = pred.version_prediction.predicted_next_minor
+            if pred.version_prediction.estimated_days_to_next:
+                next_ver += f" (~{pred.version_prediction.estimated_days_to_next:.0f}d)"
 
         pkg_table.add_row(
             pred.package_name,

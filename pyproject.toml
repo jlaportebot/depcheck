@@ -8,7 +8,7 @@ version = "0.3.0"
 description = "A dependency health checker for Python projects"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [
     { name = "jlaportebot" },
 ]
@@ -19,8 +19,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -29,29 +27,25 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "click>=8.0",
-    "rich>=13.0",
-    "httpx>=0.24",
+    "click>=8.1",
+    "rich>=13.7",
+    "httpx>=0.27",
     "packaging>=23.0",
-    "tomli>=2.0; python_version < '3.11'",
 ]
-
 [project.scripts]
 depcheck = "depcheck.cli:main"
 
-[project.optional-dependencies]
-dev = [
- "pytest>=7.0",
- "pytest-cov>=4.0",
- "ruff>=0.1",
-]
-
 [dependency-groups]
 dev = [
- "pytest>=7.0",
- "pytest-cov>=4.0",
- "ruff>=0.1",
+    {include-group = "lint"},
+    {include-group = "test"},
+    {include-group = "typecheck"},
+    {include-group = "audit"},
 ]
+lint = ["ruff>=0.6.0"]
+test = ["pytest>=8.0.0", "pytest-cov>=5.0.0", "pytest-mock>=3.12.0", "pytest-asyncio>=0.23.0"]
+typecheck = ["ty>=0.0.50"]
+audit = ["pip-audit>=2.8.0"]
 
 [project.urls]
 Homepage = "https://github.com/jlaportebot/depcheck"
@@ -59,11 +53,43 @@ Repository = "https://github.com/jlaportebot/depcheck"
 Issues = "https://github.com/jlaportebot/depcheck/issues"
 
 [tool.ruff]
-target-version = "py39"
 line-length = 100
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+ignore = [
+    "D",        # docstring rules (too strict)
+    "COM812",   # trailing comma in format string
+    "ISC001",   # redundant isinstance check
+    "PLR0913",  # too many arguments (common in CLI)
+    "TRY003",   # avoid specifying long messages outside exception
+    "PLR0917",  # too many positional arguments (CLI entry point)
+    "PLR0915",  # too many statements (CLI entry point)
+    "FBT001",   # boolean positional argument (Click options)
+    "DOC501",   # missing exception in docstring (CLI entry point)
+    "PLW0717",  # try clause too many statements (CLI entry point)
+    "PLC0415",  # import not at top level (lazy imports in CLI)
+    "B904",     # raise without from (SystemExit in CLI)
+    "RUF003",   # ambiguous dash in comments (Unicode)
+    "RUF002",   # ambiguous dash in docstrings (Unicode)
+    "PLR2004",  # magic value used in comparison (threshold constants)
+    "C901",     # function too complex (large modules)
+    "PLR0912",  # too many branches (large modules)
+    "PLR0914",  # too many local variables (large modules)
+    "SIM108",   # ternary operator suggestion (personal preference)
+    "DTZ001",   # datetime without tzinfo (explicit UTC handling)
+    "PLR6104",  # use -= operator (style preference)
+    "UP045",    # Use X | None for type annotations (Python 3.10+)
+    "UP035",    # typing.Dict deprecated (Python 3.10+)
+    "UP006",    # Use dict instead of Dict (Python 3.10+)
+    "UP007",    # Use X | Y for type annotations (Python 3.10+)
+]
+per-file-ignores = { "tests/*" = ["S101", "ANN201", "ANN001", "PLR6301", "PLR2004", "PLC1901", "F401", "INP001", "S105", "PLC2701", "DTZ001"] }
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -71,4 +97,18 @@ addopts = [
     "--cov=depcheck",
     "--cov-report=term-missing",
     "--cov-fail-under=75",
+    "-v",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ty.terminal]
+error-on-warning = true
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.rules]
+possibly-unresolved-reference = "error"
+unused-ignore-comment = "warn"

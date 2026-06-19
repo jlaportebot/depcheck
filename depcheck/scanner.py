@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 import re
-import sys
+import tomllib
 from pathlib import Path
 
 from depcheck.licenses import LicenseCategory, check_license_compliance, parse_license_from_pypi
@@ -99,15 +99,6 @@ def parse_pyproject_toml(filepath: Path) -> list[ParsedDependency]:
     except (OSError, UnicodeDecodeError):
         return dependencies
 
-    # Use tomli for Python < 3.11, tomllib for 3.11+
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        try:
-            import tomli as tomllib  # type: ignore[no-redef]
-        except ImportError:
-            return dependencies
-
     try:
         data = tomllib.loads(content)
     except Exception:
@@ -193,15 +184,6 @@ def parse_pipfile(filepath: Path) -> list[ParsedDependency]:
         content = filepath.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return dependencies
-
-    # Use tomllib for Python 3.11+, tomli as fallback
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        try:
-            import tomli as tomllib  # type: ignore[no-redef]
-        except ImportError:
-            return dependencies
 
     try:
         data = tomllib.loads(content)

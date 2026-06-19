@@ -12,6 +12,7 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -281,9 +282,10 @@ class PyPIPackageIndex(PackageIndex):
         if package in self._cache:
             return self._cache[package]
         try:
-            from depcheck.pypi import fetch_package_info
+            from depcheck.pypi import PyPIClient
 
-            info = fetch_package_info(package)
+            with PyPIClient() as client:
+                info = client.get_package_info(package)
             if info and "releases" in info:
                 versions = list(info["releases"].keys())
                 versions = sorted(versions, key=_version_key, reverse=True)
@@ -295,9 +297,10 @@ class PyPIPackageIndex(PackageIndex):
 
     def get_dependencies(self, package: str, version: str) -> list[VersionConstraint]:
         try:
-            from depcheck.pypi import fetch_package_info
+            from depcheck.pypi import PyPIClient
 
-            info = fetch_package_info(package)
+            with PyPIClient() as client:
+                info = client.get_package_info(package)
             if info and "releases" in info:
                 release = info["releases"].get(version, [])
                 for file_info in release:
@@ -311,9 +314,10 @@ class PyPIPackageIndex(PackageIndex):
 
     def get_package_hash(self, package: str, version: str) -> str:
         try:
-            from depcheck.pypi import fetch_package_info
+            from depcheck.pypi import PyPIClient
 
-            info = fetch_package_info(package)
+            with PyPIClient() as client:
+                info = client.get_package_info(package)
             if info and "releases" in info:
                 release = info["releases"].get(version, [])
                 for file_info in release:
@@ -327,9 +331,10 @@ class PyPIPackageIndex(PackageIndex):
 
     def is_yanked(self, package: str, version: str) -> bool:
         try:
-            from depcheck.pypi import fetch_package_info
+            from depcheck.pypi import PyPIClient
 
-            info = fetch_package_info(package)
+            with PyPIClient() as client:
+                info = client.get_package_info(package)
             if info and "releases" in info:
                 release = info["releases"].get(version, [])
                 for file_info in release:
@@ -494,9 +499,10 @@ class DependencyResolver:
             available = [v for v in available if not _is_prerelease(v)]
 
         # Sort according to strategy
-        if self.strategy == ResolutionStrategy.OLDEST:
-            available = sorted(available, key=_version_key)
-        elif self.strategy == ResolutionStrategy.MINIMUM_COMPATIBLE:
+        if self.strategy in (
+            ResolutionStrategy.OLDEST,
+            ResolutionStrategy.MINIMUM_COMPATIBLE,
+        ):
             available = sorted(available, key=_version_key)
         else:  # NEWEST
             available = sorted(available, key=_version_key, reverse=True)
@@ -657,12 +663,11 @@ def generate_lockfile(
     """
     if format == LockfileFormat.PIP:
         return _generate_pip_lockfile(result)
-    elif format == LockfileFormat.PIPENV:
+    if format == LockfileFormat.PIPENV:
         return _generate_pipenv_lockfile(result, project_name)
-    elif format == LockfileFormat.POETRY:
+    if format == LockfileFormat.POETRY:
         return _generate_poetry_lockfile(result)
-    else:
-        return _generate_depcheck_lockfile(result, project_name)
+    return _generate_depcheck_lockfile(result, project_name)
 
 
 def _generate_depcheck_lockfile(result: ResolutionResult, project_name: str) -> str:
@@ -794,13 +799,12 @@ def parse_lockfile(path: Path) -> list[VersionConstraint]:
 
     if name == "depcheck.lock" or name.endswith(".depcheck.lock"):
         return _parse_depcheck_lockfile(path)
-    elif name == "pipfile.lock":
+    if name == "pipfile.lock":
         return _parse_pipfile_lock(path)
-    elif name == "poetry.lock":
+    if name == "poetry.lock":
         return _parse_poetry_lock(path)
-    else:
-        # Try as requirements.txt
-        return _parse_requirements_lockfile(path)
+    # Try as requirements.txt
+    return _parse_requirements_lockfile(path)
 
 
 def _parse_depcheck_lockfile(path: Path) -> list[VersionConstraint]:
@@ -965,10 +969,10 @@ def resolve_project(
     Reads requirements.txt, pyproject.toml, or Pipfile from the project
     directory and runs the full resolver.
     """
-    from depcheck.scanner import parse_requirements
+    from depcheck.scanner import parse_requirements_txt
 
     path = Path(project_path)
-    requirements = parse_requirements(path)
+    requirements = parse_requirements_txt(path)
 
     constraints = []
     for dep in requirements:
@@ -1154,7 +1158,8 @@ def _is_prerelease(version_str: str) -> bool:
         v = Version(version_str)
         return v.is_prerelease
     except InvalidVersion:
-        return bool(re.search(r"[a-zA-Z]", version_str.split(".")[-1]) if version_str else False)
+        last_part = version_str.rsplit(".", maxsplit=1)[-1] if version_str else ""
+        return bool(re.search(r"[a-zA-Z]", last_part))
 
 
 def _group_constraints(constraints: list[VersionConstraint]) -> dict[str, list[VersionConstraint]]:
@@ -1190,6 +1195,6 @@ def _hash_result(result: ResolutionResult) -> str:
 
 def _timestamp() -> str:
     """Return ISO 8601 timestamp."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()

@@ -254,10 +254,9 @@ def scan_imports_in_file(filepath: Path) -> set[str]:
             for alias in node.names:
                 top_level = alias.name.split(".")[0]
                 imports.add(top_level)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                top_level = node.module.split(".")[0]
-                imports.add(top_level)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            top_level = node.module.split(".")[0]
+            imports.add(top_level)
 
     return imports
 

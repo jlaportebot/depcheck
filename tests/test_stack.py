@@ -52,7 +52,7 @@ class TestClassifyPackage:
     def test_mypy(self) -> None:
         # mypy is in both LINTING and TYPE_CHECKING; first match wins
         cat = classify_package("mypy")
-        assert cat in (StackCategory.LINTING, StackCategory.TYPE_CHECKING)
+        assert cat in (StackCategory.LINTING, StackCategory.TYPE_CHECKING_TOOL)
 
     def test_requests(self) -> None:
         assert classify_package("requests") == StackCategory.HTTP_CLIENT

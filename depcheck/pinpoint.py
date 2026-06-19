@@ -291,18 +291,17 @@ def _generate_recommendation(
                 f"Active package ({release_count} releases) — add at least a minimum pin (>=)",
                 5.0,
             )
-        elif release_count > 10:
+        if release_count > 10:
             return (
                 PinRecommendation.ADD_PIN,
                 f"Moderately active package ({release_count} releases) — consider pinning",
                 3.0,
             )
-        else:
-            return (
-                PinRecommendation.KEEP,
-                f"Stable package ({release_count} releases) — unpinned is acceptable",
-                1.0,
-            )
+        return (
+            PinRecommendation.KEEP,
+            f"Stable package ({release_count} releases) — unpinned is acceptable",
+            1.0,
+        )
 
     if pin.is_exact_pinned:
         # Exact pin — check if it's too restrictive
@@ -488,9 +487,9 @@ def generate_constraints_file(report: PinReport) -> str:
             lines.append(f"{pin.name}=={pin.version}")
         elif pin.style == PinStyle.COMPATIBLE and pin.version:
             lines.append(f"{pin.name}~={pin.version}")
-        elif pin.style == PinStyle.MINIMUM and pin.raw_specifier:
-            lines.append(f"{pin.name}{pin.raw_specifier}")
-        elif pin.style == PinStyle.RANGE and pin.raw_specifier:
+        elif (pin.style == PinStyle.MINIMUM and pin.raw_specifier) or (
+            pin.style == PinStyle.RANGE and pin.raw_specifier
+        ):
             lines.append(f"{pin.name}{pin.raw_specifier}")
         elif pin.latest_version:
             # Unpinned: constrain to current latest

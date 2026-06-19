@@ -154,7 +154,7 @@ class RiskEntry:
             "dimension_scores": [ds.to_dict() for ds in self.dimension_scores],
             "top_risk_dimension": self.top_risk_dimension.value
             if self.top_risk_dimension
-            else None,  # noqa: E501
+            else None,
             "remediation": self.remediation.value,
             "remediation_details": self.remediation_details,
             "is_direct": self.is_direct,
@@ -253,7 +253,7 @@ def _score_vulnerability(pkg: PackageReport) -> DimensionScore:
     score = min(total_weight / 1.0, 1.0)
     patch_status = (
         f", {patchable_count} patchable" if patchable_count > 0 else ", no patches available"
-    )  # noqa: E501
+    )
 
     return DimensionScore(
         dimension=RiskDimension.VULNERABILITY,
@@ -283,9 +283,9 @@ def _score_maintenance(pkg: PackageReport) -> DimensionScore:
     if pkg.last_release_date:
         try:
             last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.timezone.utc
+                tzinfo=datetime.UTC
             )
-            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
+            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
 
             if days_since > 730:  # 2+ years
                 age_risk = 0.8
@@ -322,6 +322,7 @@ def _score_age(pkg: PackageReport) -> DimensionScore:
     Based on: how far behind the latest version the installed
     version is, and whether the package is significantly outdated.
     """
+    factors: list[str] = []
     if pkg.status == HealthStatus.OUTDATED:
         score = 0.5
         details = "Installed version is not the latest"
@@ -439,14 +440,13 @@ def _classify_severity(score: float) -> RiskSeverity:
     """Classify a composite score into a severity level."""
     if score >= SEVERITY_THRESHOLDS[RiskSeverity.CRITICAL]:
         return RiskSeverity.CRITICAL
-    elif score >= SEVERITY_THRESHOLDS[RiskSeverity.HIGH]:
+    if score >= SEVERITY_THRESHOLDS[RiskSeverity.HIGH]:
         return RiskSeverity.HIGH
-    elif score >= SEVERITY_THRESHOLDS[RiskSeverity.MEDIUM]:
+    if score >= SEVERITY_THRESHOLDS[RiskSeverity.MEDIUM]:
         return RiskSeverity.MEDIUM
-    elif score >= SEVERITY_THRESHOLDS[RiskSeverity.LOW]:
+    if score >= SEVERITY_THRESHOLDS[RiskSeverity.LOW]:
         return RiskSeverity.LOW
-    else:
-        return RiskSeverity.MINIMAL
+    return RiskSeverity.MINIMAL
 
 
 def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
@@ -476,7 +476,7 @@ def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
         return (
             RemediationAction.AUDIT,
             "Audit license compliance; consider a permissively-licensed alternative",
-        )  # noqa: E501
+        )
 
     # Check for outdated with moderate vulnerability
     if vuln_score and vuln_score.score >= 0.3:
@@ -487,7 +487,7 @@ def _determine_remediation(entry: RiskEntry) -> tuple[RemediationAction, str]:
         return (
             RemediationAction.MONITOR,
             "Monitor for updates; consider alternatives if no activity soon",
-        )  # noqa: E501
+        )
 
     # Check for any low-level risk
     if entry.composite_score >= 0.2:
@@ -698,7 +698,7 @@ def render_risks_table(report: RiskReport, console: Console | None = None) -> No
         "[red]⚠ AT RISK[/red]"
         if report.critical_count + report.high_count > 0
         else "[green]✓ LOW RISK[/green]"
-    )  # noqa: E501
+    )
     border = "red" if report.critical_count > 0 else "yellow" if report.high_count > 0 else "green"
 
     summary = (

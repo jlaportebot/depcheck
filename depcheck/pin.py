@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import UTC
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -96,15 +97,14 @@ class PinnedPackage:
             return self.specifier
         if self.policy == PinPolicy.EXACT:
             return f"=={self.version}"
-        elif self.policy == PinPolicy.COMPATIBLE:
+        if self.policy == PinPolicy.COMPATIBLE:
             parts = self.version.split(".")
             if len(parts) >= 2:
                 return f"~={parts[0]}.{parts[1]}"
             return f"~={self.version}"
-        elif self.policy == PinPolicy.MINIMUM:
+        if self.policy == PinPolicy.MINIMUM:
             return f">={self.version}"
-        else:
-            return f"=={self.version}"
+        return f"=={self.version}"
 
     @property
     def has_hash(self) -> bool:
@@ -1101,9 +1101,10 @@ def render_drift_json(report: PinDriftReport) -> str:
 def _fetch_hash(package: str, version: str) -> str:
     """Fetch SHA-256 hash for a package version from PyPI."""
     try:
-        from depcheck.pypi import fetch_package_info
+        from depcheck.pypi import PyPIClient
 
-        info = fetch_package_info(package)
+        with PyPIClient() as client:
+            info = client.get_package_info(package)
         if info and "releases" in info:
             release = info["releases"].get(version, [])
             for file_info in release:
@@ -1139,6 +1140,6 @@ def _classify_drift(old_version: str, new_version: str) -> str:
 
 def _timestamp() -> str:
     """Return ISO 8601 timestamp."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
