@@ -3337,6 +3337,58 @@ def config(
         console.print(policy_table)
 
 
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output results as JSON (useful for CI/CD pipelines).",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def doctor(
+    path: str,
+    output_json: bool,
+    quiet: bool,
+) -> None:
+    """Check project for best practices and suggest improvements.
+
+    Runs a suite of checks for CI, pre-commit hooks, Dependabot, security files,
+    license, README, and more. Provides actionable fix hints for missing items.
+
+    PATH is the project directory to check (defaults to current directory).
+    """
+    from depcheck.doctor import render_doctor_result, run_doctor_checks
+
+    console = Console(quiet=quiet)
+    result = run_doctor_checks(path)
+    output = render_doctor_result(result, json_output=output_json)
+
+    if output_json:
+        # Use print() for clean JSON output without Rich formatting
+        print(output)
+    elif not quiet:
+        console.print(output)
+
+    # Exit with error code if any error-severity checks failed
+    if result.overall_status == "error" and not quiet:
+        console.print("\n[bold red]✗ Project has critical issues[/bold red]")
+        sys.exit(1)
+    elif result.overall_status == "warning" and not quiet:
+        console.print("\n[bold yellow]⚠ Project has warnings[/bold yellow]")
+        sys.exit(0)
+
+
 if __name__ == "__main__":
     main()
 

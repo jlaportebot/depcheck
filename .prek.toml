@@ -1,0 +1,9 @@
+# Prek configuration — fast Rust-based pre-commit hooks
+# Install: uvx prek install
+# Run: uvx prek run --all-files
+
+[hooks]
+ruff-check = "uv run ruff check ."
+ruff-format = "uv run ruff format --check ."
+ty-check = "uv run ty check depcheck/"
+pytest = "uv run pytest -q --no-header"
