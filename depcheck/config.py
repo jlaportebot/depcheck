@@ -7,18 +7,10 @@ with defaults for all depcheck subcommands.
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib  # type: ignore[no-redef]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
 
 from depcheck.budget import BudgetConfig
 from depcheck.policy import PolicyConfig
@@ -91,13 +83,9 @@ class Config:
                 scan_data = depcheck_data.get("scan", {})
                 if scan_data:
                     config.scan = ScanConfig(
-                        check_vulnerabilities=scan_data.get(
-                            "check_vulnerabilities", True
-                        ),
+                        check_vulnerabilities=scan_data.get("check_vulnerabilities", True),
                         check_licenses=scan_data.get("check_licenses", False),
-                        allowed_license_categories=scan_data.get(
-                            "allowed_license_categories", []
-                        ),
+                        allowed_license_categories=scan_data.get("allowed_license_categories", []),
                         denied_licenses=scan_data.get("denied_licenses", []),
                         fail_on=scan_data.get("fail_on"),
                         quiet=scan_data.get("quiet", False),
@@ -246,9 +234,9 @@ def generate_default_config(project_path: Path | str = ".") -> str:
         "[tool.depcheck.policy]",
         "# Example rule:",
         "# [[tool.depcheck.policy.rules]]",
-        "# name = \"no-copyleft\"",
-        "# category = \"license\"",
-        "# severity = \"error\"",
+        '# name = "no-copyleft"',
+        '# category = "license"',
+        '# severity = "error"',
         "# deny_copyleft = true",
         "",
     ]

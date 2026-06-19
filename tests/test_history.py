@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -42,7 +42,7 @@ def _make_release(
     is_yanked: bool = False,
 ) -> ReleaseEvent:
     """Create a ReleaseEvent for testing."""
-    date = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
+    date = datetime.now(tz=UTC) - timedelta(days=days_ago)
     return ReleaseEvent(
         version=version,
         date=date,
@@ -62,7 +62,7 @@ def _make_pypi_releases_data(
     Returns:
         Dict mapping version strings to file lists.
     """
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     data: dict[str, list[dict[str, Any]]] = {}
     for version_str, days_ago, is_pre, is_yanked in versions:
         upload_time = now - timedelta(days=days_ago)
@@ -86,7 +86,7 @@ class TestReleaseEvent:
     def test_creation(self) -> None:
         event = ReleaseEvent(
             version="1.0.0",
-            date=datetime.now(tz=timezone.utc),
+            date=datetime.now(tz=UTC),
             is_prerelease=False,
             is_yanked=False,
         )
@@ -96,7 +96,7 @@ class TestReleaseEvent:
     def test_prerelease(self) -> None:
         event = ReleaseEvent(
             version="1.0.0a1",
-            date=datetime.now(tz=timezone.utc),
+            date=datetime.now(tz=UTC),
             is_prerelease=True,
         )
         assert event.is_stable is False
@@ -105,14 +105,14 @@ class TestReleaseEvent:
     def test_yanked(self) -> None:
         event = ReleaseEvent(
             version="1.0.0",
-            date=datetime.now(tz=timezone.utc),
+            date=datetime.now(tz=UTC),
             is_yanked=True,
         )
         assert event.is_stable is False
         assert event.is_yanked is True
 
     def test_to_dict(self) -> None:
-        dt = datetime(2024, 1, 15, tzinfo=timezone.utc)
+        dt = datetime(2024, 1, 15, tzinfo=UTC)
         event = ReleaseEvent(version="2.0.0", date=dt, is_prerelease=False)
         d = event.to_dict()
         assert d["version"] == "2.0.0"
@@ -235,7 +235,7 @@ class TestParseReleases:
         assert _parse_releases({}) == []
 
     def test_single_release(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         data = {
             "1.0.0": [
                 {
@@ -250,7 +250,7 @@ class TestParseReleases:
         assert events[0].is_stable is True
 
     def test_yanked_release(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         data = {
             "1.0.0": [
                 {
@@ -265,7 +265,7 @@ class TestParseReleases:
         assert events[0].is_stable is False
 
     def test_prerelease_detection(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         data = {
             "2.0.0a1": [
                 {
@@ -291,7 +291,7 @@ class TestParseReleases:
             assert event.is_prerelease is True
 
     def test_sorted_by_date(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         data = {
             "2.0.0": [
                 {
@@ -322,7 +322,7 @@ class TestParseReleases:
         assert len(events) == 0
 
     def test_multiple_files_per_version(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         data = {
             "1.0.0": [
                 {
@@ -342,7 +342,7 @@ class TestParseReleases:
 
     def test_partial_yanked_detection(self) -> None:
         """If some files are yanked and some aren't, version is NOT fully yanked."""
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         data = {
             "1.0.0": [
                 {
@@ -370,7 +370,7 @@ class TestComputeCadence:
 
     def test_rapid(self) -> None:
         """Releases every week = rapid."""
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         releases = [
             _make_release("1.0.0", days_ago=28),
             _make_release("1.1.0", days_ago=21),
@@ -381,7 +381,7 @@ class TestComputeCadence:
 
     def test_regular(self) -> None:
         """Releases every ~2 months = regular."""
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         releases = [
             _make_release("1.0.0", days_ago=180),
             _make_release("1.1.0", days_ago=120),
@@ -392,7 +392,7 @@ class TestComputeCadence:
 
     def test_slow(self) -> None:
         """Releases every ~6 months = slow."""
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         releases = [
             _make_release("1.0.0", days_ago=540),
             _make_release("1.1.0", days_ago=360),
@@ -403,7 +403,7 @@ class TestComputeCadence:
 
     def test_infrequent(self) -> None:
         """Releases every ~18 months = infrequent."""
-        datetime.now(tz=timezone.utc)
+        datetime.now(tz=UTC)
         releases = [
             _make_release("1.0.0", days_ago=1620),
             _make_release("1.1.0", days_ago=1080),

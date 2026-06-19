@@ -268,17 +268,16 @@ def determine_exit_code(result: ScanResult, fail_on: str | None = None) -> int:
 
     if fail_on == "vulnerable":
         return 1 if result.has_vulnerabilities() else 0
-    elif fail_on == "outdated":
+    if fail_on == "outdated":
         return 1 if result.outdated_count > 0 else 0
-    elif fail_on == "unmaintained":
+    if fail_on == "unmaintained":
         return 1 if result.unmaintained_count > 0 else 0
-    elif fail_on == "license":
+    if fail_on == "license":
         return 1 if result.license_issues_count > 0 else 0
-    elif fail_on in ("any", "all"):
+    if fail_on in ("any", "all"):
         has_any = result.has_issues() or result.license_issues_count > 0
         return 1 if has_any else 0
-    else:
-        return 0
+    return 0
 
 
 def render_github_annotations(result: ScanResult) -> list[dict]:

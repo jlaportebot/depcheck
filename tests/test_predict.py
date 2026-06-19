@@ -235,7 +235,7 @@ class TestAnalyzeReleasePattern:
         assert pattern.days_since_last_release > 0
 
     def test_recent_releases_counting(self) -> None:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.datetime.now(tz=datetime.UTC)
         recent = (now - datetime.timedelta(days=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
         last_60 = (now - datetime.timedelta(days=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
         last_200 = (now - datetime.timedelta(days=200)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -331,7 +331,7 @@ class TestDetectDeprecationSignals:
     """Tests for detect_deprecation_signals."""
 
     def test_no_signals_healthy_package(self) -> None:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.datetime.now(tz=datetime.UTC)
         pattern = ReleasePattern(
             package_name="test",
             total_releases=20,
@@ -382,7 +382,7 @@ class TestDetectDeprecationSignals:
         assert signals.no_releases_over_365d
 
     def test_signal_yanked_recent_releases(self) -> None:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.datetime.now(tz=datetime.UTC)
         pattern = ReleasePattern(
             package_name="test",
             release_history=[
@@ -417,7 +417,7 @@ class TestDetectDeprecationSignals:
         assert signals.yanked_recent_releases
 
     def test_signal_declining_frequency(self) -> None:
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        now = datetime.datetime.now(tz=datetime.UTC)
         pattern = ReleasePattern(
             package_name="test",
             total_releases=20,
@@ -498,7 +498,7 @@ class TestSerialization:
     def test_release_info_to_dict(self) -> None:
         ri = ReleaseInfo(
             version="1.0.0",
-            date=datetime.datetime(2024, 1, 15, tzinfo=datetime.timezone.utc),
+            date=datetime.datetime(2024, 1, 15, tzinfo=datetime.UTC),
         )
         d = ri.to_dict()
         assert d["version"] == "1.0.0"

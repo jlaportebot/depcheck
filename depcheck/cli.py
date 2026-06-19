@@ -23,7 +23,6 @@ def main() -> None:
     Scan your project's dependencies for vulnerabilities, outdated packages,
     unmaintained libraries, yanked or removed packages, and license compliance.
     """
-    pass
 
 
 @main.command()
@@ -138,9 +137,8 @@ def scan(
     # Determine exit code
     exit_code = determine_exit_code(result, fail_on)
 
-    if exit_code != 0 and not quiet:
-        if fail_on:
-            console.print(f"[red]✗ Scan failed: --fail-on {fail_on} condition met[/red]")
+    if exit_code != 0 and not quiet and fail_on:
+        console.print(f"[red]✗ Scan failed: --fail-on {fail_on} condition met[/red]")
 
     sys.exit(exit_code)
 
@@ -235,9 +233,8 @@ def annotations(
     if output_file:
         with open(output_file, "w") as f:
             for ann in annotations_list:
-                f.write(
-                    f"::{ann['type']} file={ann['file']},line={ann['line']}::{ann['message']}\n"
-                )
+                line = f"::{ann['type']} file={ann['file']},line={ann['line']}::{ann['message']}\\n"
+                f.write(line)
         if not quiet:
             console.print(f"[green]Annotations written to {output_file}[/green]")
             console.print(f"[dim]{len(annotations_list)} annotations generated[/dim]")
@@ -247,11 +244,8 @@ def annotations(
 
     # Determine exit code based on fail-on criteria
     exit_code = determine_exit_code(result, fail_on)
-    if exit_code != 0 and not quiet:
-        if fail_on:
-            console.print(
-                f"[red]✗ Annotations check failed: --fail-on {fail_on} condition met[/red]"
-            )
+    if exit_code != 0 and not quiet and fail_on:
+        console.print(f"[red]✗ Annotations check failed: --fail-on {fail_on} condition met[/red]")
 
     sys.exit(exit_code)
 
@@ -682,12 +676,15 @@ def license(
     from depcheck.licenses import (
         ComplianceReport,
         LicenseCategory,
-        LicenseInfo,
         LicensePolicy,
         PackageComplianceEntry,
         render_compliance_json,
         render_compliance_table,
     )
+    from depcheck.licenses import (
+        LicenseInfo as LicensesLicenseInfo,
+    )
+    from depcheck.models import LicenseInfo as ModelLicenseInfo
     from depcheck.scanner import scan_project
 
     console = Console(quiet=quiet)
@@ -739,7 +736,23 @@ def license(
     for pkg in result.packages:
         info = pkg.license_info
         if info is None:
-            info = LicenseInfo(spdx_id="", raw_license="UNKNOWN")
+            info = ModelLicenseInfo(spdx_id="", raw_license="UNKNOWN")
+
+        # Convert ModelLicenseInfo to LicensesLicenseInfo for compliance checking
+        if isinstance(info, ModelLicenseInfo):
+            cat_str = info.category
+            cat_enum = LicenseCategory.UNKNOWN
+            for cat in LicenseCategory:
+                if cat.value == cat_str:
+                    cat_enum = cat
+                    break
+            info = LicensesLicenseInfo(
+                spdx_id=info.spdx_id,
+                raw_license=info.raw_license,
+                category=cat_enum,
+                is_compliant=info.is_compliant,
+                compliance_note=info.compliance_note,
+            )
 
         # Re-check against policy
         compliance = policy.check(info.spdx_id)
@@ -1320,9 +1333,9 @@ def graph(
         from depcheck.graph import render_graph_html
 
         html_content = render_graph_html(graph_data)
-        output_path = Path(output_path)
-        output_path.write_text(html_content, encoding="utf-8")
-        output = output_path
+        output_file = Path(output_path)
+        output_file.write_text(html_content, encoding="utf-8")
+        output = output_file
         if not quiet:
             console.print(f"[green]✓ Dependency graph written to {output}[/green]")
             console.print("  Open in a browser to explore the interactive visualization.")
@@ -1468,9 +1481,8 @@ def resolve(
             else Console(force_terminal=False, no_color=True)
         )
         clean_console.print(render_resolve_json(result))
-    else:
-        if not quiet:
-            render_resolve_table(result, console=console)
+    elif not quiet:
+        render_resolve_table(result, console=console)
 
     # Exit code
     if result.has_conflicts:
@@ -3223,10 +3235,9 @@ def config(
             Path(output_path).write_text(content, encoding="utf-8")
             if not quiet:
                 console.print(f"[green]✓ Configuration written to {output_path}[/green]")
-        else:
-            if not quiet:
-                # Use markup=False to prevent Rich from interpreting [[...]] as markup
-                console.print(content, markup=False)
+        elif not quiet:
+            # Use markup=False to prevent Rich from interpreting [[...]] as markup
+            console.print(content, markup=False)
         return
 
     # Load and display/validate configuration
@@ -3274,9 +3285,7 @@ def config(
         console.print()
 
         # Scan config table
-        scan_table = Table(
-            title="Scan Configuration", show_header=True, header_style="bold cyan"
-        )
+        scan_table = Table(title="Scan Configuration", show_header=True, header_style="bold cyan")
         scan_table.add_column("Setting", style="bold")
         scan_table.add_column("Value")
         scan = config.scan
@@ -3314,9 +3323,7 @@ def config(
         console.print()
 
         # Policy config table
-        policy_table = Table(
-            title="Policy Rules", show_header=True, header_style="bold cyan"
-        )
+        policy_table = Table(title="Policy Rules", show_header=True, header_style="bold cyan")
         policy_table.add_column("Name", style="bold")
         policy_table.add_column("Category")
         policy_table.add_column("Severity")

@@ -302,10 +302,9 @@ def _format_size(size_bytes: int) -> str:
     """
     if size_bytes >= 1024 * 1024:
         return f"{size_bytes / (1024 * 1024):.1f} MB"
-    elif size_bytes >= 1024:
+    if size_bytes >= 1024:
         return f"{size_bytes / 1024:.1f} KB"
-    else:
-        return f"{size_bytes} B"
+    return f"{size_bytes} B"
 
 
 def render_size_table(report: SizeReport, console: Console | None = None) -> None:

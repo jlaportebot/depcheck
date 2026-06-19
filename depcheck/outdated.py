@@ -119,15 +119,14 @@ def classify_upgrade_level(installed: str, latest: str) -> str:
 
         if lat_ver.major > inst_ver.major:
             return UpgradeLevel.MAJOR
-        elif lat_ver.major == inst_ver.major:
+        if lat_ver.major == inst_ver.major:
             if lat_ver.minor > inst_ver.minor:
                 return UpgradeLevel.MINOR
-            elif lat_ver.minor == inst_ver.minor:
+            if lat_ver.minor == inst_ver.minor:
                 if lat_ver.micro > inst_ver.micro:
                     return UpgradeLevel.PATCH
-                else:
-                    # Same major.minor.micro but different post/dev
-                    return UpgradeLevel.PATCH
+                # Same major.minor.micro but different post/dev
+                return UpgradeLevel.PATCH
         return UpgradeLevel.PATCH
     except Exception:
         return UpgradeLevel.UNKNOWN
@@ -145,13 +144,13 @@ def assess_risk(upgrade_level: str, days_behind: int | None) -> str:
     """
     if upgrade_level == UpgradeLevel.MAJOR:
         return RiskLevel.HIGH
-    elif upgrade_level == UpgradeLevel.MINOR:
+    if upgrade_level == UpgradeLevel.MINOR:
         if days_behind is not None and days_behind > 365:
             return RiskLevel.HIGH
         return RiskLevel.MEDIUM
-    elif upgrade_level == UpgradeLevel.PATCH:
+    if upgrade_level == UpgradeLevel.PATCH:
         return RiskLevel.LOW
-    elif upgrade_level == UpgradeLevel.PRERELEASE:
+    if upgrade_level == UpgradeLevel.PRERELEASE:
         return RiskLevel.HIGH
     return RiskLevel.UNKNOWN
 

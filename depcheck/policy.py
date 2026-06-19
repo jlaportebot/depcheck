@@ -13,7 +13,7 @@ import datetime
 import enum
 import json
 import re
-import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -156,7 +156,7 @@ class PolicyReport:
             return 100.0
         failing_pkgs = len(
             set(v.package for v in self.violations if v.severity == RuleSeverity.ERROR)
-        )  # noqa: E501
+        )
         return round((1 - failing_pkgs / self.total_packages) * 100, 1)
 
     def to_dict(self) -> dict[str, Any]:
@@ -203,8 +203,8 @@ class PolicyConfig:
                         category=RuleCategory.LICENSE,
                         severity=RuleSeverity(license_config.get("severity", "error")),
                         description="License compliance policy",
-                        allow_licenses=allow_list if allow_list else None,
-                        deny_licenses=deny_list if deny_list else None,
+                        allow_licenses=allow_list or None,
+                        deny_licenses=deny_list or None,
                         deny_copyleft=deny_copyleft,
                         strict_unknown=strict_unknown,
                     )
@@ -349,14 +349,6 @@ class PolicyConfig:
         except (OSError, UnicodeDecodeError):
             return None
 
-        if sys.version_info >= (3, 11):
-            import tomllib
-        else:
-            try:
-                import tomli as tomllib  # type: ignore[no-redef]
-            except ImportError:
-                return None
-
         try:
             data = tomllib.loads(content)
         except Exception:
@@ -367,6 +359,10 @@ class PolicyConfig:
             return None
 
         return cls.from_dict(policy_data)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {"rules": [r.to_dict() for r in self.rules]}
 
 
 # ─── Rule Evaluation ───────────────────────────────────────────────────────
@@ -447,9 +443,9 @@ def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None
 
     try:
         last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-            tzinfo=datetime.timezone.utc
+            tzinfo=datetime.UTC
         )
-        days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
+        days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
 
         if days_since > rule.max_age_days:
             return Violation(
@@ -571,9 +567,9 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
     if pkg.last_release_date:
         try:
             last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.timezone.utc
+                tzinfo=datetime.UTC
             )
-            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
+            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
 
             if days_since > rule.min_maintained_days:
                 return Violation(

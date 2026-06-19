@@ -11,7 +11,7 @@ import enum
 from dataclasses import dataclass, field
 from typing import Any
 
-from rich.console import Console  # noqa: F401 — used in type annotations
+from rich.console import Console
 
 from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project

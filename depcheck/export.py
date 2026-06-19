@@ -123,7 +123,7 @@ class SBOMResult:
 
     def __post_init__(self) -> None:
         if not self.generated_at:
-            self.generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self.generated_at = datetime.datetime.now(datetime.UTC).isoformat()
 
     @property
     def total(self) -> int:
