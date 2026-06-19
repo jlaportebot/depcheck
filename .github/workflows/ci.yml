@@ -27,7 +27,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: uv
 
       - name: Install dependencies
         run: uv sync --all-groups
@@ -39,7 +38,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Type check with ty
-        run: uv run ty check src/
+        run: uv run ty check depcheck/
 
       - name: Run tests
         run: uv run pytest -v --cov=depcheck --cov-report=term-missing --cov-fail-under=75
@@ -52,11 +51,11 @@ jobs:
         uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          enable-cache: true
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: uv
       - name: Install dependencies
         run: uv sync --group audit
       - name: Run pip-audit
@@ -71,11 +70,11 @@ jobs:
         uses: astral-sh/setup-uv@v4
         with:
           version: "latest"
+          enable-cache: true
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: uv
       - name: Build package
         run: uv build
       - name: Verify package
