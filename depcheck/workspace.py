@@ -6,11 +6,10 @@ import tomllib
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from depcheck.models import ScanResult as ModelScanResult
-    from depcheck.audit import SeverityBreakdown
 
 
 class WorkspaceType(Enum):
@@ -40,7 +39,7 @@ class WorkspaceMember:
 
     name: str
     path: Path
-    scan_result: Optional["ModelScanResult"] = None
+    scan_result: Optional[ModelScanResult] = None
     workspace_root: Optional[Path] = None
 
     @property
@@ -240,3 +239,77 @@ def _expand_globs(root: Path, patterns: list[str]) -> list[Path]:
                 results.append(match)
     # Sort for deterministic output
     return sorted(results, key=lambda p: str(p.relative_to(root)))
+
+
+def scan_workspace(
+    root: Path | str,
+    check_vulnerabilities: bool = True,
+    check_licenses: bool = False,
+    allowed_license_categories: list | None = None,
+    denied_licenses: list[str] | None = None,
+) -> WorkspaceScanResult:
+    """Scan all member projects in a workspace and aggregate results.
+
+    Args:
+        root: Workspace root directory.
+        check_vulnerabilities: Whether to check for vulnerabilities.
+        check_licenses: Whether to check license compliance.
+        allowed_license_categories: List of allowed license categories.
+        denied_licenses: List of specific SPDX IDs to deny.
+
+    Returns:
+        WorkspaceScanResult with aggregated scan results for all members.
+    """
+    from depcheck.scanner import scan_project
+
+    root = Path(root).resolve()
+
+    # Detect workspace config
+    config = detect_workspace_config(root)
+    if config is None:
+        return WorkspaceScanResult(
+            root=root,
+            members=[],
+            workspace_type=WorkspaceType.UNKNOWN,
+            errors=["No workspace configuration detected"],
+        )
+
+    # Scan each member project
+    members: list[WorkspaceMember] = []
+    for member_path in config.members:
+        try:
+            scan_result = scan_project(
+                project_path=member_path,
+                check_vulnerabilities=check_vulnerabilities,
+                check_licenses=check_licenses,
+                allowed_license_categories=allowed_license_categories,
+                denied_licenses=denied_licenses,
+            )
+            member = WorkspaceMember(
+                name=member_path.name,
+                path=member_path,
+                scan_result=scan_result,
+                workspace_root=root,
+            )
+            members.append(member)
+        except Exception as exc:
+            # Create error member
+            from depcheck.models import ScanResult as ModelScanResult
+
+            error_result = ModelScanResult(
+                project_path=str(member_path),
+                errors=[f"Failed to scan: {exc}"],
+            )
+            member = WorkspaceMember(
+                name=member_path.name,
+                path=member_path,
+                scan_result=error_result,
+                workspace_root=root,
+            )
+            members.append(member)
+
+    return WorkspaceScanResult(
+        root=root,
+        members=members,
+        workspace_type=config.workspace_type,
+    )

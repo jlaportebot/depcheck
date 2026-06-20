@@ -195,5 +195,40 @@ def test_workspace_scan_result_model():
     assert result.total_vulnerabilities == 0
 
 
+def test_scan_workspace():
+    """Test scanning a workspace with multiple members."""
+    import tempfile
+    from pathlib import Path
+
+    from depcheck.workspace import WorkspaceScanResult, scan_workspace
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "pyproject.toml").write_text("""
+            [project]
+            name = "my-workspace"
+            [tool.uv.workspace]
+            members = ["packages/*"]
+        """)
+        (root / "packages").mkdir()
+        (root / "packages" / "pkg1").mkdir()
+        (root / "packages" / "pkg1" / "pyproject.toml").write_text("""
+            [project]
+            name = "pkg1"
+            dependencies = ["requests>=2.28"]
+        """)
+        (root / "packages" / "pkg2").mkdir()
+        (root / "packages" / "pkg2" / "pyproject.toml").write_text("""
+            [project]
+            name = "pkg2"
+            dependencies = ["httpx>=0.24"]
+        """)
+
+        result = scan_workspace(root, check_vulnerabilities=False)
+        assert isinstance(result, WorkspaceScanResult)
+        assert len(result.members) == 2
+        assert result.total_packages >= 2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
