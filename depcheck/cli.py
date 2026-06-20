@@ -3577,3 +3577,71 @@ def summary(
     elif grade == "C" and not quiet:
         msg = f"\n[bold yellow]⚠ Project health is {grade} — review recommended[/bold yellow]"
         console.print(msg)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output results as JSON.",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster but less comprehensive).",
+)
+def workspace(path: str, output_json: bool, no_vuln_check: bool) -> None:
+    """Scan a workspace/monorepo for dependency health across all member projects.
+
+    Automatically detects workspace configuration (uv, Poetry, Hatch, PDM,
+    setuptools) and scans each member project independently, then performs
+    cross-project analysis for shared dependencies and version conflicts.
+    """
+    from depcheck.workspace import detect_workspace_config, scan_workspace
+    from depcheck.workspace_analysis import analyze_workspace_dependencies
+    from depcheck.workspace_report import (
+        render_workspace_json,
+        render_workspace_table,
+    )
+
+    console = Console()
+    root = Path(path).resolve()
+
+    # Detect workspace configuration
+    config = detect_workspace_config(root)
+    if config is None:
+        console.print(f"[bold red]✗ No workspace configuration detected in {root}[/bold red]")
+        console.print(
+            "Add [tool.uv.workspace], [tool.poetry.workspace], "
+            "[tool.hatch.workspace], [tool.pdm.workspace], or "
+            "[project.workspace] to your pyproject.toml"
+        )
+        sys.exit(1)
+
+    # Scan workspace
+    result = scan_workspace(root, check_vulnerabilities=not no_vuln_check)
+
+    # Cross-project analysis
+    analysis = analyze_workspace_dependencies(result)
+
+    # Render output
+    if output_json:
+        json_output = render_workspace_json(result, analysis)
+        click.echo(json_output)
+    else:
+        render_workspace_table(result, analysis, console)
+
+    # Exit code based on grade
+    from depcheck.workspace_report import calculate_workspace_grade
+
+    grade = calculate_workspace_grade(result)
+    if grade.grade in ("D", "F"):
+        sys.exit(1)
