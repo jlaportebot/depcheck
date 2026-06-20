@@ -106,15 +106,17 @@ def render_workspace_table(
         member_table.add_column("Status")
 
         for member in workspace_result.members:
-            pkg_count = 0
-            vuln_count = 0
+            pkg_count: int = 0
+            vuln_count: int = 0
             status = "healthy"
             if member.scan_result and hasattr(member.scan_result, "packages"):
                 pkg_count = len(member.scan_result.packages)
             if member.scan_result and hasattr(member.scan_result, "vulnerable_count"):
-                vuln_count = member.scan_result.vulnerable_count
+                vuln_count = int(member.scan_result.vulnerable_count)
             elif member.scan_result and hasattr(member.scan_result, "severity_breakdown"):
-                vuln_count = member.scan_result.severity_breakdown.total
+                sb = member.scan_result.severity_breakdown
+                if hasattr(sb, "total"):
+                    vuln_count = int(getattr(sb, "total", 0))
 
             if vuln_count > 0:
                 status = "[red]vulnerable[/red]"
@@ -234,14 +236,16 @@ def render_workspace_json(
     }
 
     for member in workspace_result.members:
-        pkg_count = 0
-        vuln_count = 0
+        pkg_count: int = 0
+        vuln_count: int = 0
         if member.scan_result and hasattr(member.scan_result, "packages"):
             pkg_count = len(member.scan_result.packages)
         if member.scan_result and hasattr(member.scan_result, "vulnerable_count"):
-            vuln_count = member.scan_result.vulnerable_count
+            vuln_count = int(member.scan_result.vulnerable_count)
         elif member.scan_result and hasattr(member.scan_result, "severity_breakdown"):
-            vuln_count = member.scan_result.severity_breakdown.total
+            sb = member.scan_result.severity_breakdown
+            if hasattr(sb, "total"):
+                vuln_count = int(getattr(sb, "total", 0))
 
         output["members"].append(
             {
