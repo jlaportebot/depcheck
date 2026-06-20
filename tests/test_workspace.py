@@ -166,8 +166,6 @@ def test_workspace_config_no_pyproject_returns_none():
 
 def test_workspace_member_model():
     """Test WorkspaceMember data model."""
-    from pathlib import Path
-
     from depcheck.workspace import WorkspaceMember
 
     member = WorkspaceMember(
@@ -181,8 +179,6 @@ def test_workspace_member_model():
 
 def test_workspace_scan_result_model():
     """Test WorkspaceScanResult data model."""
-    from pathlib import Path
-
     from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
 
     result = WorkspaceScanResult(
@@ -364,6 +360,168 @@ def test_workspace_analysis_version_conflict():
     assert shared_requests.has_version_conflict
     assert "requests" in [vc.name for vc in analysis.version_conflicts]
     assert len(analysis.version_conflicts) == 1
+
+
+def test_render_workspace_table():
+    """Test rendering workspace table output."""
+    from io import StringIO
+    from pathlib import Path
+
+    from rich.console import Console
+
+    from depcheck.models import HealthStatus, PackageReport
+    from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
+    from depcheck.workspace_report import render_workspace_table
+
+    # Create mock scan results
+    pkg1_report = PackageReport(
+        name="requests",
+        installed_version="2.28.0",
+        latest_version="2.31.0",
+        status=HealthStatus.OUTDATED,
+    )
+
+    class MockScanResult:
+        def __init__(self, packages):
+            self.packages = packages
+            self.vulnerable_count = 1
+
+    members = [
+        WorkspaceMember(
+            name="pkg1",
+            path=Path("packages/pkg1"),
+            scan_result=MockScanResult([pkg1_report]),
+            workspace_root=Path("/tmp/workspace"),
+        ),
+    ]
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp/workspace"),
+        members=members,
+        workspace_type=WorkspaceType.UV,
+    )
+
+    # Capture output
+    output_buffer = StringIO()
+    console = Console(file=output_buffer, force_terminal=False, no_color=True, width=120)
+    render_workspace_table(workspace_result, console=console)
+
+    output = output_buffer.getvalue()
+    assert "pkg1" in output
+    assert "Workspace Health Grade" in output
+    assert "Member Projects" in output
+
+
+def test_render_workspace_json():
+    """Test rendering workspace JSON output."""
+    import json
+    from pathlib import Path
+
+    from depcheck.models import HealthStatus, PackageReport
+    from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
+    from depcheck.workspace_report import render_workspace_json
+
+    # Create mock scan results
+    pkg1_report = PackageReport(
+        name="requests",
+        installed_version="2.28.0",
+        latest_version="2.31.0",
+        status=HealthStatus.OUTDATED,
+    )
+
+    class MockScanResult:
+        def __init__(self, packages):
+            self.packages = packages
+            self.vulnerable_count = 1
+
+    members = [
+        WorkspaceMember(
+            name="pkg1",
+            path=Path("packages/pkg1"),
+            scan_result=MockScanResult([pkg1_report]),
+            workspace_root=Path("/tmp/workspace"),
+        ),
+    ]
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp/workspace"),
+        members=members,
+        workspace_type=WorkspaceType.UV,
+    )
+
+    json_output = render_workspace_json(workspace_result)
+    data = json.loads(json_output)
+
+    assert data["workspace"]["type"] == "uv"
+    assert data["workspace"]["member_count"] == 1
+    assert data["workspace"]["total_packages"] == 1
+    assert "members" in data
+    assert len(data["members"]) == 1
+    assert data["members"][0]["name"] == "pkg1"
+
+
+def test_calculate_workspace_grade():
+    """Test workspace health grade calculation."""
+    from pathlib import Path
+
+    from depcheck.models import HealthStatus, PackageReport
+    from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
+    from depcheck.workspace_report import calculate_workspace_grade
+
+    # Healthy workspace (no vulns)
+    class MockScanResultHealthy:
+        def __init__(self, packages):
+            self.packages = packages
+            self.vulnerable_count = 0
+
+    healthy_pkg = PackageReport(
+        name="requests",
+        installed_version="2.31.0",
+        latest_version="2.31.0",
+        status=HealthStatus.HEALTHY,
+    )
+
+    members = [
+        WorkspaceMember(
+            name="pkg1",
+            path=Path("packages/pkg1"),
+            scan_result=MockScanResultHealthy([healthy_pkg]),
+            workspace_root=Path("/tmp"),
+        ),
+    ]
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp"), members=members, workspace_type=WorkspaceType.UV
+    )
+
+    grade = calculate_workspace_grade(workspace_result)
+    assert grade.grade == "A"
+    assert grade.score == 0.0
+
+    # Vulnerable workspace
+    class MockScanResultVuln:
+        def __init__(self, packages):
+            self.packages = packages
+            self.vulnerable_count = 5
+
+    vuln_pkg = PackageReport(
+        name="requests",
+        installed_version="2.28.0",
+        latest_version="2.31.0",
+        status=HealthStatus.VULNERABLE,
+    )
+
+    members = [
+        WorkspaceMember(
+            name="pkg1",
+            path=Path("packages/pkg1"),
+            scan_result=MockScanResultVuln([vuln_pkg]),
+            workspace_root=Path("/tmp"),
+        ),
+    ]
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp"), members=members, workspace_type=WorkspaceType.UV
+    )
+
+    grade = calculate_workspace_grade(workspace_result)
+    assert grade.grade in ("D", "F")
 
 
 if __name__ == "__main__":
