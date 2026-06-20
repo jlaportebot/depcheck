@@ -9,6 +9,7 @@ from depcheck.doctor import (
     DoctorCheck,
     DoctorResult,
     check_ci_workflows,
+    check_codeowners,
     check_contributing,
     check_dependabot_config,
     check_gitignore,
@@ -254,6 +255,29 @@ class TestCheckContributing:
         assert check.passed
 
 
+class TestCheckCodeowners:
+    """Tests for check_codeowners."""
+
+    def test_no_codeowners(self, tmp_path: Path) -> None:
+        check = check_codeowners(tmp_path)
+        assert not check.passed
+        assert check.severity == "info"
+
+    def test_has_codeowners_in_github(self, tmp_path: Path) -> None:
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir(parents=True)
+        (github_dir / "CODEOWNERS").write_text("* @owner\n")
+        check = check_codeowners(tmp_path)
+        assert check.passed
+        assert ".github/CODEOWNERS" in check.message
+
+    def test_has_codeowners_at_root(self, tmp_path: Path) -> None:
+        (tmp_path / "CODEOWNERS").write_text("* @owner\n")
+        check = check_codeowners(tmp_path)
+        assert check.passed
+        assert "repository root" in check.message
+
+
 class TestCheckPyprojectToml:
     """Tests for check_pyproject_toml."""
 
@@ -323,7 +347,7 @@ class TestRunDoctorChecks:
 
     def test_runs_all_checks(self, tmp_path: Path) -> None:
         result = run_doctor_checks(tmp_path)
-        assert len(result.checks) == 10
+        assert len(result.checks) == 11
         assert result.project_path == tmp_path.resolve()
 
     def test_minimal_project(self, tmp_path: Path) -> None:
@@ -338,6 +362,9 @@ class TestRunDoctorChecks:
         (tmp_path / "SECURITY.md").write_text("# Security\n")
         (tmp_path / "CODE_OF_CONDUCT.md").write_text("# Code of Conduct\n")
         (tmp_path / "CONTRIBUTING.md").write_text("# Contributing\n")
+        github_dir = tmp_path / ".github"
+        github_dir.mkdir(parents=True)
+        (github_dir / "CODEOWNERS").write_text("* @owner\n")
         (tmp_path / "pyproject.toml").write_text(
             '[project]\nname = "test"\nversion = "0.1.0"\n'
             'description = "test project"\nrequires-python = ">=3.11"\n'
@@ -350,7 +377,7 @@ class TestRunDoctorChecks:
         (tmp_path / "tests").mkdir()
 
         result = run_doctor_checks(tmp_path)
-        assert result.passed_count == 10
+        assert result.passed_count == 11
         assert result.overall_status == "pass"
 
 

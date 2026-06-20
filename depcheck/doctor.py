@@ -219,6 +219,34 @@ def check_contributing(project_path: Path) -> DoctorCheck:
     )
 
 
+def check_codeowners(project_path: Path) -> DoctorCheck:
+    """Check for CODEOWNERS file."""
+    codeowners = project_path / ".github" / "CODEOWNERS"
+    if codeowners.exists():
+        return DoctorCheck(
+            name="CODEOWNERS",
+            passed=True,
+            message="Found .github/CODEOWNERS",
+        )
+
+    # Also check root CODEOWNERS
+    codeowners_root = project_path / "CODEOWNERS"
+    if codeowners_root.exists():
+        return DoctorCheck(
+            name="CODEOWNERS",
+            passed=True,
+            message="Found CODEOWNERS at repository root",
+        )
+
+    return DoctorCheck(
+        name="CODEOWNERS",
+        passed=False,
+        message="No CODEOWNERS file found",
+        severity="info",
+        fix_hint="Add .github/CODEOWNERS to define code owners for automatic review assignment",
+    )
+
+
 def check_pyproject_toml(project_path: Path) -> DoctorCheck:
     """Check for pyproject.toml with essential metadata."""
     pyproject = project_path / "pyproject.toml"
@@ -349,6 +377,7 @@ def run_doctor_checks(project_path: Path | str = ".") -> DoctorResult:
         check_dependabot_config(path),
         check_security_files(path),
         check_contributing(path),
+        check_codeowners(path),
         check_pytest_config(path),
     ]
 
