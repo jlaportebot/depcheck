@@ -1,0 +1,10 @@
+# CODEOWNERS for depcheck
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners - all files
+* @jlaportebot
+
+# Specific file patterns
+/docs/ @jlaportebot
+/tests/ @jlaportebot
+/depcheck/ @jlaportebot
