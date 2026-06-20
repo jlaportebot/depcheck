@@ -230,5 +230,141 @@ def test_scan_workspace():
         assert result.total_packages >= 2
 
 
+def test_workspace_analysis_shared_dependencies():
+    """Test cross-project analysis detects shared dependencies."""
+    from pathlib import Path
+
+    from depcheck.models import HealthStatus, PackageReport
+    from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
+    from depcheck.workspace_analysis import analyze_workspace_dependencies
+
+    # Create mock scan results with overlapping dependencies
+    pkg1_report = PackageReport(
+        name="requests",
+        installed_version="2.28.0",
+        latest_version="2.31.0",
+        status=HealthStatus.OUTDATED,
+    )
+    pkg2_report = PackageReport(
+        name="urllib3",
+        installed_version="1.26.15",
+        latest_version="2.0.0",
+        status=HealthStatus.OUTDATED,
+    )
+    pkg3_report = PackageReport(
+        name="requests",
+        installed_version="2.28.0",
+        latest_version="2.31.0",
+        status=HealthStatus.OUTDATED,
+    )
+    pkg4_report = PackageReport(
+        name="certifi",
+        installed_version="2023.01.01",
+        latest_version="2023.07.22",
+        status=HealthStatus.OUTDATED,
+    )
+
+    class MockScanResult:
+        def __init__(self, packages):
+            self.packages = packages
+
+    members = [
+        WorkspaceMember(
+            name="pkg1",
+            path=Path("packages/pkg1"),
+            scan_result=MockScanResult([pkg1_report, pkg2_report]),
+            workspace_root=Path("/tmp"),
+        ),
+        WorkspaceMember(
+            name="pkg2",
+            path=Path("packages/pkg2"),
+            scan_result=MockScanResult([pkg3_report, pkg4_report]),
+            workspace_root=Path("/tmp"),
+        ),
+    ]
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp"), members=members, workspace_type=WorkspaceType.UV
+    )
+
+    analysis = analyze_workspace_dependencies(workspace_result)
+
+    # Should detect shared dependency
+    assert "requests" in analysis.shared_dependencies
+    shared_requests = analysis.shared_dependencies["requests"]
+    assert len(shared_requests.members) == 2
+    assert "pkg1" in shared_requests.members
+    assert "pkg2" in shared_requests.members
+
+    # Should NOT have version conflict (both same version)
+    assert not shared_requests.has_version_conflict
+    assert "requests" not in [vc.name for vc in analysis.version_conflicts]
+
+    # Should have consolidation opportunity
+    assert len(analysis.consolidation_opportunities) >= 1
+    requests_opp = next(
+        (o for o in analysis.consolidation_opportunities if o.name == "requests"),
+        None,
+    )
+    assert requests_opp is not None
+    assert requests_opp.member_count == 2
+
+
+def test_workspace_analysis_version_conflict():
+    """Test cross-project analysis detects version conflicts."""
+    from pathlib import Path
+
+    from depcheck.models import HealthStatus, PackageReport
+    from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
+    from depcheck.workspace_analysis import analyze_workspace_dependencies
+
+    # Create mock scan results with version conflict
+    pkg1_report = PackageReport(
+        name="requests",
+        installed_version="2.28.0",
+        latest_version="2.31.0",
+        status=HealthStatus.OUTDATED,
+    )
+    pkg2_report = PackageReport(
+        name="requests",
+        installed_version="2.25.0",
+        latest_version="2.31.0",
+        status=HealthStatus.OUTDATED,
+    )
+
+    class MockScanResult:
+        def __init__(self, packages):
+            self.packages = packages
+
+    members = [
+        WorkspaceMember(
+            name="pkg1",
+            path=Path("packages/pkg1"),
+            scan_result=MockScanResult([pkg1_report]),
+            workspace_root=Path("/tmp"),
+        ),
+        WorkspaceMember(
+            name="pkg2",
+            path=Path("packages/pkg2"),
+            scan_result=MockScanResult([pkg2_report]),
+            workspace_root=Path("/tmp"),
+        ),
+    ]
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp"), members=members, workspace_type=WorkspaceType.UV
+    )
+
+    analysis = analyze_workspace_dependencies(workspace_result)
+
+    # Should detect shared dependency
+    assert "requests" in analysis.shared_dependencies
+    shared_requests = analysis.shared_dependencies["requests"]
+    assert len(shared_requests.members) == 2
+
+    # SHOULD have version conflict
+    assert shared_requests.has_version_conflict
+    assert "requests" in [vc.name for vc in analysis.version_conflicts]
+    assert len(analysis.version_conflicts) == 1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
