@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -10,9 +11,12 @@ import click
 from rich.console import Console
 
 from depcheck import __version__
+from depcheck.github_pr import GitHubPRClient, PRConfig
 from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
+from depcheck.remediate import build_remediation_plan
 from depcheck.scanner import normalize_package_name, scan_project
+from depcheck.update import build_update_plan
 
 
 @click.group()
@@ -3753,13 +3757,6 @@ def remediate(
     depcheck remediate --repo owner/repo --dry-run --json
     depcheck remediate /path/to/project --repo owner/repo --label security --reviewer @me
     """
-    import asyncio
-
-    from depcheck.remediate import build_remediation_plan
-    from depcheck.update import build_update_plan
-    from depcheck.scanner import scan_project
-    from depcheck.github_pr import GitHubPRClient, PRConfig
-
     console = Console(quiet=quiet)
 
     # Run the scan
@@ -3785,7 +3782,9 @@ def remediate(
 
     if update_plan.needs_update_count == 0:
         if not quiet:
-            console.print("[green]✓ All dependencies are up to date — no remediation needed![/green]")
+            console.print(
+                "[green]✓ All dependencies are up to date — no remediation needed![/green]"
+            )
         sys.exit(0)
 
     # Build remediation plan
@@ -3794,7 +3793,6 @@ def remediate(
     if dry_run:
         # Just output the plan
         if output_json:
-            import json
             clean_console = Console(force_terminal=False, no_color=True)
             clean_console.print(json.dumps(remediation_plan.to_dict(), indent=2))
         else:
@@ -3805,10 +3803,15 @@ def remediate(
                 console.print(f"Groups: {len(remediation_plan.groups)}")
                 console.print()
                 for group in remediation_plan.groups:
-                    console.print(f"  [{group.priority}] {group.title}: {', '.join(group.packages)}")
+                    console.print(
+                        f"  [{group.priority}] {group.title}: {', '.join(group.packages)}"
+                    )
                     if group.step_details:
                         for detail in group.step_details:
-                            console.print(f"    {detail['name']}: {detail['current']} → {detail['target']} ({detail['upgrade_level']})")
+                            console.print(
+                                f"    {detail['name']}: {detail['current']} → "
+                                f"{detail['target']} ({detail['upgrade_level']})"
+                            )
         sys.exit(0)
 
     # Create PRs via GitHub API
@@ -3835,7 +3838,6 @@ def remediate(
         sys.exit(1)
 
     if output_json:
-        import json
         clean_console = Console(force_terminal=False, no_color=True)
         clean_console.print(json.dumps(created_prs, indent=2))
     elif not quiet:
