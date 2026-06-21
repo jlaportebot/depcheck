@@ -1,0 +1,165 @@
+"""Remediation plan generation for automated dependency updates.
+
+Converts an update plan into structured remediation groups suitable for
+GitHub PR creation, with priority-based grouping and detailed descriptions.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+from depcheck.update import UpdatePlan, UpdateStep
+
+
+@dataclass
+class RemediationGroup:
+    """A group of related updates to be combined into a single PR."""
+
+    name: str
+    title: str
+    priority: str
+    packages: list[str] = field(default_factory=list)
+    labels: list[str] = field(default_factory=list)
+    step_details: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "name": self.name,
+            "title": self.title,
+            "priority": self.priority,
+            "packages": self.packages,
+            "labels": self.labels,
+            "step_details": self.step_details,
+        }
+
+
+@dataclass
+class RemediationPlan:
+    """Complete remediation plan with grouped updates for PR creation."""
+
+    repository: str
+    groups: list[RemediationGroup] = field(default_factory=list)
+    total_packages: int = 0
+    needs_update_count: int = 0
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "repository": self.repository,
+            "created_at": self.created_at,
+            "summary": {
+                "total_packages": self.total_packages,
+                "needs_update": self.needs_update_count,
+                "groups_count": len(self.groups),
+            },
+            "groups": [g.to_dict() for g in self.groups],
+        }
+
+
+# Priority to group mapping
+_SECURITY_LABELS = ["security", "automated", "dependencies"]
+_MAJOR_LABELS = ["major-update", "automated", "dependencies"]
+_MINOR_LABELS = ["minor-update", "automated", "dependencies"]
+_PATCH_LABELS = ["patch-update", "automated", "dependencies"]
+_DEFERRED_LABELS = ["prerelease", "automated", "dependencies"]
+
+PRIORITY_GROUP_MAP = {
+    "critical": ("security-fixes", "Critical Security Fixes", _SECURITY_LABELS),
+    "high": ("major-updates", "Major Version Updates", _MAJOR_LABELS),
+    "medium": ("minor-updates", "Minor Version Updates", _MINOR_LABELS),
+    "low": ("patch-updates", "Patch Version Updates", _PATCH_LABELS),
+    "deferred": ("deferred-updates", "Deferred Updates (Pre-releases)", _DEFERRED_LABELS),
+}
+
+
+def group_by_priority(steps: list[UpdateStep]) -> list[RemediationGroup]:
+    """Group update steps by priority into remediation groups.
+
+    Args:
+        steps: List of UpdateStep objects from an update plan.
+
+    Returns:
+        List of RemediationGroup objects, ordered by priority (critical first).
+    """
+    # Group steps by priority
+    priority_buckets: dict[str, list[UpdateStep]] = {}
+    for step in steps:
+        if step.priority not in priority_buckets:
+            priority_buckets[step.priority] = []
+        priority_buckets[step.priority].append(step)
+
+    # Create groups in priority order
+    priority_order = ["critical", "high", "medium", "low", "deferred"]
+    groups = []
+
+    for priority in priority_order:
+        if priority not in priority_buckets:
+            continue
+
+        bucket = priority_buckets[priority]
+        if not bucket:
+            continue
+
+        group_name, group_title, default_labels = PRIORITY_GROUP_MAP[priority]
+        packages = [s.name for s in bucket]
+
+        # Build step details for PR description
+        step_details = []
+        for step in bucket:
+            step_details.append(
+                {
+                    "name": step.name,
+                    "current": step.current_version,
+                    "target": step.target_version,
+                    "command": step.command,
+                    "rationale": step.rationale,
+                    "changelog_url": step.changelog_url,
+                    "risk": step.risk,
+                    "upgrade_level": step.upgrade_level,
+                    "days_behind": step.days_behind,
+                    "is_vulnerable": step.is_vulnerable,
+                    "breaking_change_risk": step.breaking_change_risk,
+                    "strategy": step.strategy,
+                }
+            )
+
+        group = RemediationGroup(
+            name=group_name,
+            title=group_title,
+            priority=priority,
+            packages=packages,
+            labels=default_labels,
+            step_details=step_details,
+        )
+        groups.append(group)
+
+    return groups
+
+
+def build_remediation_plan(
+    update_plan: UpdatePlan,
+    repository: str,
+) -> RemediationPlan:
+    """Build a remediation plan from an update plan.
+
+    Args:
+        update_plan: The UpdatePlan generated by build_update_plan().
+        repository: GitHub repository in 'owner/repo' format.
+
+    Returns:
+        A RemediationPlan with grouped updates ready for PR creation.
+    """
+    groups = group_by_priority(update_plan.steps)
+
+    remediation = RemediationPlan(
+        repository=repository,
+        groups=groups,
+        total_packages=update_plan.total_packages,
+        needs_update_count=update_plan.needs_update_count,
+    )
+
+    return remediation

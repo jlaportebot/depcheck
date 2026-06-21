@@ -3645,3 +3645,206 @@ def workspace(path: str, output_json: bool, no_vuln_check: bool) -> None:
     grade = calculate_workspace_grade(result)
     if grade.grade in ("D", "F"):
         sys.exit(1)
+
+
+@main.command()
+@click.argument(
+    "path",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--repo",
+    "repository",
+    required=True,
+    help="GitHub repository in 'owner/repo' format.",
+)
+@click.option(
+    "--base-branch",
+    default="main",
+    help="Base branch for PRs (default: main).",
+)
+@click.option(
+    "--auto-merge",
+    is_flag=True,
+    default=False,
+    help="Enable auto-merge on created PRs.",
+)
+@click.option(
+    "--draft",
+    is_flag=True,
+    default=False,
+    help="Create PRs as drafts.",
+)
+@click.option(
+    "--label",
+    "labels",
+    multiple=True,
+    help="Additional labels to add to PRs (can be repeated).",
+)
+@click.option(
+    "--reviewer",
+    "reviewers",
+    multiple=True,
+    help="Request specific reviewers (can be repeated).",
+)
+@click.option(
+    "--assignee",
+    "assignees",
+    multiple=True,
+    help="Assign specific users (can be repeated).",
+)
+@click.option(
+    "--no-vuln-check",
+    is_flag=True,
+    default=False,
+    help="Skip vulnerability checking (faster).",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output created PR info as JSON.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show remediation plan without creating PRs.",
+)
+@click.option(
+    "--quiet",
+    is_flag=True,
+    default=False,
+    help="Suppress all output except errors and exit code.",
+)
+def remediate(
+    path: str,
+    repository: str,
+    base_branch: str,
+    auto_merge: bool,
+    draft: bool,
+    labels: tuple[str, ...],
+    reviewers: tuple[str, ...],
+    assignees: tuple[str, ...],
+    no_vuln_check: bool,
+    output_json: bool,
+    dry_run: bool,
+    quiet: bool,
+) -> None:
+    """Create automated remediation PRs for dependency updates.
+
+    Analyzes your project's dependencies, generates an update plan grouped by
+    priority (security fixes first, then major/minor/patch updates), and creates
+    GitHub pull requests for each group with detailed descriptions, changelogs,
+    and test commands.
+
+    REPOSITORY is the GitHub repository in 'owner/repo' format.
+    PATH is the project directory to scan (defaults to current directory).
+
+    Requires GitHub CLI (gh) to be authenticated: gh auth login
+
+    Examples:
+
+    \b
+    depcheck remediate --repo owner/repo
+    depcheck remediate --repo owner/repo --auto-merge --base-branch develop
+    depcheck remediate --repo owner/repo --dry-run --json
+    depcheck remediate /path/to/project --repo owner/repo --label security --reviewer @me
+    """
+    import asyncio
+
+    from depcheck.remediate import build_remediation_plan
+    from depcheck.update import build_update_plan
+    from depcheck.scanner import scan_project
+    from depcheck.github_pr import GitHubPRClient, PRConfig
+
+    console = Console(quiet=quiet)
+
+    # Run the scan
+    if not quiet:
+        console.print("[bold]Scanning project dependencies...[/bold]")
+
+    result = scan_project(
+        project_path=path,
+        check_vulnerabilities=not no_vuln_check,
+        check_licenses=False,
+    )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        sys.exit(2)
+
+    # Build update plan
+    if not quiet:
+        console.print("[bold]Building update plan...[/bold]")
+
+    update_plan = build_update_plan(result)
+
+    if update_plan.needs_update_count == 0:
+        if not quiet:
+            console.print("[green]✓ All dependencies are up to date — no remediation needed![/green]")
+        sys.exit(0)
+
+    # Build remediation plan
+    remediation_plan = build_remediation_plan(update_plan, repository)
+
+    if dry_run:
+        # Just output the plan
+        if output_json:
+            import json
+            clean_console = Console(force_terminal=False, no_color=True)
+            clean_console.print(json.dumps(remediation_plan.to_dict(), indent=2))
+        else:
+            if not quiet:
+                console.print(f"\n[bold]Remediation Plan for {repository}[/bold]")
+                console.print(f"Total packages: {remediation_plan.total_packages}")
+                console.print(f"Needs update: {remediation_plan.needs_update_count}")
+                console.print(f"Groups: {len(remediation_plan.groups)}")
+                console.print()
+                for group in remediation_plan.groups:
+                    console.print(f"  [{group.priority}] {group.title}: {', '.join(group.packages)}")
+                    if group.step_details:
+                        for detail in group.step_details:
+                            console.print(f"    {detail['name']}: {detail['current']} → {detail['target']} ({detail['upgrade_level']})")
+        sys.exit(0)
+
+    # Create PRs via GitHub API
+    if not quiet:
+        console.print(f"[bold]Creating remediation PRs for {repository}...[/bold]")
+
+    async def create_prs():
+        client = GitHubPRClient(repository)
+        config = PRConfig(
+            base_branch=base_branch,
+            auto_merge=auto_merge,
+            draft=draft,
+            labels=list(labels) if labels else None,
+            reviewers=list(reviewers) if reviewers else None,
+            assignees=list(assignees) if assignees else None,
+        )
+        return await client.create_remediation_prs(remediation_plan, config)
+
+    try:
+        created_prs = asyncio.run(create_prs())
+    except RuntimeError as e:
+        console.print(f"[red]Error creating PRs: {e}[/red]")
+        console.print("[dim]Make sure 'gh' CLI is installed and authenticated: gh auth login[/dim]")
+        sys.exit(1)
+
+    if output_json:
+        import json
+        clean_console = Console(force_terminal=False, no_color=True)
+        clean_console.print(json.dumps(created_prs, indent=2))
+    elif not quiet:
+        console.print(f"\n[green]✓ Created {len(created_prs)} remediation PR(s):[/green]")
+        for pr in created_prs:
+            console.print(f"  #{pr['pr_number']} {pr['title']} ({pr['priority'].upper()})")
+            console.print(f"    {pr['pr_url']}")
+            console.print(f"    Branch: {pr['branch']}")
+
+    # Exit with error if no PRs were created
+    if not created_prs:
+        sys.exit(1)
