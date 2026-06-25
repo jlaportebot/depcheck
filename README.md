@@ -26,6 +26,17 @@
 - 🔗 **Dependency chain tracing** — find out why a package is in your project with `depcheck why <package>`
 - 📊 **Dependency graph** — interactive HTML visualization with D3.js force-directed layout (`depcheck graph`)
 - 🤖 **CI/CD friendly** — JSON output mode and configurable exit codes for automation
+- 📝 **GitHub Actions annotations** — `depcheck annotations` for inline CI error reporting
+- 📦 **Dependency tree** — ASCII/JSON tree view with health status (`depcheck tree`)
+- 📊 **Project summary** — quick health score with letter grade (`depcheck summary`)
+- 🔬 **Doctor** — best practices check for CI, pre-commit, Dependabot, security files, etc. (`depcheck doctor`)
+- 📦 **Workspace/monorepo support** — scan uv/Poetry/Hatch/PDM workspaces (`depcheck workspace`)
+- 🔮 **Deprecation prediction** — predict version releases and detect deprecation risk (`depcheck predict`)
+- 🏗️ **Tech stack analysis** — detect conflicts and known incompatibilities (`depcheck stack`)
+- ⚙️ **Configuration** — YAML/TOML config with validation and generation (`depcheck config`)
+- 🔄 **Automated remediation** — create GitHub PRs for dependency updates (`depcheck remediate`)
+- 📈 **Drift detection** — track dependency changes across git history (`depcheck history`)
+- 🐍 **Python compatibility** — check Python version compatibility (`depcheck compat`)
 
 ## Installation
 
@@ -125,25 +136,6 @@ The generated HTML file includes:
 depcheck diff requirements.old.txt requirements.new.txt
 ```
 
-### Outdated dependency analysis
-
-```bash
-# Check for outdated dependencies with upgrade path analysis
-depcheck outdated
-
-# Show pip upgrade commands grouped by risk level
-depcheck outdated --show-commands
-
-# JSON output for CI/CD
-depcheck outdated --json
-
-# Fail CI if major upgrades available (breaking changes)
-depcheck outdated --fail-on major
-
-# Fail on any outdated dependency
-depcheck outdated --fail-on any
-```
-
 ### Compare as JSON (CI/CD)
 
 ```bash
@@ -211,6 +203,131 @@ depcheck why numpy --no-vuln-check
 
 `depcheck why` resolves the full dependency graph and finds all paths from your direct dependencies to the target package — answering the common question: *why is this package in my project?*
 
+### Outdated dependency analysis with upgrade paths
+
+```bash
+# Check for outdated dependencies with upgrade path analysis
+depcheck outdated
+
+# Show pip upgrade commands grouped by risk level
+depcheck outdated --show-commands
+
+# JSON output for CI/CD
+depcheck outdated --json
+
+# Fail CI if major upgrades available (breaking changes)
+depcheck outdated --fail-on major
+
+# Fail on any outdated dependency
+depcheck outdated --fail-on any
+```
+
+### Display dependency tree
+
+```bash
+# Tree view with health status
+depcheck tree
+
+# JSON output for tooling
+depcheck tree --json
+
+# Control depth
+depcheck tree --max-depth 5
+
+# Disable highlighting for clean output
+depcheck tree --no-highlight
+```
+
+### Quick health summary with letter grade
+
+```bash
+depcheck summary
+depcheck summary --json
+depcheck summary --no-vuln-check --quiet
+```
+
+### Project best practices check
+
+```bash
+depcheck doctor
+depcheck doctor --json
+depcheck doctor /path/to/project
+```
+
+### Scan workspace/monorepo
+
+```bash
+depcheck workspace
+depcheck workspace /path/to/monorepo
+depcheck workspace --json
+```
+
+### Deprecation prediction and risk analysis
+
+```bash
+depcheck predict
+depcheck predict --json
+depcheck predict --fail-on high
+depcheck predict /path/to/project
+```
+
+### Tech stack analysis
+
+```bash
+depcheck stack
+depcheck stack --json
+depcheck stack --check-licenses
+depcheck stack /path/to/project
+```
+
+### Configuration management
+
+```bash
+# Show current config
+depcheck config
+
+# Validate config
+depcheck config --validate
+
+# Generate default config
+depcheck config --init
+depcheck config --init --output pyproject.toml
+```
+
+### Python version compatibility
+
+```bash
+depcheck compat
+depcheck compat --target 3.13
+depcheck compat --target 3.11 --json
+```
+
+### Dependency history / drift over time
+
+```bash
+depcheck history
+depcheck history --from-commit abc123 --to-commit def456
+depcheck history --max-commits 50
+depcheck history --json
+```
+
+### Automated remediation PRs
+
+```bash
+depcheck remediate --repo owner/repo
+depcheck remediate --repo owner/repo --auto-merge --base-branch develop
+depcheck remediate --repo owner/repo --dry-run --json
+depcheck remediate /path/to/project --repo owner/repo --label security --reviewer @me
+```
+
+### GitHub Actions annotations
+
+```bash
+depcheck annotations
+depcheck annotations --output annotations.txt
+depcheck annotations --fail-on vulnerable
+```
+
 ## Health Status
 
 Each package is assigned a health status with color-coded output:
@@ -243,6 +360,68 @@ All formats include package names, versions, and [PURLs](https://github.com/pack
 | 0 | All packages healthy (or no `--fail-on` specified) |
 | 1 | Failed due to `--fail-on` condition met |
 | 2 | Error during scanning |
+
+## Configuration
+
+Create a `depcheck.yaml` or `depcheck.toml` configuration file:
+
+```yaml
+# depcheck.yaml
+fail_on: "warning"
+allowed_license_categories:
+  - "permissive"
+  - "public_domain"
+denied_licenses:
+  - "GPL-3.0"
+  - "AGPL-3.0"
+```
+
+Or in `pyproject.toml`:
+
+```toml
+[tool.depcheck]
+fail_on = "warning"
+allowed_license_categories = ["permissive", "public_domain"]
+denied_licenses = ["GPL-3.0", "AGPL-3.0"]
+
+[tool.depcheck.budget]
+max_packages = 100
+max_total_download_kb = 50000
+max_transitive_depth = 3
+allowed_license_categories = ["permissive"]
+denied_packages = ["unwanted-package"]
+required_packages = ["setuptools"]
+
+[tool.depcheck.policy.rules]
+- name = "no-deprecated"
+  category = "maintenance"
+  severity = "error"
+  description = "Flag deprecated packages"
+```
+
+## Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `scan` | Scan project for dependency health issues |
+| `annotations` | Generate GitHub Actions annotations |
+| `tree` | Display dependency tree with health status |
+| `diff` | Compare two dependency files or detect lockfile drift |
+| `export` | Generate SBOM (CycloneDX, SPDX, summary) |
+| `license` | Check license compliance |
+| `outdated` | Analyze outdated dependencies with upgrade paths |
+| `graph` | Generate interactive HTML dependency graph |
+| `why` | Trace why a dependency exists in your project |
+| `watch` | Watch for dependency file changes in real-time |
+| `predict` | Predict version releases and deprecation risk |
+| `stack` | Analyze tech stack and detect conflicts |
+| `config` | Show, validate, or generate configuration |
+| `doctor` | Check project for best practices |
+| `summary` | Quick health summary with letter grade |
+| `workspace` | Scan workspace/monorepo |
+| `history` | Track dependency changes across git history |
+| `remediate` | Create automated remediation PRs |
+| `compat` | Check Python version compatibility |
 
 ## Contributing
 
@@ -280,3 +459,7 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 ## Code of Conduct
 
 See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). We follow the Contributor Covenant.
+
+---
+
+**depcheck** — Built with 🦞 by Mister Lobster
