@@ -5,10 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from depcheck.doctor import (
     Category,
@@ -25,7 +22,6 @@ from depcheck.doctor import (
     render_doctor_table,
     run_doctor,
 )
-
 
 # ---------------------------------------------------------------------------
 # Finding tests
@@ -152,8 +148,10 @@ class TestCheckVenv:
 
     def test_detects_no_venv(self) -> None:
         findings: list[Finding] = []
-        with patch.object(sys, "real_prefix", None, create=True), \
-             patch.object(sys, "base_prefix", sys.prefix):
+        with (
+            patch.object(sys, "real_prefix", None, create=True),
+            patch.object(sys, "base_prefix", sys.prefix),
+        ):
             in_venv, venv_path, pip_ver = _check_venv(findings)
 
         # When not in venv, should add a finding
@@ -192,9 +190,7 @@ class TestCheckPythonVersion:
     def test_compatible_version(self, tmp_path) -> None:
         pyproject = tmp_path / "pyproject.toml"
         current = f"{sys.version_info.major}.{sys.version_info.minor}"
-        pyproject.write_text(
-            f"[project]\nname = 'test'\nrequires-python = '>={current}'\n"
-        )
+        pyproject.write_text(f"[project]\nname = 'test'\nrequires-python = '>={current}'\n")
         findings: list[Finding] = []
         _check_python_version(tmp_path, findings)
         # Should not add a CRITICAL finding for incompatible version
@@ -203,9 +199,7 @@ class TestCheckPythonVersion:
 
     def test_incompatible_version(self, tmp_path) -> None:
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text(
-            "[project]\nname = 'test'\nrequires-python = '>=4.0'\n"
-        )
+        pyproject.write_text("[project]\nname = 'test'\nrequires-python = '>=4.0'\n")
         findings: list[Finding] = []
         _check_python_version(tmp_path, findings)
         incompatible = [f for f in findings if f.title == "Python version incompatible"]
@@ -214,9 +208,7 @@ class TestCheckPythonVersion:
 
     def test_invalid_specifier(self, tmp_path) -> None:
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text(
-            "[project]\nname = 'test'\nrequires-python = 'not-valid-spec'\n"
-        )
+        pyproject.write_text("[project]\nname = 'test'\nrequires-python = 'not-valid-spec'\n")
         findings: list[Finding] = []
         _check_python_version(tmp_path, findings)
         invalid = [f for f in findings if f.title == "Invalid requires-python specifier"]
@@ -290,6 +282,7 @@ class TestCheckUnpinnedDeps:
 
         with patch("depcheck.doctor.discover_dependencies") as mock_discover:
             from depcheck.models import ParsedDependency
+
             mock_discover.return_value = (
                 [ParsedDependency(name="requests", version=None, specifier=None)],
                 ["requirements.txt"],
@@ -398,13 +391,14 @@ class TestCheckImportConsistency:
 
         with patch("depcheck.doctor.discover_dependencies") as mock_discover:
             from depcheck.models import ParsedDependency
+
             mock_discover.return_value = (
                 [ParsedDependency(name="flask", version="3.0.0", specifier="==3.0.0")],
                 ["requirements.txt"],
             )
             findings: list[Finding] = []
             _check_import_consistency(tmp_path, findings)
-            undeclared = [f for f in findings if "not declared" in f.title.lower()]
+            _ = [f for f in findings if "not declared" in f.title.lower()]
             # requests should be flagged as undeclared (if it's not filtered)
             # The check may not find it if requests is not installed
             assert isinstance(findings, list)
@@ -414,6 +408,7 @@ class TestCheckImportConsistency:
 
         with patch("depcheck.doctor.discover_dependencies") as mock_discover:
             from depcheck.models import ParsedDependency
+
             mock_discover.return_value = (
                 [ParsedDependency(name="flask", version="3.0.0", specifier="==3.0.0")],
                 ["requirements.txt"],

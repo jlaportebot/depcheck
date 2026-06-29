@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import json
-import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from depcheck.check import (
     CategoryScore,
@@ -16,7 +12,6 @@ from depcheck.check import (
     HealthReport,
     HealthStatus,
     MaintainerSignal,
-    PackageReport,
     ScanResult,
     TransitiveDepth,
     _score_freshness,
@@ -27,13 +22,11 @@ from depcheck.check import (
     _score_vulnerability,
     analyze_freshness,
     analyze_maintainer_signals,
-    analyze_transitive_depth,
     render_check_json,
     render_check_table,
     run_check,
 )
-from depcheck.models import LicenseInfo, Vulnerability
-
+from depcheck.models import LicenseInfo, PackageReport, Vulnerability
 
 # ---------------------------------------------------------------------------
 # Grade tests
@@ -85,95 +78,126 @@ class TestScoreVulnerability:
         return ScanResult(project_path=".", packages=packages or [])
 
     def test_no_vulnerabilities(self):
-        result = self._make_scan_result([
-            PackageReport(name="safe-pkg", installed_version="1.0.0", status=HealthStatus.HEALTHY),
-        ])
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="safe-pkg", installed_version="1.0.0", status=HealthStatus.HEALTHY
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 100.0
         assert score.grade == Grade.A
 
     def test_critical_vulnerability(self):
-        vuln = Vulnerability(vuln_id="CVE-2024-0001", summary="RCE", severity="critical", url="https://example.com")
-        result = self._make_scan_result([
-            PackageReport(
-                name="vuln-pkg",
-                installed_version="1.0.0",
-                status=HealthStatus.VULNERABLE,
-                vulnerabilities=[vuln],
-            ),
-        ])
+        vuln = Vulnerability(
+            vuln_id="CVE-2024-0001", summary="RCE", severity="critical", url="https://example.com"
+        )
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="vuln-pkg",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=[vuln],
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 70.0  # 100 - 30
         assert score.grade == Grade.C
 
     def test_high_vulnerability(self):
-        vuln = Vulnerability(vuln_id="CVE-2024-0002", summary="XSS", severity="high", url="https://example.com")
-        result = self._make_scan_result([
-            PackageReport(
-                name="vuln-pkg",
-                installed_version="1.0.0",
-                status=HealthStatus.VULNERABLE,
-                vulnerabilities=[vuln],
-            ),
-        ])
+        vuln = Vulnerability(
+            vuln_id="CVE-2024-0002", summary="XSS", severity="high", url="https://example.com"
+        )
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="vuln-pkg",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=[vuln],
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 85.0  # 100 - 15
 
     def test_medium_vulnerability(self):
-        vuln = Vulnerability(vuln_id="CVE-2024-0003", summary="Info leak", severity="medium", url="https://example.com")
-        result = self._make_scan_result([
-            PackageReport(
-                name="vuln-pkg",
-                installed_version="1.0.0",
-                status=HealthStatus.VULNERABLE,
-                vulnerabilities=[vuln],
-            ),
-        ])
+        vuln = Vulnerability(
+            vuln_id="CVE-2024-0003",
+            summary="Info leak",
+            severity="medium",
+            url="https://example.com",
+        )
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="vuln-pkg",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=[vuln],
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 92.0  # 100 - 8
 
     def test_low_vulnerability(self):
-        vuln = Vulnerability(vuln_id="CVE-2024-0004", summary="Minor", severity="low", url="https://example.com")
-        result = self._make_scan_result([
-            PackageReport(
-                name="vuln-pkg",
-                installed_version="1.0.0",
-                status=HealthStatus.VULNERABLE,
-                vulnerabilities=[vuln],
-            ),
-        ])
+        vuln = Vulnerability(
+            vuln_id="CVE-2024-0004", summary="Minor", severity="low", url="https://example.com"
+        )
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="vuln-pkg",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=[vuln],
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 97.0  # 100 - 3
 
     def test_multiple_vulnerabilities(self):
         vulns = [
-            Vulnerability(vuln_id=f"CVE-{i}", summary=f"Vuln {i}", severity=s, url="https://example.com")
+            Vulnerability(
+                vuln_id=f"CVE-{i}", summary=f"Vuln {i}", severity=s, url="https://example.com"
+            )
             for i, s in enumerate(["critical", "high", "medium", "low"])
         ]
-        result = self._make_scan_result([
-            PackageReport(
-                name="multi-vuln",
-                installed_version="1.0.0",
-                status=HealthStatus.VULNERABLE,
-                vulnerabilities=vulns,
-            ),
-        ])
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="multi-vuln",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=vulns,
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 44.0  # 100 - 30 - 15 - 8 - 3
 
     def test_score_never_below_zero(self):
         vulns = [
-            Vulnerability(vuln_id=f"CVE-{i}", summary="RCE", severity="critical", url="https://example.com")
+            Vulnerability(
+                vuln_id=f"CVE-{i}", summary="RCE", severity="critical", url="https://example.com"
+            )
             for i in range(10)
         ]
-        result = self._make_scan_result([
-            PackageReport(
-                name="many-vulns",
-                installed_version="1.0.0",
-                status=HealthStatus.VULNERABLE,
-                vulnerabilities=vulns,
-            ),
-        ])
+        result = self._make_scan_result(
+            [
+                PackageReport(
+                    name="many-vulns",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=vulns,
+                ),
+            ]
+        )
         score = _score_vulnerability(result)
         assert score.score == 0.0
 
@@ -202,10 +226,20 @@ class TestScoreFreshness:
 
     def test_all_current(self):
         freshness = [
-            DependencyFreshness(name="pkg1", installed_version="1.0.0", latest_version="1.0.0",
-                                days_behind=0, freshness_ratio=1.0),
-            DependencyFreshness(name="pkg2", installed_version="2.0.0", latest_version="2.0.0",
-                                days_behind=0, freshness_ratio=1.0),
+            DependencyFreshness(
+                name="pkg1",
+                installed_version="1.0.0",
+                latest_version="1.0.0",
+                days_behind=0,
+                freshness_ratio=1.0,
+            ),
+            DependencyFreshness(
+                name="pkg2",
+                installed_version="2.0.0",
+                latest_version="2.0.0",
+                days_behind=0,
+                freshness_ratio=1.0,
+            ),
         ]
         result = self._make_scan_result()
         score = _score_freshness(result, freshness)
@@ -213,8 +247,13 @@ class TestScoreFreshness:
 
     def test_stale_package(self):
         freshness = [
-            DependencyFreshness(name="old-pkg", installed_version="1.0.0", latest_version="2.0.0",
-                                days_behind=365, freshness_ratio=0.0),
+            DependencyFreshness(
+                name="old-pkg",
+                installed_version="1.0.0",
+                latest_version="2.0.0",
+                days_behind=365,
+                freshness_ratio=0.0,
+            ),
         ]
         result = self._make_scan_result()
         score = _score_freshness(result, freshness)
@@ -223,10 +262,20 @@ class TestScoreFreshness:
 
     def test_mixed_freshness(self):
         freshness = [
-            DependencyFreshness(name="fresh", installed_version="1.0.0", latest_version="1.0.0",
-                                days_behind=0, freshness_ratio=1.0),
-            DependencyFreshness(name="stale", installed_version="1.0.0", latest_version="2.0.0",
-                                days_behind=180, freshness_ratio=0.507),
+            DependencyFreshness(
+                name="fresh",
+                installed_version="1.0.0",
+                latest_version="1.0.0",
+                days_behind=0,
+                freshness_ratio=1.0,
+            ),
+            DependencyFreshness(
+                name="stale",
+                installed_version="1.0.0",
+                latest_version="2.0.0",
+                days_behind=180,
+                freshness_ratio=0.507,
+            ),
         ]
         result = self._make_scan_result()
         score = _score_freshness(result, freshness)
@@ -242,30 +291,38 @@ class TestScoreLicense:
     """Tests for _score_license."""
 
     def test_all_compliant(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(
-                name="good-pkg",
-                installed_version="1.0.0",
-                license_info=LicenseInfo(spdx_id="MIT", category="permissive", is_compliant=True),
-            ),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="good-pkg",
+                    installed_version="1.0.0",
+                    license_info=LicenseInfo(
+                        spdx_id="MIT", category="permissive", is_compliant=True
+                    ),
+                ),
+            ],
+        )
         score = _score_license(result)
         assert score.score == 100.0
         assert score.grade == Grade.A
 
     def test_non_compliant(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(
-                name="bad-pkg",
-                installed_version="1.0.0",
-                license_info=LicenseInfo(
-                    spdx_id="GPL-3.0",
-                    category="copyleft",
-                    is_compliant=False,
-                    compliance_note="Copyleft denied by policy",
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="bad-pkg",
+                    installed_version="1.0.0",
+                    license_info=LicenseInfo(
+                        spdx_id="GPL-3.0",
+                        category="copyleft",
+                        is_compliant=False,
+                        compliance_note="Copyleft denied by policy",
+                    ),
                 ),
-            ),
-        ])
+            ],
+        )
         score = _score_license(result)
         assert score.score == 85.0  # 100 - 15
 
@@ -274,7 +331,9 @@ class TestScoreLicense:
             PackageReport(
                 name=f"pkg{i}",
                 installed_version="1.0.0",
-                license_info=LicenseInfo(spdx_id="GPL-3.0", category="copyleft", is_compliant=False),
+                license_info=LicenseInfo(
+                    spdx_id="GPL-3.0", category="copyleft", is_compliant=False
+                ),
             )
             for i in range(5)
         ]
@@ -307,7 +366,12 @@ class TestScoreMaintenance:
 
     def test_inactive(self):
         signals = [
-            MaintainerSignal(name="dead-pkg", signal="inactive", days_since_release=500, note="No release in 500 days"),
+            MaintainerSignal(
+                name="dead-pkg",
+                signal="inactive",
+                days_since_release=500,
+                note="No release in 500 days",
+            ),
         ]
         score = _score_maintenance(signals)
         assert score.score == 20.0
@@ -315,7 +379,12 @@ class TestScoreMaintenance:
 
     def test_slow(self):
         signals = [
-            MaintainerSignal(name="slow-pkg", signal="slow", days_since_release=200, note="Last release 200 days ago"),
+            MaintainerSignal(
+                name="slow-pkg",
+                signal="slow",
+                days_since_release=200,
+                note="Last release 200 days ago",
+            ),
         ]
         score = _score_maintenance(signals)
         assert score.score == 60.0
@@ -379,24 +448,33 @@ class TestScoreOutdated:
     """Tests for _score_outdated."""
 
     def test_all_current(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="pkg1", installed_version="1.0.0", latest_version="1.0.0"),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(name="pkg1", installed_version="1.0.0", latest_version="1.0.0"),
+            ],
+        )
         score = _score_outdated(result)
         assert score.score == 100.0
 
     def test_major_behind(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="pkg1", installed_version="1.0.0", latest_version="2.0.0"),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(name="pkg1", installed_version="1.0.0", latest_version="2.0.0"),
+            ],
+        )
         score = _score_outdated(result)
         assert score.score == 80.0  # 100 - 20
         assert "major" in score.recommendations[0].lower()
 
     def test_minor_behind(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="pkg1", installed_version="1.0.0", latest_version="1.1.0"),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(name="pkg1", installed_version="1.0.0", latest_version="1.1.0"),
+            ],
+        )
         score = _score_outdated(result)
         assert score.score == 92.0  # 100 - 8
 
@@ -415,10 +493,17 @@ class TestAnalyzeFreshness:
     """Tests for analyze_freshness."""
 
     def test_current_package(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="current-pkg", installed_version="1.0.0", latest_version="1.0.0",
-                          status=HealthStatus.HEALTHY),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="current-pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.0",
+                    status=HealthStatus.HEALTHY,
+                ),
+            ],
+        )
         freshness = analyze_freshness(result)
         assert len(freshness) == 1
         assert freshness[0].name == "current-pkg"
@@ -427,16 +512,20 @@ class TestAnalyzeFreshness:
 
     def test_outdated_with_date(self):
         from datetime import datetime, timedelta, timezone
+
         recent = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(
-                name="old-pkg",
-                installed_version="1.0.0",
-                latest_version="2.0.0",
-                status=HealthStatus.OUTDATED,
-                last_release_date=recent,
-            ),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="old-pkg",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    status=HealthStatus.OUTDATED,
+                    last_release_date=recent,
+                ),
+            ],
+        )
         freshness = analyze_freshness(result)
         assert len(freshness) == 1
         assert freshness[0].days_behind is not None
@@ -454,25 +543,40 @@ class TestAnalyzeMaintainerSignals:
     """Tests for analyze_maintainer_signals."""
 
     def test_unmaintained_package(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="dead-pkg", installed_version="1.0.0", status=HealthStatus.UNMAINTAINED),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="dead-pkg", installed_version="1.0.0", status=HealthStatus.UNMAINTAINED
+                ),
+            ],
+        )
         signals = analyze_maintainer_signals(result)
         assert len(signals) == 1
         assert signals[0].signal == "inactive"
 
     def test_yanked_package(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="yanked-pkg", installed_version="1.0.0", status=HealthStatus.YANKED),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="yanked-pkg", installed_version="1.0.0", status=HealthStatus.YANKED
+                ),
+            ],
+        )
         signals = analyze_maintainer_signals(result)
         assert signals[0].signal == "inactive"
         assert "yanked" in signals[0].note.lower()
 
     def test_removed_package(self):
-        result = ScanResult(project_path=".", packages=[
-            PackageReport(name="gone-pkg", installed_version="1.0.0", status=HealthStatus.REMOVED),
-        ])
+        result = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="gone-pkg", installed_version="1.0.0", status=HealthStatus.REMOVED
+                ),
+            ],
+        )
         signals = analyze_maintainer_signals(result)
         assert signals[0].signal == "inactive"
         assert "removed" in signals[0].note.lower()
@@ -582,15 +686,27 @@ class TestRendering:
             overall_score=85.0,
             overall_grade=Grade.B,
             categories=[
-                CategoryScore(name="vulnerability", score=100.0, grade=Grade.A, weight=0.3,
-                              recommendations=["No issues"]),
-                CategoryScore(name="freshness", score=80.0, grade=Grade.B, weight=0.2,
-                              recommendations=["2 packages stale"]),
+                CategoryScore(
+                    name="vulnerability",
+                    score=100.0,
+                    grade=Grade.A,
+                    weight=0.3,
+                    recommendations=["No issues"],
+                ),
+                CategoryScore(
+                    name="freshness",
+                    score=80.0,
+                    grade=Grade.B,
+                    weight=0.2,
+                    recommendations=["2 packages stale"],
+                ),
             ],
         )
         # Should not raise
         from io import StringIO
+
         from rich.console import Console
+
         buf = StringIO()
         console = Console(file=buf, force_terminal=False, no_color=True)
         render_check_table(report, console=console)
@@ -605,7 +721,9 @@ class TestRendering:
             overall_grade=Grade.A,
         )
         from io import StringIO
+
         from rich.console import Console
+
         buf = StringIO()
         console = Console(file=buf, force_terminal=False, no_color=True)
         render_check_json(report, console=console)
@@ -625,10 +743,17 @@ class TestRunCheck:
     @patch("depcheck.check.scan_project")
     @patch("depcheck.check.run_audit")
     def test_run_check_basic(self, mock_audit, mock_scan):
-        mock_scan.return_value = ScanResult(project_path=".", packages=[
-            PackageReport(name="test-pkg", installed_version="1.0.0", latest_version="1.0.0",
-                          status=HealthStatus.HEALTHY),
-        ])
+        mock_scan.return_value = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="test-pkg",
+                    installed_version="1.0.0",
+                    latest_version="1.0.0",
+                    status=HealthStatus.HEALTHY,
+                ),
+            ],
+        )
         mock_result = MagicMock()
         mock_result.risk_level = MagicMock(value="none")
         mock_audit.return_value = mock_result
@@ -641,10 +766,18 @@ class TestRunCheck:
     @patch("depcheck.check.run_audit")
     def test_run_check_with_vulns(self, mock_audit, mock_scan):
         vuln = Vulnerability(vuln_id="CVE-1", summary="Bad", severity="high", url="https://x.com")
-        mock_scan.return_value = ScanResult(project_path=".", packages=[
-            PackageReport(name="vuln-pkg", installed_version="1.0.0", latest_version="2.0.0",
-                          status=HealthStatus.VULNERABLE, vulnerabilities=[vuln]),
-        ])
+        mock_scan.return_value = ScanResult(
+            project_path=".",
+            packages=[
+                PackageReport(
+                    name="vuln-pkg",
+                    installed_version="1.0.0",
+                    latest_version="2.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=[vuln],
+                ),
+            ],
+        )
         mock_result = MagicMock()
         mock_result.risk_level = MagicMock(value="high")
         mock_audit.return_value = mock_result

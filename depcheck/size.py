@@ -25,9 +25,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from depcheck.models import ParsedDependency
 from depcheck.scanner import discover_dependencies
-
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -156,9 +154,10 @@ class SizeReport:
                 "package_count": self.package_count,
                 "median_bytes": round(self.median_bytes, 1),
             },
-            "packages": [p.to_dict() for p in sorted(
-                self.packages, key=lambda p: p.total_bytes, reverse=True
-            )],
+            "packages": [
+                p.to_dict()
+                for p in sorted(self.packages, key=lambda p: p.total_bytes, reverse=True)
+            ],
             "errors": self.errors,
         }
 
@@ -204,9 +203,7 @@ def find_site_packages() -> Path | None:
     return None
 
 
-def resolve_package_dir(
-    package_name: str, site_packages: Path
-) -> Path | None:
+def resolve_package_dir(package_name: str, site_packages: Path) -> Path | None:
     """Resolve the on-disk directory for an installed package.
 
     Handles PEP 503 normalization: looks for both the original name
@@ -246,9 +243,7 @@ def resolve_package_dir(
     return None
 
 
-def resolve_package_version(
-    package_name: str, site_packages: Path
-) -> str:
+def resolve_package_version(package_name: str, site_packages: Path) -> str:
     """Resolve the installed version of a package from .dist-info metadata.
 
     Falls back to 'unknown' if metadata is unavailable.
@@ -260,10 +255,7 @@ def resolve_package_version(
         if not item.is_dir():
             continue
         item_name_lower = item.name.lower()
-        if (
-            item_name_lower.startswith(normalized)
-            and item_name_lower.endswith(".dist-info")
-        ):
+        if item_name_lower.startswith(normalized) and item_name_lower.endswith(".dist-info"):
             # Parse version from directory name: {name}-{version}.dist-info
             # Strip the .dist-info suffix first, then split on last hyphen
             base = item.name[: -len(".dist-info")]
@@ -276,10 +268,7 @@ def resolve_package_version(
         if not item.is_dir():
             continue
         item_name_lower = item.name.lower()
-        if (
-            item_name_lower.startswith(normalized)
-            and item_name_lower.endswith(".dist-info")
-        ):
+        if item_name_lower.startswith(normalized) and item_name_lower.endswith(".dist-info"):
             metadata_file = item / "METADATA"
             if metadata_file.is_file():
                 try:
@@ -470,7 +459,9 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
                 pkg.name, pkg.version, "[dim]N/A[/dim]", "-", "-", f"[dim]{pkg.error}[/dim]"
             )
         else:
-            size_style = "red" if pkg.total_mb >= 50 else "yellow" if pkg.total_mb >= 10 else "green"
+            size_style = (
+                "red" if pkg.total_mb >= 50 else "yellow" if pkg.total_mb >= 10 else "green"
+            )
             pkg_table.add_row(
                 pkg.name,
                 pkg.version,

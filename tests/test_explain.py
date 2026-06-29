@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from depcheck.explain import (
     ExplainReport,
@@ -22,7 +19,6 @@ from depcheck.explain import (
     render_explain_plain,
 )
 from depcheck.models import LicenseInfo, PackageReport, ScanResult, Vulnerability
-
 
 # ---------------------------------------------------------------------------
 # Package knowledge database tests
@@ -222,7 +218,10 @@ class TestExplainPackage:
         )
         explanation = explain_package(pkg)
         assert explanation.is_outdated is True
-        assert "Major version behind" in explanation.risk_summary or "outdated" in explanation.risk_summary.lower()
+        assert (
+            "Major version behind" in explanation.risk_summary
+            or "outdated" in explanation.risk_summary.lower()
+        )
 
     def test_unmaintained_package(self):
         pkg = PackageReport(
@@ -234,7 +233,9 @@ class TestExplainPackage:
         assert explanation.is_unmaintained is True
         assert "unmaintained" in explanation.risk_summary.lower()
         # Should suggest alternatives
-        assert any("alternative" in a.lower() or "audit" in a.lower() for a in explanation.action_items)
+        assert any(
+            "alternative" in a.lower() or "audit" in a.lower() for a in explanation.action_items
+        )
 
     def test_yanked_package(self):
         pkg = PackageReport(
@@ -256,7 +257,9 @@ class TestExplainPackage:
         )
         explanation = explain_package(pkg)
         assert "removed" in explanation.risk_summary.lower()
-        assert any("removed" in a.lower() or "alternative" in a.lower() for a in explanation.action_items)
+        assert any(
+            "removed" in a.lower() or "alternative" in a.lower() for a in explanation.action_items
+        )
 
     def test_license_issue_package(self):
         pkg = PackageReport(
@@ -296,12 +299,23 @@ class TestExplainProject:
 
     @patch("depcheck.explain.scan_project")
     def test_basic_project(self, mock_scan):
-        mock_scan.return_value = ScanResult(project_path="/tmp/test", packages=[
-            PackageReport(name="requests", installed_version="2.28.0",
-                          latest_version="2.31.0", status=HealthStatus.OUTDATED),
-            PackageReport(name="click", installed_version="8.0.0",
-                          latest_version="8.0.0", status=HealthStatus.HEALTHY),
-        ])
+        mock_scan.return_value = ScanResult(
+            project_path="/tmp/test",
+            packages=[
+                PackageReport(
+                    name="requests",
+                    installed_version="2.28.0",
+                    latest_version="2.31.0",
+                    status=HealthStatus.OUTDATED,
+                ),
+                PackageReport(
+                    name="click",
+                    installed_version="8.0.0",
+                    latest_version="8.0.0",
+                    status=HealthStatus.HEALTHY,
+                ),
+            ],
+        )
         report = explain_project("/tmp/test")
         assert report.total_packages == 2
         assert report.at_risk_count == 1  # requests is outdated
@@ -315,11 +329,20 @@ class TestExplainProject:
 
     @patch("depcheck.explain.scan_project")
     def test_with_vulnerabilities(self, mock_scan):
-        vuln = Vulnerability(vuln_id="CVE-1", summary="RCE", severity="critical", url="https://x.com")
-        mock_scan.return_value = ScanResult(project_path="/tmp/test", packages=[
-            PackageReport(name="vuln-pkg", installed_version="1.0.0",
-                          status=HealthStatus.VULNERABLE, vulnerabilities=[vuln]),
-        ])
+        vuln = Vulnerability(
+            vuln_id="CVE-1", summary="RCE", severity="critical", url="https://x.com"
+        )
+        mock_scan.return_value = ScanResult(
+            project_path="/tmp/test",
+            packages=[
+                PackageReport(
+                    name="vuln-pkg",
+                    installed_version="1.0.0",
+                    status=HealthStatus.VULNERABLE,
+                    vulnerabilities=[vuln],
+                ),
+            ],
+        )
         report = explain_project("/tmp/test")
         assert report.at_risk_count == 1
 
@@ -334,6 +357,7 @@ class TestRenderExplainPlain:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -367,6 +391,7 @@ class TestRenderExplainPlain:
 
     def test_render_healthy(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -398,12 +423,15 @@ class TestRenderExplainJson:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
             project_path="/tmp/test",
             packages=[
-                PackageExplanation(name="requests", installed_version="2.28.0", category="http-client"),
+                PackageExplanation(
+                    name="requests", installed_version="2.28.0", category="http-client"
+                ),
             ],
             total_packages=1,
         )
@@ -421,6 +449,7 @@ class TestRenderExplainMarkdown:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -456,6 +485,7 @@ class TestRenderExplainMarkdown:
 
     def test_render_with_action_items(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -487,6 +517,7 @@ class TestRenderExplainAi:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -516,6 +547,7 @@ class TestRenderExplainAi:
 
     def test_compact_format(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(

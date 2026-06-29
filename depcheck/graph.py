@@ -21,10 +21,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.tree import Tree
 
-from depcheck.models import HealthStatus, ParsedDependency
+from depcheck.models import HealthStatus
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
-
 
 # ─── Package Name Regex ────────────────────────────────────────────────────
 
@@ -181,9 +180,7 @@ class DependencyGraph:
 # ─── Graph Building ────────────────────────────────────────────────────────
 
 
-def _resolve_sub_dependencies(
-    pkg_name: str, pypi_client: PyPIClient
-) -> list[tuple[str, str]]:
+def _resolve_sub_dependencies(pkg_name: str, pypi_client: PyPIClient) -> list[tuple[str, str]]:
     """Resolve the sub-dependencies of a package via PyPI.
 
     Returns:
@@ -206,12 +203,12 @@ def _resolve_sub_dependencies(
             dep_name = match.group(1).lower().replace("_", "-")
             dep_name = re.sub(r"[-_.]+", "-", dep_name)
             # Extract version specifier
-            specifier = req_str.strip()[len(match.group(1)):]
+            specifier = req_str.strip()[len(match.group(1)) :]
             # Clean up extras notation
             if specifier.startswith("["):
                 bracket_end = specifier.find("]")
                 if bracket_end != -1:
-                    specifier = specifier[bracket_end + 1:].strip()
+                    specifier = specifier[bracket_end + 1 :].strip()
             deps.append((dep_name, specifier.strip()))
 
     return deps
@@ -396,9 +393,7 @@ def _detect_diamonds(graph: DependencyGraph) -> list[DiamondDependency]:
     return diamonds
 
 
-def _find_all_paths_to(
-    graph: DependencyGraph, target: str, max_paths: int = 5
-) -> list[list[str]]:
+def _find_all_paths_to(graph: DependencyGraph, target: str, max_paths: int = 5) -> list[list[str]]:
     """Find all paths from direct dependencies to a target node.
 
     Uses BFS to find paths, limited to max_paths.
@@ -531,9 +526,7 @@ def find_shortest_path(graph: DependencyGraph, source: str, target: str) -> list
     return None
 
 
-def extract_subgraph(
-    graph: DependencyGraph, root: str, max_depth: int = 3
-) -> DependencyGraph:
+def extract_subgraph(graph: DependencyGraph, root: str, max_depth: int = 3) -> DependencyGraph:
     """Extract a subgraph rooted at a specific node.
 
     Args:
@@ -609,7 +602,7 @@ def render_graph_ascii(graph: DependencyGraph, console: Console | None = None) -
         console.print(tree)
 
     # Print analysis summary
-    console.print(f"\n[bold]Graph Analysis:[/bold]")
+    console.print("\n[bold]Graph Analysis:[/bold]")
     console.print(f"  Nodes: {graph.total_nodes}")
     console.print(f"  Edges: {graph.total_edges}")
     console.print(f"  Max depth: {graph.max_depth}")
@@ -681,9 +674,9 @@ def render_graph_dot(graph: DependencyGraph, console: Console | None = None) -> 
 
     lines = [
         'digraph "dependency_graph" {',
-        '  rankdir=LR;',
+        "  rankdir=LR;",
         '  node [shape=box, style=rounded, fontname="sans-serif"];',
-        '',
+        "",
     ]
 
     # Node definitions
@@ -706,12 +699,16 @@ def render_graph_dot(graph: DependencyGraph, console: Console | None = None) -> 
             HealthStatus.REMOVED: "red",
         }
         color = color_map.get(node.health_status, "gray")
-        attrs.append(f'color={color}')
-        if node.health_status in (HealthStatus.VULNERABLE, HealthStatus.YANKED, HealthStatus.REMOVED):
+        attrs.append(f"color={color}")
+        if node.health_status in (
+            HealthStatus.VULNERABLE,
+            HealthStatus.YANKED,
+            HealthStatus.REMOVED,
+        ):
             attrs.append("penwidth=2")
 
         safe_name = name.replace("-", "_").replace(".", "_")
-        lines.append(f'  {safe_name} [{", ".join(attrs)}];')
+        lines.append(f"  {safe_name} [{', '.join(attrs)}];")
 
     lines.append("")
 
@@ -723,7 +720,7 @@ def render_graph_dot(graph: DependencyGraph, console: Console | None = None) -> 
         if edge.label:
             label = edge.label.replace('"', '\\"')
             attrs.append(f'label="{label}"')
-        lines.append(f'  {safe_source} -> {safe_target} [{", ".join(attrs)}];')
+        lines.append(f"  {safe_source} -> {safe_target} [{', '.join(attrs)}];")
 
     lines.append("}")
     console.print("\n".join(lines))

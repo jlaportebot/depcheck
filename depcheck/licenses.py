@@ -337,13 +337,14 @@ def check_license_compliance(
         license_info.compliance_note = f"License {license_info.spdx_id} is explicitly denied"
         return license_info
 
-    if allowed_categories is not None and license_info.category not in allowed_categories:
-        license_info.is_compliant = False
-        license_info.compliance_note = (
-            f"License category '{license_info.category.value}' not in allowed: "
-            f"{', '.join(c.value for c in allowed_categories)}"
-        )
-        return license_info
+    if allowed_categories is not None:
+        if license_info.category not in allowed_categories:
+            license_info.is_compliant = False
+            license_info.compliance_note = (
+                f"License category '{license_info.category.value}' not in allowed: "
+                f"{', '.join(c.value for c in allowed_categories)}"
+            )
+            return license_info
 
     license_info.is_compliant = True
     license_info.compliance_note = ""
@@ -478,26 +479,30 @@ class LicensePolicy:
             )
 
         # 3. Check allowed categories
-        if self.allowed_categories is not None and category not in self.allowed_categories:
-            # Special case: unknown/uncategorized
-            if category == LicenseCategory.UNKNOWN:
-                if not self.default_allow:
+        if self.allowed_categories is not None:
+            if category not in self.allowed_categories:
+                # Special case: unknown/uncategorized
+                if category == LicenseCategory.UNKNOWN:
+                    if not self.default_allow:
+                        return _PolicyCheckResult(
+                            is_compliant=False,
+                            reason=(
+                                f"License {spdx_id} is uncategorized and strict mode is enabled"
+                            ),
+                        )
+                    # default_allow=True: let uncategorized through
+                    # when allowed_categories is set but they have no
+                    # UNKNOWN in the set — this is a design choice to
+                    # avoid false positives on novel licenses
+                else:
+                    allowed = ", ".join(c.value for c in self.allowed_categories)
                     return _PolicyCheckResult(
                         is_compliant=False,
-                        reason=(f"License {spdx_id} is uncategorized and strict mode is enabled"),
+                        reason=(
+                            f"License {spdx_id} ({category.value}) not in "
+                            f"allowed categories: {allowed}"
+                        ),
                     )
-                # default_allow=True: let uncategorized through
-                # when allowed_categories is set but they have no
-                # UNKNOWN in the set — this is a design choice to
-                # avoid false positives on novel licenses
-            else:
-                allowed = ", ".join(c.value for c in self.allowed_categories)
-                return _PolicyCheckResult(
-                    is_compliant=False,
-                    reason=(
-                        f"License {spdx_id} ({category.value}) not in allowed categories: {allowed}"
-                    ),
-                )
 
         # 4. Empty/missing license ID
         if not spdx_id or spdx_id.upper() in ("UNKNOWN", "NOASSERTION", ""):

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import enum
 import json
-import os
 import re
 import subprocess
 import sys
@@ -28,9 +27,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from depcheck.models import ParsedDependency
 from depcheck.scanner import discover_dependencies, normalize_package_name
-
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -144,9 +141,7 @@ class DoctorReport:
 # ---------------------------------------------------------------------------
 
 
-def _check_python_version(
-    project_path: Path, findings: list[Finding]
-) -> None:
+def _check_python_version(project_path: Path, findings: list[Finding]) -> None:
     """Check Python version compatibility with declared requires-python."""
     pyproject = project_path / "pyproject.toml"
     if not pyproject.is_file():
@@ -244,9 +239,7 @@ def _check_venv(findings: list[Finding]) -> tuple[bool, str | None, str]:
     return in_venv, venv_path, pip_version
 
 
-def _check_unpinned_deps(
-    project_path: Path, findings: list[Finding]
-) -> None:
+def _check_unpinned_deps(project_path: Path, findings: list[Finding]) -> None:
     """Check for unpinned or loosely specified dependencies."""
     dependencies, _ = discover_dependencies(project_path)
 
@@ -291,15 +284,13 @@ def _check_unpinned_deps(
         )
 
 
-def _check_dep_files(
-    project_path: Path, findings: list[Finding]
-) -> None:
+def _check_dep_files(project_path: Path, findings: list[Finding]) -> None:
     """Check for missing or problematic dependency files."""
     has_req = (project_path / "requirements.txt").is_file()
     has_pyproject = (project_path / "pyproject.toml").is_file()
     has_pipfile = (project_path / "Pipfile").is_file()
     has_setup = (project_path / "setup.py").is_file()
-    has_setup_cfg = (project_path / "setup.cfg").is_file()
+    _has_setup_cfg = (project_path / "setup.cfg").is_file()
 
     if not has_req and not has_pyproject and not has_pipfile and not has_setup:
         findings.append(
@@ -309,8 +300,7 @@ def _check_dep_files(
                 title="No dependency files found",
                 description="No requirements.txt, pyproject.toml, Pipfile, "
                 "setup.py, or setup.cfg found. Dependencies cannot be tracked.",
-                fix="Create a requirements.txt or pyproject.toml with your "
-                "project dependencies.",
+                fix="Create a requirements.txt or pyproject.toml with your project dependencies.",
             )
         )
 
@@ -324,9 +314,7 @@ def _check_dep_files(
                 stripped = line.strip()
                 if not stripped or stripped.startswith("#") or stripped.startswith("-"):
                     continue
-                match = re.match(
-                    r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)", stripped
-                )
+                match = re.match(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)", stripped)
                 if match and "==" not in stripped:
                     pkg_name = match.group(1)
                     findings.append(
@@ -377,7 +365,7 @@ def _check_dep_files(
     # Check for pyproject.toml without lockfile
     if has_pyproject:
         has_poetry_lock = (project_path / "poetry.lock").is_file()
-        has_req_lock = any(
+        _ = any(
             p.name.startswith("requirements") and "lock" in p.name.lower()
             for p in project_path.iterdir()
             if p.is_file()
@@ -403,34 +391,102 @@ def _check_dep_files(
             )
 
 
-def _check_import_consistency(
-    project_path: Path, findings: list[Finding]
-) -> None:
+def _check_import_consistency(project_path: Path, findings: list[Finding]) -> None:
     """Check for packages that are imported but not declared, or declared but unused."""
     dependencies, _ = discover_dependencies(project_path)
     declared_names = {normalize_package_name(dep.name) for dep in dependencies}
 
     # Common stdlib modules that shouldn't be in requirements
-    STDLIB_MODULES = {
-        "os", "sys", "re", "json", "math", "datetime", "pathlib",
-        "collections", "itertools", "functools", "typing", "dataclasses",
-        "enum", "abc", "io", "hashlib", "subprocess", "shutil",
-        "tempfile", "logging", "unittest", "argparse", "configparser",
-        "csv", "xml", "html", "email", "urllib", "http", "ftplib",
-        "smtplib", "socket", "ssl", "select", "signal", "mmap",
-        "struct", "codecs", "unicodedata", "locale", "gettext",
-        "threading", "multiprocessing", "queue", "asyncio", "contextlib",
-        "importlib", "pkgutil", "inspect", "ast", "dis", "gc",
-        "copy", "pickle", "shelve", "sqlite3", "zlib", "gzip",
-        "bz2", "lzma", "zipfile", "tarfile", "base64", "binascii",
-        "operator", "numbers", "decimal", "fractions", "random",
-        "statistics", "time", "calendar", "heapq", "bisect",
-        "array", "weakref", "types", "pprint", "textwrap",
-        "string", "difflib", "fnmatch", "glob", "stat", "fileinput",
+    stdlib_modules = {
+        "os",
+        "sys",
+        "re",
+        "json",
+        "math",
+        "datetime",
+        "pathlib",
+        "collections",
+        "itertools",
+        "functools",
+        "typing",
+        "dataclasses",
+        "enum",
+        "abc",
+        "io",
+        "hashlib",
+        "subprocess",
+        "shutil",
+        "tempfile",
+        "logging",
+        "unittest",
+        "argparse",
+        "configparser",
+        "csv",
+        "xml",
+        "html",
+        "email",
+        "urllib",
+        "http",
+        "ftplib",
+        "smtplib",
+        "socket",
+        "ssl",
+        "select",
+        "signal",
+        "mmap",
+        "struct",
+        "codecs",
+        "unicodedata",
+        "locale",
+        "gettext",
+        "threading",
+        "multiprocessing",
+        "queue",
+        "asyncio",
+        "contextlib",
+        "importlib",
+        "pkgutil",
+        "inspect",
+        "ast",
+        "dis",
+        "gc",
+        "copy",
+        "pickle",
+        "shelve",
+        "sqlite3",
+        "zlib",
+        "gzip",
+        "bz2",
+        "lzma",
+        "zipfile",
+        "tarfile",
+        "base64",
+        "binascii",
+        "operator",
+        "numbers",
+        "decimal",
+        "fractions",
+        "random",
+        "statistics",
+        "time",
+        "calendar",
+        "heapq",
+        "bisect",
+        "array",
+        "weakref",
+        "types",
+        "pprint",
+        "textwrap",
+        "string",
+        "difflib",
+        "fnmatch",
+        "glob",
+        "stat",
+        "fileinput",
     }
 
     # Map import names to package names for common packages
-    IMPORT_TO_PACKAGE: dict[str, str] = {
+    import_to_package: dict[str, str] = {
         "cv2": "opencv-python",
         "PIL": "pillow",
         "sklearn": "scikit-learn",
@@ -448,7 +504,6 @@ def _check_import_consistency(
         "magic": "python-magic",
         "gi": "pygobject",
         "attr": "attrs",
-        "sklearn": "scikit-learn",
         "Bio": "biopython",
         "tifffile": "tifffile",
     }
@@ -486,16 +541,16 @@ def _check_import_consistency(
             import_name = (match.group(1) or match.group(2)).split(".")[0]
 
             # Skip stdlib
-            if import_name in STDLIB_MODULES:
+            if import_name in stdlib_modules:
                 continue
 
             # Resolve to package name
-            pkg_name = IMPORT_TO_PACKAGE.get(import_name, import_name)
+            pkg_name = import_to_package.get(import_name, import_name)
             normalized = normalize_package_name(pkg_name)
             imported_packages.add(normalized)
 
     # Find packages imported but not declared
-    undeclared = imported_packages - declared_names - STDLIB_MODULES
+    undeclared = imported_packages - declared_names - stdlib_modules
     # Filter out known project-local modules
     project_modules = {
         normalize_package_name(p.stem)
@@ -526,10 +581,26 @@ def _check_import_consistency(
         unused = declared_names - imported_packages - project_modules
         # Filter out packages that are typically not directly imported
         meta_packages = {
-            "pytest", "ruff", "black", "mypy", "flake8", "pylint",
-            "isort", "autopep8", "coverage", "pytest-cov", "pip",
-            "setuptools", "wheel", "build", "twine", "hatchling",
-            "hatch", "tox", "nox", "pre-commit",
+            "pytest",
+            "ruff",
+            "black",
+            "mypy",
+            "flake8",
+            "pylint",
+            "isort",
+            "autopep8",
+            "coverage",
+            "pytest-cov",
+            "pip",
+            "setuptools",
+            "wheel",
+            "build",
+            "twine",
+            "hatchling",
+            "hatch",
+            "tox",
+            "nox",
+            "pre-commit",
         }
         unused -= meta_packages
 
@@ -547,9 +618,7 @@ def _check_import_consistency(
             )
 
 
-def _check_formatting(
-    project_path: Path, findings: list[Finding]
-) -> None:
+def _check_formatting(project_path: Path, findings: list[Finding]) -> None:
     """Check dependency file formatting issues."""
     req_file = project_path / "requirements.txt"
     if req_file.is_file():
@@ -630,9 +699,7 @@ def _check_formatting(
                     continue
                 match = re.match(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)\s*=", stripped)
                 if not match:
-                    match = re.match(
-                        r'^([a-zA-Z0-9][a-zA-Z0-9._-]*)\s*=\s*["\']', stripped
-                    )
+                    match = re.match(r'^([a-zA-Z0-9][a-zA-Z0-9._-]*)\s*=\s*["\']', stripped)
                 if match:
                     name = normalize_package_name(match.group(1))
                     if name in dep_lines:
@@ -653,9 +720,7 @@ def _check_formatting(
                         dep_lines[name] = i
 
 
-def _check_conflicts(
-    project_path: Path, findings: list[Finding]
-) -> None:
+def _check_conflicts(project_path: Path, findings: list[Finding]) -> None:
     """Check for conflicting version requirements across dependency files."""
     dependencies, files_scanned = discover_dependencies(project_path)
 
@@ -683,8 +748,7 @@ def _check_conflicts(
                     description=f"'{name}' has conflicting specifiers: {spec_str}. "
                     f"This may cause installation issues.",
                     package=name,
-                    fix=f"Unify the version specifier for '{name}' across "
-                    f"all dependency files.",
+                    fix=f"Unify the version specifier for '{name}' across all dependency files.",
                 )
             )
 
@@ -765,9 +829,7 @@ def _severity_icon(severity: Severity) -> str:
     return icons.get(severity, "[dim]? UNKNOWN[/dim]")
 
 
-def render_doctor_table(
-    report: DoctorReport, console: Console | None = None
-) -> None:
+def render_doctor_table(report: DoctorReport, console: Console | None = None) -> None:
     """Render doctor report as a Rich table."""
     if console is None:
         console = Console()
@@ -784,9 +846,7 @@ def render_doctor_table(
     env_table.add_row("Python", report.python_version)
     env_table.add_row("pip", report.pip_version)
     venv_status = (
-        f"[green]Yes[/green] ({report.venv_path})"
-        if report.venv_active
-        else "[red]No[/red]"
+        f"[green]Yes[/green] ({report.venv_path})" if report.venv_active else "[red]No[/red]"
     )
     env_table.add_row("Virtual Environment", venv_status)
     env_table.add_row("Checks Run", str(report.checks_run))
@@ -825,9 +885,7 @@ def render_doctor_table(
         Severity.WARNING: 1,
         Severity.INFO: 2,
     }
-    sorted_findings = sorted(
-        report.findings, key=lambda f: severity_order.get(f.severity, 3)
-    )
+    sorted_findings = sorted(report.findings, key=lambda f: severity_order.get(f.severity, 3))
 
     for finding in sorted_findings:
         fix = finding.fix or ""
@@ -843,9 +901,7 @@ def render_doctor_table(
     console.print()
 
 
-def render_doctor_json(
-    report: DoctorReport, console: Console | None = None
-) -> None:
+def render_doctor_json(report: DoctorReport, console: Console | None = None) -> None:
     """Render doctor report as JSON."""
     data = report.to_dict()
     output = json.dumps(data, indent=2)

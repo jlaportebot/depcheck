@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from depcheck.models import ParsedDependency
 from depcheck.size import (
     PackageSize,
     SizeReport,
+    _human_size,
     analyze_sizes,
     find_site_packages,
     measure_package_size,
@@ -21,9 +19,7 @@ from depcheck.size import (
     render_size_table,
     resolve_package_dir,
     resolve_package_version,
-    _human_size,
 )
-
 
 # ---------------------------------------------------------------------------
 # PackageSize unit tests
@@ -59,8 +55,12 @@ class TestPackageSize:
 
     def test_to_dict(self) -> None:
         pkg = PackageSize(
-            name="foo", version="1.0", total_bytes=1024,
-            file_count=5, dir_count=2, top_files=[("bar.py", 500)],
+            name="foo",
+            version="1.0",
+            total_bytes=1024,
+            file_count=5,
+            dir_count=2,
+            top_files=[("bar.py", 500)],
             install_path="/lib/foo",
         )
         d = pkg.to_dict()
@@ -351,9 +351,11 @@ class TestAnalyzeSizes:
         dist_info = site / "mypkg-1.0.dist-info"
         dist_info.mkdir()
 
-        with patch("depcheck.size.find_site_packages", return_value=site), \
-             patch("depcheck.size.resolve_package_dir", return_value=pkg_dir), \
-             patch("depcheck.size.resolve_package_version", return_value="1.0"):
+        with (
+            patch("depcheck.size.find_site_packages", return_value=site),
+            patch("depcheck.size.resolve_package_dir", return_value=pkg_dir),
+            patch("depcheck.size.resolve_package_version", return_value="1.0"),
+        ):
             report = analyze_sizes(str(tmp_path))
             assert report.package_count == 1
             pkg = report.packages[0]
@@ -388,6 +390,7 @@ class TestRenderSizeTable:
 
     def test_renders_without_error(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         report = SizeReport(
@@ -402,6 +405,7 @@ class TestRenderSizeTable:
 
     def test_renders_empty_report(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         report = SizeReport(project_path="/tmp/test")
@@ -414,6 +418,7 @@ class TestRenderSizeJson:
 
     def test_produces_valid_json(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         report = SizeReport(

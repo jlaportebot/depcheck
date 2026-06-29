@@ -8,7 +8,6 @@ remediation guidance.
 
 from __future__ import annotations
 
-import datetime
 import enum
 import json
 from dataclasses import dataclass, field
@@ -17,14 +16,11 @@ from typing import Any
 
 import httpx
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
-from depcheck.models import PackageReport, ScanResult, Vulnerability
 from depcheck.osv import OSVClient
-from depcheck.pypi import PyPIClient
-from depcheck.scanner import discover_dependencies, scan_project
-
+from depcheck.scanner import scan_project
 
 # ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -118,6 +114,7 @@ class AdvisoryEntry:
         # Return the earliest fix version
         try:
             from packaging.version import Version
+
             return str(min(Version(v) for v in fix_versions))
         except Exception:
             return fix_versions[0]
@@ -267,9 +264,7 @@ def _fetch_osv_advisories(
     return entries
 
 
-def _fetch_github_advisories(
-    package_name: str, ecosystem: str = "PIP"
-) -> list[AdvisoryEntry]:
+def _fetch_github_advisories(package_name: str, ecosystem: str = "PIP") -> list[AdvisoryEntry]:
     """Fetch advisories from GitHub Advisory Database.
 
     Uses the GitHub REST API to search for advisories affecting a package.
@@ -309,9 +304,7 @@ def _fetch_github_advisories(
                 for rng in vuln.get("vulnerable_range", "").split(","):
                     rng = rng.strip()
                     if rng:
-                        affected_ranges.append(
-                            AffectedRange(introduced=rng)
-                        )
+                        affected_ranges.append(AffectedRange(introduced=rng))
                 # Check for patched versions
                 patched = vuln.get("patched_versions", "")
                 if patched and affected_ranges:
@@ -359,7 +352,7 @@ def _fetch_pypa_advisory(package_name: str) -> list[AdvisoryEntry]:
         # We use the OSV API instead since PyPA feeds into OSV
         client = httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True)
         # Use OSV's batch query for PyPA-sourced advisories
-        url = f"https://api.osv.dev/v1/query"
+        url = "https://api.osv.dev/v1/query"
         payload = {
             "package": {
                 "name": package_name,
@@ -390,7 +383,8 @@ def _fetch_pypa_advisory(package_name: str) -> list[AdvisoryEntry]:
                 if "CVSS" in score_str:
                     parts = score_str.split("/")
                     impact_values = [
-                        p.split(":")[1] for p in parts
+                        p.split(":")[1]
+                        for p in parts
                         if any(p.startswith(x) for x in ("C:", "I:", "A:"))
                     ]
                     if all(v == "N" for v in impact_values):
@@ -413,9 +407,7 @@ def _fetch_pypa_advisory(package_name: str) -> list[AdvisoryEntry]:
                         if "fixed" in event:
                             fixed = event["fixed"]
                     if introduced:
-                        affected_ranges.append(
-                            AffectedRange(introduced=introduced, fixed=fixed)
-                        )
+                        affected_ranges.append(AffectedRange(introduced=introduced, fixed=fixed))
 
             aliases = vuln_data.get("aliases", [])
             url_link = f"https://osv.dev/vulnerability/{vuln_id}"

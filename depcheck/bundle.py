@@ -25,7 +25,6 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -105,7 +104,7 @@ def _run_check(project_path: str) -> CommandResult:
     """Run the 'check' command and return its result."""
     start = time.monotonic()
     try:
-        from depcheck.check import Grade, run_check
+        from depcheck.check import run_check
 
         report = run_check(project_path, check_vulnerabilities=True, check_licenses=False)
         duration = time.monotonic() - start
@@ -145,9 +144,7 @@ def _run_audit(project_path: str) -> CommandResult:
 
         vuln_count = sum(r.vulnerability_count for r in report.all_risks)
         high_count = sum(
-            1
-            for r in report.all_risks
-            if r.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL)
+            1 for r in report.all_risks if r.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL)
         )
 
         return CommandResult(
@@ -177,9 +174,7 @@ def _run_outdated(project_path: str) -> CommandResult:
         from depcheck.outdated import build_outdated_report
         from depcheck.scanner import scan_project
 
-        scan_result = scan_project(
-            project_path, check_vulnerabilities=False, check_licenses=False
-        )
+        scan_result = scan_project(project_path, check_vulnerabilities=False, check_licenses=False)
         outdated_report = build_outdated_report(scan_result)
         duration = time.monotonic() - start
 
@@ -210,31 +205,18 @@ def _run_license(project_path: str) -> CommandResult:
     """Run the 'license' command and return its result."""
     start = time.monotonic()
     try:
-        from depcheck.licenses import (
-            ComplianceReport,
-            LicenseCategory,
-            LicenseInfo,
-            LicensePolicy,
-            PackageComplianceEntry,
-        )
         from depcheck.scanner import scan_project
 
-        scan_result = scan_project(
-            project_path, check_vulnerabilities=False, check_licenses=True
-        )
+        scan_result = scan_project(project_path, check_vulnerabilities=False, check_licenses=True)
         duration = time.monotonic() - start
 
         compliant = sum(
-            1 for p in scan_result.packages
-            if p.license_info and p.license_info.is_compliant
+            1 for p in scan_result.packages if p.license_info and p.license_info.is_compliant
         )
         non_compliant = sum(
-            1 for p in scan_result.packages
-            if p.license_info and not p.license_info.is_compliant
+            1 for p in scan_result.packages if p.license_info and not p.license_info.is_compliant
         )
-        no_license = sum(
-            1 for p in scan_result.packages if p.license_info is None
-        )
+        no_license = sum(1 for p in scan_result.packages if p.license_info is None)
 
         return CommandResult(
             command="license",
@@ -406,9 +388,7 @@ def run_bundle(
 # ---------------------------------------------------------------------------
 
 
-def render_bundle_table(
-    report: BundleReport, console: Console | None = None
-) -> None:
+def render_bundle_table(report: BundleReport, console: Console | None = None) -> None:
     """Render bundle report as a Rich table."""
     if console is None:
         console = Console()
@@ -444,9 +424,7 @@ def render_bundle_table(
     console.print()
 
 
-def render_bundle_json(
-    report: BundleReport, console: Console | None = None
-) -> None:
+def render_bundle_json(report: BundleReport, console: Console | None = None) -> None:
     """Render bundle report as JSON."""
     data = report.to_dict()
     output = json.dumps(data, indent=2)

@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import json
-import sys
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -75,9 +72,7 @@ class TestBudgetConfig:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pyproject = Path(tmpdir) / "pyproject.toml"
-            pyproject.write_text(
-                '[tool.depcheck.budget]\ntotal = 50\ndirect = 10\n'
-            )
+            pyproject.write_text("[tool.depcheck.budget]\ntotal = 50\ndirect = 10\n")
             result = BudgetConfig.from_pyproject(Path(tmpdir))
             assert result is not None
             assert result.total == 50
@@ -208,7 +203,7 @@ class TestCheckBudget:
     """Tests for the check_budget function."""
 
     def test_nonexistent_path(self):
-        from depcheck.budget import BudgetConfig, check_budget
+        from depcheck.budget import check_budget
 
         report = check_budget(project_path="/nonexistent/path")
         assert report.errors
@@ -218,9 +213,7 @@ class TestCheckBudget:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pyproject = Path(tmpdir) / "pyproject.toml"
-            pyproject.write_text(
-                '[project]\nname = "test"\ndependencies = []\n'
-            )
+            pyproject.write_text('[project]\nname = "test"\ndependencies = []\n')
             config = BudgetConfig(total=100)
             report = check_budget(project_path=tmpdir, config=config)
             assert report.project_path == str(Path(tmpdir).resolve())
@@ -304,8 +297,12 @@ class TestRiskEntry:
     def test_severity_rank(self):
         from depcheck.risks import RiskEntry, RiskSeverity
 
-        critical = RiskEntry(package="x", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL)
-        minimal = RiskEntry(package="y", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL)
+        critical = RiskEntry(
+            package="x", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL
+        )
+        minimal = RiskEntry(
+            package="y", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL
+        )
         assert critical.severity_rank > minimal.severity_rank
 
     def test_to_dict(self):
@@ -334,27 +331,49 @@ class TestRiskReport:
         assert report.priority_remediations == []
 
     def test_at_risk_packages(self):
-        from depcheck.risks import RiskEntry, RiskReport, RiskSeverity, RemediationAction
+        from depcheck.risks import RemediationAction, RiskEntry, RiskReport, RiskSeverity
 
         entries = [
-            RiskEntry(package="safe", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL),
-            RiskEntry(package="risky", version="1.0", composite_score=0.7, severity=RiskSeverity.HIGH,
-                       remediation=RemediationAction.UPDATE),
+            RiskEntry(
+                package="safe", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL
+            ),
+            RiskEntry(
+                package="risky",
+                version="1.0",
+                composite_score=0.7,
+                severity=RiskSeverity.HIGH,
+                remediation=RemediationAction.UPDATE,
+            ),
         ]
         report = RiskReport(project_path="/test", entries=entries)
         assert len(report.at_risk_packages) == 1
         assert report.at_risk_packages[0].package == "risky"
 
     def test_priority_remediations(self):
-        from depcheck.risks import RiskEntry, RiskReport, RiskSeverity, RemediationAction
+        from depcheck.risks import RemediationAction, RiskEntry, RiskReport, RiskSeverity
 
         entries = [
-            RiskEntry(package="ok", version="1.0", composite_score=0.1, severity=RiskSeverity.MINIMAL,
-                       remediation=RemediationAction.NONE),
-            RiskEntry(package="needs-update", version="1.0", composite_score=0.7, severity=RiskSeverity.HIGH,
-                       remediation=RemediationAction.UPDATE),
-            RiskEntry(package="needs-replace", version="1.0", composite_score=0.9, severity=RiskSeverity.CRITICAL,
-                       remediation=RemediationAction.REPLACE),
+            RiskEntry(
+                package="ok",
+                version="1.0",
+                composite_score=0.1,
+                severity=RiskSeverity.MINIMAL,
+                remediation=RemediationAction.NONE,
+            ),
+            RiskEntry(
+                package="needs-update",
+                version="1.0",
+                composite_score=0.7,
+                severity=RiskSeverity.HIGH,
+                remediation=RemediationAction.UPDATE,
+            ),
+            RiskEntry(
+                package="needs-replace",
+                version="1.0",
+                composite_score=0.9,
+                severity=RiskSeverity.CRITICAL,
+                remediation=RemediationAction.REPLACE,
+            ),
         ]
         report = RiskReport(project_path="/test", entries=entries)
         prios = report.priority_remediations
@@ -409,7 +428,7 @@ class TestScoreVulnerability:
 
     def test_no_vulnerabilities(self):
         from depcheck.models import PackageReport
-        from depcheck.risks import _score_vulnerability, RiskDimension
+        from depcheck.risks import RiskDimension, _score_vulnerability
 
         pkg = PackageReport(name="safe-pkg", installed_version="1.0.0")
         ds = _score_vulnerability(pkg)
@@ -418,13 +437,18 @@ class TestScoreVulnerability:
 
     def test_with_critical_vuln(self):
         from depcheck.models import PackageReport, Vulnerability
-        from depcheck.risks import _score_vulnerability, RiskDimension
+        from depcheck.risks import RiskDimension, _score_vulnerability
 
         pkg = PackageReport(
             name="vuln-pkg",
             installed_version="1.0.0",
             vulnerabilities=[
-                Vulnerability(vuln_id="CVE-2023-001", summary="RCE", severity="CRITICAL", url="https://example.com"),
+                Vulnerability(
+                    vuln_id="CVE-2023-001",
+                    summary="RCE",
+                    severity="CRITICAL",
+                    url="https://example.com",
+                ),
             ],
         )
         ds = _score_vulnerability(pkg)
@@ -564,8 +588,10 @@ class TestAssessRisks:
             PackageReport(name="pkg-b", installed_version="2.0.0", status=HealthStatus.OUTDATED),
         ]
 
-        with tempfile.TemporaryDirectory() as tmpdir, \
-             patch("depcheck.risks.scan_project") as mock_scan:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("depcheck.risks.scan_project") as mock_scan,
+        ):
             mock_scan.return_value = ScanResult(
                 project_path=tmpdir,
                 packages=mock_packages,
@@ -579,11 +605,15 @@ class TestAssessRisks:
         from depcheck.models import HealthStatus, PackageReport, ScanResult
         from depcheck.risks import RiskDimension, assess_risks
 
-        with tempfile.TemporaryDirectory() as tmpdir, \
-             patch("depcheck.risks.scan_project") as mock_scan:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("depcheck.risks.scan_project") as mock_scan,
+        ):
             mock_scan.return_value = ScanResult(
                 project_path=tmpdir,
-                packages=[PackageReport(name="p", installed_version="1.0", status=HealthStatus.HEALTHY)],
+                packages=[
+                    PackageReport(name="p", installed_version="1.0", status=HealthStatus.HEALTHY)
+                ],
                 errors=[],
             )
             custom_weights = {
@@ -654,7 +684,7 @@ class TestAdvisoryEntry:
     """Tests for AdvisoryEntry data model."""
 
     def test_basic_entry(self):
-        from depcheck.advisories import AdvisoryEntry, AdvisorySource, AdvisoryStatus
+        from depcheck.advisories import AdvisoryEntry, AdvisorySource
 
         entry = AdvisoryEntry(
             advisory_id="CVE-2023-001",
@@ -671,12 +701,20 @@ class TestAdvisoryEntry:
         from depcheck.advisories import AdvisoryEntry, AdvisorySource
 
         critical = AdvisoryEntry(
-            advisory_id="C-1", source=AdvisorySource.OSV, package="x",
-            summary="", severity="CRITICAL", url="",
+            advisory_id="C-1",
+            source=AdvisorySource.OSV,
+            package="x",
+            summary="",
+            severity="CRITICAL",
+            url="",
         )
         low = AdvisoryEntry(
-            advisory_id="L-1", source=AdvisorySource.OSV, package="x",
-            summary="", severity="LOW", url="",
+            advisory_id="L-1",
+            source=AdvisorySource.OSV,
+            package="x",
+            summary="",
+            severity="LOW",
+            url="",
         )
         assert critical.severity_rank > low.severity_rank
 
@@ -684,8 +722,12 @@ class TestAdvisoryEntry:
         from depcheck.advisories import AdvisoryEntry, AdvisorySource, AffectedRange
 
         entry = AdvisoryEntry(
-            advisory_id="P-1", source=AdvisorySource.OSV, package="x",
-            summary="", severity="HIGH", url="",
+            advisory_id="P-1",
+            source=AdvisorySource.OSV,
+            package="x",
+            summary="",
+            severity="HIGH",
+            url="",
             affected_ranges=[AffectedRange(introduced="1.0.0", fixed="2.0.0")],
         )
         assert entry.is_patchable
@@ -694,8 +736,12 @@ class TestAdvisoryEntry:
         from depcheck.advisories import AdvisoryEntry, AdvisorySource, AffectedRange
 
         entry = AdvisoryEntry(
-            advisory_id="U-1", source=AdvisorySource.OSV, package="x",
-            summary="", severity="HIGH", url="",
+            advisory_id="U-1",
+            source=AdvisorySource.OSV,
+            package="x",
+            summary="",
+            severity="HIGH",
+            url="",
             affected_ranges=[AffectedRange(introduced="1.0.0")],
         )
         assert not entry.is_patchable
@@ -748,7 +794,9 @@ class TestPackageAdvisorySummary:
         from depcheck.advisories import PackageAdvisorySummary
 
         summary = PackageAdvisorySummary(
-            package="test-pkg", version="1.0.0", total_advisories=2,
+            package="test-pkg",
+            version="1.0.0",
+            total_advisories=2,
         )
         d = summary.to_dict()
         assert d["package"] == "test-pkg"
@@ -815,12 +863,30 @@ class TestLookupAdvisories:
         from depcheck.advisories import AdvisoryEntry, AdvisorySource, lookup_advisories
 
         entries = [
-            AdvisoryEntry(advisory_id="L-1", source=AdvisorySource.OSV, package="x",
-                          summary="Low", severity="LOW", url=""),
-            AdvisoryEntry(advisory_id="C-1", source=AdvisorySource.OSV, package="x",
-                          summary="Critical", severity="CRITICAL", url=""),
-            AdvisoryEntry(advisory_id="M-1", source=AdvisorySource.OSV, package="x",
-                          summary="Medium", severity="MEDIUM", url=""),
+            AdvisoryEntry(
+                advisory_id="L-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="Low",
+                severity="LOW",
+                url="",
+            ),
+            AdvisoryEntry(
+                advisory_id="C-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="Critical",
+                severity="CRITICAL",
+                url="",
+            ),
+            AdvisoryEntry(
+                advisory_id="M-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="Medium",
+                severity="MEDIUM",
+                url="",
+            ),
         ]
         mock_osv.return_value = entries
         results = lookup_advisories("test", version="1.0.0", sources=[AdvisorySource.OSV])
@@ -836,25 +902,54 @@ class TestSearchAdvisories:
         from depcheck.advisories import AdvisoryEntry, AdvisorySource, search_advisories
 
         mock_lookup.return_value = [
-            AdvisoryEntry(advisory_id="C-1", source=AdvisorySource.OSV, package="x",
-                          summary="", severity="CRITICAL", url=""),
-            AdvisoryEntry(advisory_id="L-1", source=AdvisorySource.OSV, package="x",
-                          summary="", severity="LOW", url=""),
+            AdvisoryEntry(
+                advisory_id="C-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="",
+                severity="CRITICAL",
+                url="",
+            ),
+            AdvisoryEntry(
+                advisory_id="L-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="",
+                severity="LOW",
+                url="",
+            ),
         ]
         results = search_advisories("test", severity="CRITICAL")
         assert all(r.severity == "CRITICAL" for r in results)
 
     @patch("depcheck.advisories.lookup_advisories")
     def test_patched_only_filter(self, mock_lookup):
-        from depcheck.advisories import AdvisoryEntry, AdvisorySource, AffectedRange, search_advisories
+        from depcheck.advisories import (
+            AdvisoryEntry,
+            AdvisorySource,
+            AffectedRange,
+            search_advisories,
+        )
 
         mock_lookup.return_value = [
-            AdvisoryEntry(advisory_id="P-1", source=AdvisorySource.OSV, package="x",
-                          summary="", severity="HIGH", url="",
-                          affected_ranges=[AffectedRange(introduced="1.0", fixed="2.0")]),
-            AdvisoryEntry(advisory_id="U-1", source=AdvisorySource.OSV, package="x",
-                          summary="", severity="HIGH", url="",
-                          affected_ranges=[AffectedRange(introduced="1.0")]),
+            AdvisoryEntry(
+                advisory_id="P-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="",
+                severity="HIGH",
+                url="",
+                affected_ranges=[AffectedRange(introduced="1.0", fixed="2.0")],
+            ),
+            AdvisoryEntry(
+                advisory_id="U-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="",
+                severity="HIGH",
+                url="",
+                affected_ranges=[AffectedRange(introduced="1.0")],
+            ),
         ]
         results = search_advisories("test", patched_only=True)
         assert len(results) == 1
@@ -865,10 +960,22 @@ class TestSearchAdvisories:
         from depcheck.advisories import AdvisoryEntry, AdvisorySource, search_advisories
 
         mock_lookup.return_value = [
-            AdvisoryEntry(advisory_id="O-1", source=AdvisorySource.OSV, package="x",
-                          summary="", severity="HIGH", url=""),
-            AdvisoryEntry(advisory_id="G-1", source=AdvisorySource.GITHUB, package="x",
-                          summary="", severity="HIGH", url=""),
+            AdvisoryEntry(
+                advisory_id="O-1",
+                source=AdvisorySource.OSV,
+                package="x",
+                summary="",
+                severity="HIGH",
+                url="",
+            ),
+            AdvisoryEntry(
+                advisory_id="G-1",
+                source=AdvisorySource.GITHUB,
+                package="x",
+                summary="",
+                severity="HIGH",
+                url="",
+            ),
         ]
         results = search_advisories("test", source=AdvisorySource.GITHUB)
         assert len(results) == 1
@@ -981,7 +1088,9 @@ class TestCentralityMetrics:
     def test_bottleneck(self):
         from depcheck.graph import CentralityMetrics
 
-        m = CentralityMetrics(name="urllib3", in_degree=10, out_degree=2, betweenness=0.35, is_bottleneck=True)
+        m = CentralityMetrics(
+            name="urllib3", in_degree=10, out_degree=2, betweenness=0.35, is_bottleneck=True
+        )
         assert m.is_bottleneck
 
     def test_to_dict(self):
@@ -1370,7 +1479,7 @@ class TestPolicyConfig:
         assert RuleCategory.PINNING in categories
 
     def test_from_dict_vulnerability(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"vulnerability": {"max_severity": "HIGH"}}
         config = PolicyConfig.from_dict(data)
@@ -1378,7 +1487,7 @@ class TestPolicyConfig:
         assert config.rules[0].max_severity == "HIGH"
 
     def test_from_dict_packages_deny(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"packages": {"deny": ["pkg-a", "pkg-b"]}}
         config = PolicyConfig.from_dict(data)
@@ -1386,7 +1495,7 @@ class TestPolicyConfig:
         assert config.rules[0].deny_packages == ["pkg-a", "pkg-b"]
 
     def test_from_dict_packages_allow(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"packages": {"allow": ["pkg-a"]}}
         config = PolicyConfig.from_dict(data)
@@ -1394,7 +1503,7 @@ class TestPolicyConfig:
         assert config.rules[0].allow_packages == ["pkg-a"]
 
     def test_from_dict_maintenance(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"maintenance": {"min_maintained_days": 180}}
         config = PolicyConfig.from_dict(data)
@@ -1402,7 +1511,7 @@ class TestPolicyConfig:
         assert config.rules[0].min_maintained_days == 180
 
     def test_from_dict_depth(self):
-        from depcheck.policy import PolicyConfig, RuleCategory
+        from depcheck.policy import PolicyConfig
 
         data = {"depth": {"max_depth": 3}}
         config = PolicyConfig.from_dict(data)
@@ -1421,9 +1530,7 @@ class TestPolicyConfig:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             pyproject = Path(tmpdir) / "pyproject.toml"
-            pyproject.write_text(
-                '[tool.depcheck.policy.license]\ndeny_copyleft = true\n'
-            )
+            pyproject.write_text("[tool.depcheck.policy.license]\ndeny_copyleft = true\n")
             result = PolicyConfig.from_pyproject(Path(tmpdir))
             assert result is not None
             assert len(result.rules) == 1
@@ -1443,11 +1550,14 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="no-gpl", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, deny_copyleft=True,
+            name="no-gpl",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            deny_copyleft=True,
         )
         pkg = PackageReport(
-            name="mit-pkg", installed_version="1.0.0",
+            name="mit-pkg",
+            installed_version="1.0.0",
             license_info=LicenseInfo(spdx_id="MIT", category="permissive"),
         )
         result = _evaluate_license_rule(rule, pkg)
@@ -1458,11 +1568,14 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="no-gpl", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, deny_copyleft=True,
+            name="no-gpl",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            deny_copyleft=True,
         )
         pkg = PackageReport(
-            name="gpl-pkg", installed_version="1.0.0",
+            name="gpl-pkg",
+            installed_version="1.0.0",
             license_info=LicenseInfo(spdx_id="GPL-3.0", category="copyleft"),
         )
         result = _evaluate_license_rule(rule, pkg)
@@ -1474,11 +1587,14 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="no-sspl", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, deny_licenses=["SSPL-1.0"],
+            name="no-sspl",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            deny_licenses=["SSPL-1.0"],
         )
         pkg = PackageReport(
-            name="sspl-pkg", installed_version="1.0.0",
+            name="sspl-pkg",
+            installed_version="1.0.0",
             license_info=LicenseInfo(spdx_id="SSPL-1.0", category="proprietary"),
         )
         result = _evaluate_license_rule(rule, pkg)
@@ -1489,11 +1605,14 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="only-mit", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, allow_licenses=["MIT", "Apache-2.0"],
+            name="only-mit",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            allow_licenses=["MIT", "Apache-2.0"],
         )
         pkg = PackageReport(
-            name="gpl-pkg", installed_version="1.0.0",
+            name="gpl-pkg",
+            installed_version="1.0.0",
             license_info=LicenseInfo(spdx_id="GPL-3.0", category="copyleft"),
         )
         result = _evaluate_license_rule(rule, pkg)
@@ -1504,11 +1623,14 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="only-mit", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, allow_licenses=["MIT", "Apache-2.0"],
+            name="only-mit",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            allow_licenses=["MIT", "Apache-2.0"],
         )
         pkg = PackageReport(
-            name="mit-pkg", installed_version="1.0.0",
+            name="mit-pkg",
+            installed_version="1.0.0",
             license_info=LicenseInfo(spdx_id="MIT", category="permissive"),
         )
         result = _evaluate_license_rule(rule, pkg)
@@ -1519,8 +1641,10 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="strict-lic", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, strict_unknown=True,
+            name="strict-lic",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            strict_unknown=True,
         )
         pkg = PackageReport(name="unknown-pkg", installed_version="1.0.0")
         result = _evaluate_license_rule(rule, pkg)
@@ -1531,8 +1655,10 @@ class TestEvaluateLicenseRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_license_rule
 
         rule = PolicyRule(
-            name="lax-lic", category=RuleCategory.LICENSE,
-            severity=RuleSeverity.ERROR, strict_unknown=False,
+            name="lax-lic",
+            category=RuleCategory.LICENSE,
+            severity=RuleSeverity.ERROR,
+            strict_unknown=False,
         )
         pkg = PackageReport(name="unknown-pkg", installed_version="1.0.0")
         result = _evaluate_license_rule(rule, pkg)
@@ -1547,11 +1673,14 @@ class TestEvaluateAgeRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_age_rule
 
         rule = PolicyRule(
-            name="max-age", category=RuleCategory.AGE,
-            severity=RuleSeverity.WARNING, max_age_days=365,
+            name="max-age",
+            category=RuleCategory.AGE,
+            severity=RuleSeverity.WARNING,
+            max_age_days=365,
         )
         pkg = PackageReport(
-            name="recent-pkg", installed_version="1.0.0",
+            name="recent-pkg",
+            installed_version="1.0.0",
             last_release_date="2026-01-01",
         )
         result = _evaluate_age_rule(rule, pkg)
@@ -1562,11 +1691,14 @@ class TestEvaluateAgeRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_age_rule
 
         rule = PolicyRule(
-            name="max-age", category=RuleCategory.AGE,
-            severity=RuleSeverity.WARNING, max_age_days=365,
+            name="max-age",
+            category=RuleCategory.AGE,
+            severity=RuleSeverity.WARNING,
+            max_age_days=365,
         )
         pkg = PackageReport(
-            name="old-pkg", installed_version="1.0.0",
+            name="old-pkg",
+            installed_version="1.0.0",
             last_release_date="2023-01-01",
         )
         result = _evaluate_age_rule(rule, pkg)
@@ -1577,7 +1709,8 @@ class TestEvaluateAgeRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_age_rule
 
         rule = PolicyRule(
-            name="no-age-limit", category=RuleCategory.AGE,
+            name="no-age-limit",
+            category=RuleCategory.AGE,
             severity=RuleSeverity.WARNING,
         )
         pkg = PackageReport(name="pkg", installed_version="1.0.0")
@@ -1589,8 +1722,10 @@ class TestEvaluateAgeRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_age_rule
 
         rule = PolicyRule(
-            name="max-age", category=RuleCategory.AGE,
-            severity=RuleSeverity.WARNING, max_age_days=365,
+            name="max-age",
+            category=RuleCategory.AGE,
+            severity=RuleSeverity.WARNING,
+            max_age_days=365,
         )
         pkg = PackageReport(name="pkg", installed_version="1.0.0")
         result = _evaluate_age_rule(rule, pkg)
@@ -1602,11 +1737,18 @@ class TestEvaluateVulnerabilityRule:
 
     def test_no_vulns_passes(self):
         from depcheck.models import PackageReport
-        from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_vulnerability_rule
+        from depcheck.policy import (
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            _evaluate_vulnerability_rule,
+        )
 
         rule = PolicyRule(
-            name="no-high", category=RuleCategory.VULNERABILITY,
-            severity=RuleSeverity.ERROR, max_severity="HIGH",
+            name="no-high",
+            category=RuleCategory.VULNERABILITY,
+            severity=RuleSeverity.ERROR,
+            max_severity="HIGH",
         )
         pkg = PackageReport(name="safe-pkg", installed_version="1.0.0")
         result = _evaluate_vulnerability_rule(rule, pkg)
@@ -1614,14 +1756,22 @@ class TestEvaluateVulnerabilityRule:
 
     def test_critical_vuln_fails(self):
         from depcheck.models import PackageReport, Vulnerability
-        from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_vulnerability_rule
+        from depcheck.policy import (
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            _evaluate_vulnerability_rule,
+        )
 
         rule = PolicyRule(
-            name="no-high", category=RuleCategory.VULNERABILITY,
-            severity=RuleSeverity.ERROR, max_severity="HIGH",
+            name="no-high",
+            category=RuleCategory.VULNERABILITY,
+            severity=RuleSeverity.ERROR,
+            max_severity="HIGH",
         )
         pkg = PackageReport(
-            name="vuln-pkg", installed_version="1.0.0",
+            name="vuln-pkg",
+            installed_version="1.0.0",
             vulnerabilities=[
                 Vulnerability(vuln_id="CVE-1", summary="RCE", severity="CRITICAL", url=""),
             ],
@@ -1631,14 +1781,22 @@ class TestEvaluateVulnerabilityRule:
 
     def test_low_vuln_passes_high_threshold(self):
         from depcheck.models import PackageReport, Vulnerability
-        from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_vulnerability_rule
+        from depcheck.policy import (
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            _evaluate_vulnerability_rule,
+        )
 
         rule = PolicyRule(
-            name="no-critical-only", category=RuleCategory.VULNERABILITY,
-            severity=RuleSeverity.ERROR, max_severity="CRITICAL",
+            name="no-critical-only",
+            category=RuleCategory.VULNERABILITY,
+            severity=RuleSeverity.ERROR,
+            max_severity="CRITICAL",
         )
         pkg = PackageReport(
-            name="low-vuln-pkg", installed_version="1.0.0",
+            name="low-vuln-pkg",
+            installed_version="1.0.0",
             vulnerabilities=[
                 Vulnerability(vuln_id="CVE-1", summary="XSS", severity="LOW", url=""),
             ],
@@ -1655,8 +1813,10 @@ class TestEvaluatePinningRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_pinning_rule
 
         rule = PolicyRule(
-            name="pin-deps", category=RuleCategory.PINNING,
-            severity=RuleSeverity.ERROR, require_pinned=True,
+            name="pin-deps",
+            category=RuleCategory.PINNING,
+            severity=RuleSeverity.ERROR,
+            require_pinned=True,
         )
         pkg = PackageReport(name="pinned-pkg", installed_version="1.2.3")
         result = _evaluate_pinning_rule(rule, pkg)
@@ -1667,8 +1827,10 @@ class TestEvaluatePinningRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_pinning_rule
 
         rule = PolicyRule(
-            name="pin-deps", category=RuleCategory.PINNING,
-            severity=RuleSeverity.ERROR, require_pinned=True,
+            name="pin-deps",
+            category=RuleCategory.PINNING,
+            severity=RuleSeverity.ERROR,
+            require_pinned=True,
         )
         pkg = PackageReport(name="unpinned-pkg", installed_version="unknown")
         result = _evaluate_pinning_rule(rule, pkg)
@@ -1683,7 +1845,8 @@ class TestEvaluateVersionRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_version_rule
 
         rule = PolicyRule(
-            name="min-ver", category=RuleCategory.VERSION,
+            name="min-ver",
+            category=RuleCategory.VERSION,
             severity=RuleSeverity.ERROR,
             require_version_min={"test-pkg": "2.0.0"},
         )
@@ -1696,7 +1859,8 @@ class TestEvaluateVersionRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_version_rule
 
         rule = PolicyRule(
-            name="min-ver", category=RuleCategory.VERSION,
+            name="min-ver",
+            category=RuleCategory.VERSION,
             severity=RuleSeverity.ERROR,
             require_version_min={"test-pkg": "2.0.0"},
         )
@@ -1713,8 +1877,10 @@ class TestEvaluatePackageRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_package_rule
 
         rule = PolicyRule(
-            name="deny-pkg", category=RuleCategory.CUSTOM,
-            severity=RuleSeverity.ERROR, deny_packages=["bad-pkg"],
+            name="deny-pkg",
+            category=RuleCategory.CUSTOM,
+            severity=RuleSeverity.ERROR,
+            deny_packages=["bad-pkg"],
         )
         pkg = PackageReport(name="bad-pkg", installed_version="1.0.0")
         result = _evaluate_package_rule(rule, pkg)
@@ -1725,8 +1891,10 @@ class TestEvaluatePackageRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_package_rule
 
         rule = PolicyRule(
-            name="allow-pkg", category=RuleCategory.CUSTOM,
-            severity=RuleSeverity.ERROR, allow_packages=["good-pkg"],
+            name="allow-pkg",
+            category=RuleCategory.CUSTOM,
+            severity=RuleSeverity.ERROR,
+            allow_packages=["good-pkg"],
         )
         pkg = PackageReport(name="other-pkg", installed_version="1.0.0")
         result = _evaluate_package_rule(rule, pkg)
@@ -1737,8 +1905,10 @@ class TestEvaluatePackageRule:
         from depcheck.policy import PolicyRule, RuleCategory, RuleSeverity, _evaluate_package_rule
 
         rule = PolicyRule(
-            name="allow-pkg", category=RuleCategory.CUSTOM,
-            severity=RuleSeverity.ERROR, allow_packages=["good-pkg"],
+            name="allow-pkg",
+            category=RuleCategory.CUSTOM,
+            severity=RuleSeverity.ERROR,
+            allow_packages=["good-pkg"],
         )
         pkg = PackageReport(name="good-pkg", installed_version="1.0.0")
         result = _evaluate_package_rule(rule, pkg)
@@ -1758,12 +1928,16 @@ class TestEvaluatePolicy:
         from depcheck.models import HealthStatus, PackageReport, ScanResult
         from depcheck.policy import evaluate_policy
 
-        with tempfile.TemporaryDirectory() as tmpdir, \
-             patch("depcheck.policy.scan_project") as mock_scan:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("depcheck.policy.scan_project") as mock_scan,
+        ):
             mock_scan.return_value = ScanResult(
                 project_path=tmpdir,
                 packages=[
-                    PackageReport(name="pkg-a", installed_version="1.0.0", status=HealthStatus.HEALTHY),
+                    PackageReport(
+                        name="pkg-a", installed_version="1.0.0", status=HealthStatus.HEALTHY
+                    ),
                 ],
                 errors=[],
             )
@@ -1772,22 +1946,35 @@ class TestEvaluatePolicy:
 
     def test_custom_config_with_mock(self):
         from depcheck.models import HealthStatus, LicenseInfo, PackageReport, ScanResult
-        from depcheck.policy import PolicyConfig, PolicyRule, RuleCategory, RuleSeverity, evaluate_policy
+        from depcheck.policy import (
+            PolicyConfig,
+            PolicyRule,
+            RuleCategory,
+            RuleSeverity,
+            evaluate_policy,
+        )
 
-        config = PolicyConfig(rules=[
-            PolicyRule(
-                name="no-gpl", category=RuleCategory.LICENSE,
-                severity=RuleSeverity.ERROR, deny_copyleft=True,
-            ),
-        ])
+        config = PolicyConfig(
+            rules=[
+                PolicyRule(
+                    name="no-gpl",
+                    category=RuleCategory.LICENSE,
+                    severity=RuleSeverity.ERROR,
+                    deny_copyleft=True,
+                ),
+            ]
+        )
 
-        with tempfile.TemporaryDirectory() as tmpdir, \
-             patch("depcheck.policy.scan_project") as mock_scan:
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("depcheck.policy.scan_project") as mock_scan,
+        ):
             mock_scan.return_value = ScanResult(
                 project_path=tmpdir,
                 packages=[
                     PackageReport(
-                        name="gpl-pkg", installed_version="1.0.0",
+                        name="gpl-pkg",
+                        installed_version="1.0.0",
                         status=HealthStatus.HEALTHY,
                         license_info=LicenseInfo(spdx_id="GPL-3.0", category="copyleft"),
                     ),
@@ -1820,6 +2007,7 @@ class TestCLICommands:
 
     def test_budget_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1829,6 +2017,7 @@ class TestCLICommands:
 
     def test_risks_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1838,6 +2027,7 @@ class TestCLICommands:
 
     def test_advisories_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1847,6 +2037,7 @@ class TestCLICommands:
 
     def test_graph_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1856,6 +2047,7 @@ class TestCLICommands:
 
     def test_policy_command_exists(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1865,6 +2057,7 @@ class TestCLICommands:
 
     def test_main_help_lists_commands(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1878,6 +2071,7 @@ class TestCLICommands:
 
     def test_budget_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1888,6 +2082,7 @@ class TestCLICommands:
 
     def test_risks_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1897,6 +2092,7 @@ class TestCLICommands:
 
     def test_advisories_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1908,6 +2104,7 @@ class TestCLICommands:
 
     def test_graph_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()
@@ -1918,6 +2115,7 @@ class TestCLICommands:
 
     def test_policy_command_options(self):
         from click.testing import CliRunner
+
         from depcheck.cli import main
 
         runner = CliRunner()

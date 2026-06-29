@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from depcheck.lockfile import (
     DriftEntry,
@@ -21,12 +17,10 @@ from depcheck.lockfile import (
     analyze_drift,
     analyze_hashes,
     analyze_lockfile,
-    analyze_project_lockfiles,
     analyze_unpinned,
     detect_lockfile_type,
     diff_lockfiles,
     find_lockfiles,
-    generate_freeze,
     parse_pip_freeze,
     parse_pipfile_lock,
     parse_poetry_lock,
@@ -35,7 +29,6 @@ from depcheck.lockfile import (
     render_lockfile_table,
     run_pip_audit,
 )
-
 
 # ---------------------------------------------------------------------------
 # Detect lockfile type
@@ -184,24 +177,26 @@ class TestParsePipfileLock:
     """Tests for parse_pipfile_lock."""
 
     def test_basic_pipfile_lock(self):
-        content = json.dumps({
-            "default": {
-                "requests": {
-                    "version": "==2.28.0",
-                    "hashes": ["sha256:abc123"],
+        content = json.dumps(
+            {
+                "default": {
+                    "requests": {
+                        "version": "==2.28.0",
+                        "hashes": ["sha256:abc123"],
+                    },
+                    "click": {
+                        "version": "==8.0.0",
+                        "hashes": ["sha256:def456"],
+                    },
                 },
-                "click": {
-                    "version": "==8.0.0",
-                    "hashes": ["sha256:def456"],
+                "develop": {
+                    "pytest": {
+                        "version": "==7.0.0",
+                        "hashes": [],
+                    },
                 },
-            },
-            "develop": {
-                "pytest": {
-                    "version": "==7.0.0",
-                    "hashes": [],
-                },
-            },
-        })
+            }
+        )
         packages = parse_pipfile_lock(content)
         assert len(packages) == 3
         names = {p.name for p in packages}
@@ -274,16 +269,22 @@ class TestAnalyzeUnpinned:
         assert unpinned[0].severity == "medium"
 
     def test_pinned_no_hash(self):
-        reqs = [ManifestRequirement(name="click", specifier="==8.0.0", is_pinned=True,
-                                     has_hash=False, line_number=1)]
+        reqs = [
+            ManifestRequirement(
+                name="click", specifier="==8.0.0", is_pinned=True, has_hash=False, line_number=1
+            )
+        ]
         unpinned = analyze_unpinned(reqs)
         assert len(unpinned) == 1
         assert unpinned[0].issue == "no_hash"
         assert unpinned[0].severity == "low"
 
     def test_pinned_with_hash(self):
-        reqs = [ManifestRequirement(name="click", specifier="==8.0.0", is_pinned=True,
-                                     has_hash=True, line_number=1)]
+        reqs = [
+            ManifestRequirement(
+                name="click", specifier="==8.0.0", is_pinned=True, has_hash=True, line_number=1
+            )
+        ]
         unpinned = analyze_unpinned(reqs)
         assert len(unpinned) == 0
 
@@ -604,11 +605,15 @@ class TestAnalyzeLockfile:
 
     def test_pipfile_lock_analysis(self, tmp_path):
         pf = tmp_path / "Pipfile.lock"
-        pf.write_text(json.dumps({
-            "default": {
-                "requests": {"version": "==2.28.0", "hashes": ["sha256:abc"]},
-            },
-        }))
+        pf.write_text(
+            json.dumps(
+                {
+                    "default": {
+                        "requests": {"version": "==2.28.0", "hashes": ["sha256:abc"]},
+                    },
+                }
+            )
+        )
         report = analyze_lockfile(pf)
         assert report.lockfile_type == "pipfile_lock"
         assert report.total_packages == 1
@@ -670,6 +675,7 @@ class TestRunPipAudit:
     @patch("depcheck.lockfile.subprocess.run")
     def test_pip_audit_timeout(self, mock_run):
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="pip-audit", timeout=60)
         result = run_pip_audit()
         assert result.skipped is True
@@ -686,7 +692,9 @@ class TestLockfileRendering:
 
     def test_render_table_healthy(self):
         from io import StringIO
+
         from rich.console import Console
+
         report = LockfileReport(
             path="requirements.txt",
             lockfile_type="requirements_txt",
@@ -700,14 +708,20 @@ class TestLockfileRendering:
 
     def test_render_table_unhealthy(self):
         from io import StringIO
+
         from rich.console import Console
+
         report = LockfileReport(
             path="requirements.txt",
             lockfile_type="requirements_txt",
             total_packages=1,
             unpinned=[
-                UnpinnedDependency(name="requests", issue="no_version", severity="high",
-                                    recommendation="Pin requests==X.Y.Z"),
+                UnpinnedDependency(
+                    name="requests",
+                    issue="no_version",
+                    severity="high",
+                    recommendation="Pin requests==X.Y.Z",
+                ),
             ],
         )
         buf = StringIO()
@@ -718,7 +732,9 @@ class TestLockfileRendering:
 
     def test_render_json(self):
         from io import StringIO
+
         from rich.console import Console
+
         report = LockfileReport(path="test.txt", lockfile_type="requirements_txt", total_packages=5)
         buf = StringIO()
         console = Console(file=buf, force_terminal=False, no_color=True)
@@ -738,8 +754,13 @@ class TestDriftEntry:
     """Tests for DriftEntry model."""
 
     def test_to_dict(self):
-        d = DriftEntry(name="pkg", manifest_specifier=">=1.0", locked_version="1.5.0",
-                        drift_type="within_range", is_within_range=True)
+        d = DriftEntry(
+            name="pkg",
+            manifest_specifier=">=1.0",
+            locked_version="1.5.0",
+            drift_type="within_range",
+            is_within_range=True,
+        )
         result = d.to_dict()
         assert result["name"] == "pkg"
         assert result["is_within_range"] is True
@@ -749,7 +770,12 @@ class TestHashMismatch:
     """Tests for HashMismatch model."""
 
     def test_to_dict(self):
-        h = HashMismatch(name="pkg", version="1.0", expected_hash="sha256:abc",
-                          algorithm="sha256", issue="no_hashes_at_all")
+        h = HashMismatch(
+            name="pkg",
+            version="1.0",
+            expected_hash="sha256:abc",
+            algorithm="sha256",
+            issue="no_hashes_at_all",
+        )
         result = h.to_dict()
         assert result["issue"] == "no_hashes_at_all"

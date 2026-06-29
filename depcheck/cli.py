@@ -75,7 +75,7 @@ def main() -> None:
     "denied_licenses",
     multiple=True,
     help="Specific SPDX license IDs to deny. Repeat for multiple. "
-    'E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0',
+    "E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0",
 )
 @click.option(
     "--quiet",
@@ -109,9 +109,7 @@ def scan(
             "public_domain": LicenseCategory.PUBLIC_DOMAIN,
         }
         allowed_categories = [
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         ]
 
     denied_list: list[str] | None = None
@@ -450,40 +448,32 @@ def export(
         written = write_sbom_to_file(sbom, format=fmt, output_path=output_file)
         if not quiet:
             console.print(f"[green]SBOM written to {written}[/green]")
-            console.print(
-                f"[dim]{sbom.total} components exported in {fmt} format[/dim]"
-            )
+            console.print(f"[dim]{sbom.total} components exported in {fmt} format[/dim]")
         sys.exit(0)
 
     # Output to stdout
     if fmt == "cyclonedx":
         content = render_cyclonedx(sbom)
         if quiet:
-            clean_console = Console(
-                quiet=False, force_terminal=False, no_color=True
-            )
+            clean_console = Console(quiet=False, force_terminal=False, no_color=True)
         else:
-            clean_console = Console(
-                force_terminal=False, no_color=True
-            )
+            clean_console = Console(force_terminal=False, no_color=True)
         clean_console.print(content)
     elif fmt == "spdx":
         content = render_spdx(sbom)
         if quiet:
-            clean_console = Console(
-                quiet=False, force_terminal=False, no_color=True
-            )
+            clean_console = Console(quiet=False, force_terminal=False, no_color=True)
         else:
-            clean_console = Console(
-                force_terminal=False, no_color=True
-            )
+            clean_console = Console(force_terminal=False, no_color=True)
         clean_console.print(content)
     elif fmt == "summary":
         if json_output:
             content = render_summary_json(sbom)
-            clean_console = Console(
-                quiet=False, force_terminal=False, no_color=True
-            ) if quiet else Console(force_terminal=False, no_color=True)
+            clean_console = (
+                Console(quiet=False, force_terminal=False, no_color=True)
+                if quiet
+                else Console(force_terminal=False, no_color=True)
+            )
             clean_console.print(content)
     elif not quiet:
         render_summary_table(sbom, console=console)
@@ -518,7 +508,7 @@ def export(
     "denied_licenses",
     multiple=True,
     help="Specific SPDX license IDs to deny. Repeat for multiple. "
-    'E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0',
+    "E.g., --deny-license GPL-3.0 --deny-license AGPL-3.0",
 )
 @click.option(
     "--deny-copyleft",
@@ -600,9 +590,7 @@ def license(
             "proprietary": LicenseCategory.PROPRIETARY,
         }
         allowed_categories = {
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         }
 
     denied_ids: set[str] | None = None
@@ -662,9 +650,7 @@ def license(
         compliant_count=sum(1 for e in entries if e.is_compliant),
         non_compliant_count=sum(1 for e in entries if not e.is_compliant),
         uncategorized_count=sum(
-            1
-            for e in entries
-            if e.license_info.category == LicenseCategory.UNKNOWN
+            1 for e in entries if e.license_info.category == LicenseCategory.UNKNOWN
         ),
         policy=policy,
     )
@@ -779,9 +765,11 @@ def outdated(
     # Render output
     if output_json:
         content = render_outdated_json(outdated_report)
-        clean_console = Console(
-            quiet=False, force_terminal=False, no_color=True
-        ) if quiet else Console(force_terminal=False, no_color=True)
+        clean_console = (
+            Console(quiet=False, force_terminal=False, no_color=True)
+            if quiet
+            else Console(force_terminal=False, no_color=True)
+        )
         clean_console.print(content)
     elif not quiet:
         render_outdated_table(outdated_report, console=console)
@@ -811,8 +799,7 @@ def outdated(
         if should_fail:
             if not quiet:
                 console.print(
-                    f"[red]✗ Outdated dependencies found: --fail-on {fail_on} "
-                    f"condition met[/red]"
+                    f"[red]✗ Outdated dependencies found: --fail-on {fail_on} condition met[/red]"
                 )
             sys.exit(1)
 
@@ -1046,9 +1033,7 @@ def watch(
             "public_domain": LicenseCategory.PUBLIC_DOMAIN,
         }
         allowed_categories = [
-            category_map[cat.lower()]
-            for cat in allowed_licenses
-            if cat.lower() in category_map
+            category_map[cat.lower()] for cat in allowed_licenses if cat.lower() in category_map
         ]
 
     denied_list: list[str] | None = None
@@ -1230,7 +1215,7 @@ def check(
     depcheck check --fail-on high
     depcheck check /path/to/project
     """
-    from depcheck.check import Grade, HealthReport, run_check, render_check_json, render_check_table
+    from depcheck.check import Grade, render_check_json, render_check_table, run_check
 
     console = Console(quiet=quiet)
 
@@ -1367,7 +1352,6 @@ def lockfile(
     from pathlib import Path
 
     from depcheck.lockfile import (
-        PipAuditResult,
         analyze_project_lockfiles,
         diff_lockfiles,
         find_lockfiles,
@@ -1416,7 +1400,9 @@ def lockfile(
     if not reports:
         if not quiet:
             console.print("[yellow]No lockfiles found in project.[/yellow]")
-            console.print("[dim]Create a requirements.txt with pinned versions, or use --freeze to generate one.[/dim]")
+            console.print(
+                "[dim]Create a requirements.txt with pinned versions, or use --freeze to generate one.[/dim]"
+            )
         sys.exit(0)
 
     if output_json:
@@ -1521,8 +1507,6 @@ def explain(
     depcheck explain --check-licenses
     """
     from depcheck.explain import (
-        ExplainReport,
-        OutputFormat,
         explain_project,
         render_explain_ai,
         render_explain_json,
@@ -1548,8 +1532,7 @@ def explain(
     if filter_status != "all":
         if filter_status == "at-risk":
             report.packages = [
-                p for p in report.packages
-                if p.is_vulnerable or p.is_outdated or p.is_unmaintained
+                p for p in report.packages if p.is_vulnerable or p.is_outdated or p.is_unmaintained
             ]
         else:
             status_map = {
@@ -1559,9 +1542,7 @@ def explain(
             }
             target_status = status_map.get(filter_status)
             if target_status:
-                report.packages = [
-                    p for p in report.packages if p.status == target_status
-                ]
+                report.packages = [p for p in report.packages if p.status == target_status]
 
     fmt_lower = fmt.lower()
     if fmt_lower == "json":
@@ -1738,8 +1719,7 @@ def history(
         ["check", "audit", "outdated", "license", "size", "history"],
         case_sensitive=False,
     ),
-    help="Commands to include in the bundle. Repeat for multiple. "
-    "Default: check, audit, outdated.",
+    help="Commands to include in the bundle. Repeat for multiple. Default: check, audit, outdated.",
 )
 @click.option(
     "--all",
@@ -1888,13 +1868,12 @@ def doctor(
             Severity.WARNING: 1,
             Severity.CRITICAL: 2,
         }
-        threshold_level = level_order.get(threshold, 2)
+        _ = level_order.get(threshold, 2)
 
         if fail_on.lower() == "critical" and report.critical_count > 0:
             if not quiet:
                 console.print(
-                    f"[red]✗ Doctor found {report.critical_count} critical "
-                    f"issue(s)[/red]"
+                    f"[red]✗ Doctor found {report.critical_count} critical issue(s)[/red]"
                 )
             sys.exit(1)
         elif fail_on.lower() == "warning" and (
@@ -1979,7 +1958,6 @@ def budget(
     """
     from depcheck.budget import (
         BudgetConfig,
-        BudgetReport,
         check_budget,
         render_budget_json,
         render_budget_table,
@@ -2093,10 +2071,7 @@ def risks(
 
     if report.critical_count > 0:
         if not quiet:
-            console.print(
-                f"[red]✗ {report.critical_count} critical-risk "
-                f"dependencies found[/red]"
-            )
+            console.print(f"[red]✗ {report.critical_count} critical-risk dependencies found[/red]")
         sys.exit(1)
 
 
@@ -2174,7 +2149,6 @@ def advisories(
         render_advisories_json,
         render_advisories_table,
         run_advisories,
-        search_advisories,
     )
 
     console = Console(quiet=quiet)
@@ -2218,10 +2192,7 @@ def advisories(
 
     if report.total_critical > 0:
         if not quiet:
-            console.print(
-                f"[red]✗ {report.total_critical} critical advisories "
-                f"found[/red]"
-            )
+            console.print(f"[red]✗ {report.total_critical} critical advisories found[/red]")
         sys.exit(1)
 
 
@@ -2280,7 +2251,6 @@ def graph(
     depcheck graph --max-depth 2 --format json
     """
     from depcheck.graph import (
-        DependencyGraph,
         GraphFormat,
         build_dependency_graph,
         extract_subgraph,
@@ -2324,8 +2294,7 @@ def graph(
             pass  # Cycles shown in JSON output
         elif not quiet:
             console.print(
-                f"\n[yellow]⚠ {len(full_graph.cycles)} dependency "
-                f"cycle(s) detected[/yellow]"
+                f"\n[yellow]⚠ {len(full_graph.cycles)} dependency cycle(s) detected[/yellow]"
             )
 
 
@@ -2385,7 +2354,6 @@ def policy(
     depcheck policy --no-vulns
     """
     from depcheck.policy import (
-        PolicyConfig,
         evaluate_policy,
         render_policy_json,
         render_policy_table,

@@ -19,9 +19,9 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from depcheck.models import HealthStatus, ParsedDependency, ScanResult
-from depcheck.scanner import discover_dependencies, scan_project
+from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
+from depcheck.scanner import discover_dependencies
 
 # Package name regex (PEP 503)
 _PKG_RE = re.compile(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)")
@@ -270,8 +270,7 @@ def _classify_dependencies(
     direct_names = {d.name for d in direct_deps}
     dev_names = {d.name for d in dev_deps}
     transitive_deps = [
-        d for d in all_deps
-        if d.name not in direct_names and d.name not in dev_names
+        d for d in all_deps if d.name not in direct_names and d.name not in dev_names
     ]
 
     return direct_deps, dev_deps, optional_deps, transitive_deps
@@ -311,15 +310,15 @@ def _count_transitive_deps(
                 # Parse requirement — handle extras and version specs
                 match = _PKG_RE.match(req_str.strip())
                 if match:
-                        sub_name = match.group(1).lower().replace("_", "-")
-                        sub_name = re.sub(r"[-_.]+", "-", sub_name)  # noqa: RUF005
-                        # Skip extras markers for simplicity
-                        if ";" in req_str:
-                            continue
-                        sub_deps.append(sub_name)
-                        if sub_name not in visited and sub_name not in direct_names:
-                            transitive_names.add(sub_name)
-                            next_queue.append(sub_name)
+                    sub_name = match.group(1).lower().replace("_", "-")
+                    sub_name = re.sub(r"[-_.]+", "-", sub_name)  # noqa: RUF005
+                    # Skip extras markers for simplicity
+                    if ";" in req_str:
+                        continue
+                    sub_deps.append(sub_name)
+                    if sub_name not in visited and sub_name not in direct_names:
+                        transitive_names.add(sub_name)
+                        next_queue.append(sub_name)
 
                 dep_map[pkg_name] = sub_deps
 
@@ -358,9 +357,7 @@ def check_budget(
         config = BudgetConfig.from_pyproject(project_path) or BudgetConfig()
 
     # Classify dependencies
-    direct_deps, dev_deps, optional_deps, transitive_deps = _classify_dependencies(
-        project_path
-    )
+    direct_deps, dev_deps, optional_deps, transitive_deps = _classify_dependencies(project_path)
 
     direct_names = [d.name for d in direct_deps]
     dev_names = [d.name for d in dev_deps]
@@ -369,9 +366,7 @@ def check_budget(
     # Resolve transitive deps if requested
     transitive_names: list[str] = []
     if resolve_transitive and direct_deps:
-        resolved_transitive, _ = _count_transitive_deps(
-            direct_deps, set(direct_names), max_depth=3
-        )
+        resolved_transitive, _ = _count_transitive_deps(direct_deps, set(direct_names), max_depth=3)
         transitive_names = resolved_transitive
     else:
         transitive_names = [d.name for d in transitive_deps]
@@ -538,10 +533,7 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
         console.print("\n[bold red]Over-budget categories:[/bold red]")
         for cat in over_cats:
             excess = cat.count - (cat.limit or 0)
-            console.print(
-                f"  [red]• {cat.name}: {cat.count}/{cat.limit} "
-                f"({excess} over)[/red]"
-            )
+            console.print(f"  [red]• {cat.name}: {cat.count}/{cat.limit} ({excess} over)[/red]")
             # Show first 10 packages
             for pkg in cat.packages[:10]:
                 console.print(f"    - {pkg}")
@@ -549,7 +541,7 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
                 console.print(f"    ... and {len(cat.packages) - 10} more")
 
     # Summary
-    console.print(f"\n[bold]Summary:[/bold]")
+    console.print("\n[bold]Summary:[/bold]")
     console.print(f"  Total dependencies: {report.total_deps}")
     console.print(f"  Direct: {report.total_direct}")
     console.print(f"  Transitive: {report.total_transitive}")
@@ -559,9 +551,7 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
     if report.is_within_budget:
         console.print("\n[green]✓ All categories within budget[/green]")
     else:
-        console.print(
-            f"\n[red]✗ {len(over_cats)} category(s) over budget[/red]"
-        )
+        console.print(f"\n[red]✗ {len(over_cats)} category(s) over budget[/red]")
 
 
 def render_budget_json(report: BudgetReport, console: Console | None = None) -> None:

@@ -9,7 +9,6 @@ security scanning.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import subprocess
@@ -22,32 +21,17 @@ from typing import Any
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
-
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-PIP_FREEZE_RE = re.compile(
-    r"^([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+!-]+)$"
-)
-PIP_FREEZE_EDITABLE_RE = re.compile(
-    r"^(-e\s+|[A-Za-z0-9_.-]+ @ )(.+)$"
-)
-REQUIREMENT_LINE_RE = re.compile(
-    r"^([A-Za-z0-9_.-]+)\s*(.*)$"
-)
-EXTRA_INDEX_RE = re.compile(
-    r"^--extra-index-url\s+(.+)$"
-)
-INDEX_URL_RE = re.compile(
-    r"^--index-url\s+(.+)$"
-)
-HASH_RE = re.compile(
-    r"--hash=(\w+):([a-f0-9]+)"
-)
-ENV_MARKER_RE = re.compile(
-    r";\s*(.+)$"
-)
+PIP_FREEZE_RE = re.compile(r"^([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+!-]+)$")
+PIP_FREEZE_EDITABLE_RE = re.compile(r"^(-e\s+|[A-Za-z0-9_.-]+ @ )(.+)$")
+REQUIREMENT_LINE_RE = re.compile(r"^([A-Za-z0-9_.-]+)\s*(.*)$")
+EXTRA_INDEX_RE = re.compile(r"^--extra-index-url\s+(.+)$")
+INDEX_URL_RE = re.compile(r"^--index-url\s+(.+)$")
+HASH_RE = re.compile(r"--hash=(\w+):([a-f0-9]+)")
+ENV_MARKER_RE = re.compile(r";\s*(.+)$")
 
 
 # ---------------------------------------------------------------------------
@@ -184,20 +168,13 @@ class LockfileReport:
     total_packages: int = 0
     direct_packages: int = 0
     transitive_packages: int = 0
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     errors: list[str] = field(default_factory=list)
 
     @property
     def is_healthy(self) -> bool:
         """Check if the lockfile has no issues."""
-        return (
-            not self.unpinned
-            and not self.drift
-            and not self.hash_issues
-            and not self.errors
-        )
+        return not self.unpinned and not self.drift and not self.hash_issues and not self.errors
 
     @property
     def high_severity_count(self) -> int:
@@ -239,16 +216,25 @@ def detect_lockfile_type(path: Path) -> str | None:
         return "pipfile_lock"
     if name == "poetry.lock":
         return "poetry_lock"
-    if name in ("requirements.txt", "requirements.lock", "requirements-dev.txt",
-                "requirements-prod.txt", "requirements-dev.lock",
-                "requirements.txt.lock"):
+    if name in (
+        "requirements.txt",
+        "requirements.lock",
+        "requirements-dev.txt",
+        "requirements-prod.txt",
+        "requirements-dev.lock",
+        "requirements.txt.lock",
+    ):
         return "requirements_txt"
     # Check content for pip-freeze signature
     try:
         content = path.read_text(encoding="utf-8", errors="ignore")[:2000]
-        lines = [l.strip() for l in content.splitlines() if l.strip() and not l.startswith("#")]
+        lines = [
+            line.strip()
+            for line in content.splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
         # If all non-comment lines match Package==Version, it's pip freeze format
-        if lines and all(PIP_FREEZE_RE.match(l) for l in lines):
+        if lines and all(PIP_FREEZE_RE.match(line) for line in lines):
             return "pip_freeze"
     except Exception:
         pass
@@ -351,7 +337,7 @@ def parse_requirements_txt(content: str) -> tuple[list[LockedPackage], list[Mani
         extras_match = re.match(r"\[([^\]]+)\]", rest)
         if extras_match:
             extras = [e.strip() for e in extras_match.group(1).split(",")]
-            rest = rest[extras_match.end():].strip()
+            rest = rest[extras_match.end() :].strip()
 
         # Determine if pinned
         is_pinned = False
@@ -454,8 +440,12 @@ def parse_poetry_lock(content: str) -> list[LockedPackage]:
                     LockedPackage(
                         name=current_pkg.get("name", ""),
                         version=current_pkg.get("version", ""),
-                        source=current_pkg.get("source", {}).get("type", "pypi") if isinstance(current_pkg.get("source"), dict) else "pypi",
-                        url=current_pkg.get("source", {}).get("url", "") if isinstance(current_pkg.get("source"), dict) else "",
+                        source=current_pkg.get("source", {}).get("type", "pypi")
+                        if isinstance(current_pkg.get("source"), dict)
+                        else "pypi",
+                        url=current_pkg.get("source", {}).get("url", "")
+                        if isinstance(current_pkg.get("source"), dict)
+                        else "",
                     )
                 )
             current_pkg = {}
@@ -542,7 +532,9 @@ def analyze_unpinned(requirements: list[ManifestRequirement]) -> list[UnpinnedDe
                         name=req.name,
                         issue="no_hash",
                         severity="low",
-                        current_version=req.specifier.replace("==", "") if req.specifier.startswith("==") else None,
+                        current_version=req.specifier.replace("==", "")
+                        if req.specifier.startswith("==")
+                        else None,
                         specifier=req.specifier,
                         recommendation=f"Add hash to {req.name}: {req.raw_line} --hash=sha256:HEX",
                     )
@@ -1042,10 +1034,7 @@ class LockfileDiff:
             "new_path": self.new_path,
             "added": [p.to_dict() for p in self.added],
             "removed": [p.to_dict() for p in self.removed],
-            "changed": [
-                {"old": old.to_dict(), "new": new.to_dict()}
-                for old, new in self.changed
-            ],
+            "changed": [{"old": old.to_dict(), "new": new.to_dict()} for old, new in self.changed],
             "unchanged_count": self.unchanged_count,
         }
 

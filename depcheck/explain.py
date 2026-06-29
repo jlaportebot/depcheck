@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import enum
 import json
-import re
 import textwrap
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,9 +24,8 @@ from typing import Any
 
 from packaging.version import Version
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
-
 
 # ---------------------------------------------------------------------------
 # Package metadata database (curated knowledge)
@@ -38,85 +36,136 @@ from depcheck.scanner import scan_project
 PACKAGE_KNOWLEDGE: dict[str, dict[str, str]] = {
     "requests": {
         "category": "http-client",
-        "description": "HTTP library for Python. De facto standard for making HTTP requests with connection pooling, cookies, sessions, and auth.",
+        "description": (
+            "HTTP library for Python. De facto standard for making HTTP "
+            "requests with connection pooling, cookies, sessions, and auth."
+        ),
         "alternatives": "httpx, aiohttp, urllib3 (lower-level)",
-        "ecosystem_role": "Direct HTTP client; many other packages depend on it transitively",
+        "ecosystem_role": ("Direct HTTP client; many other packages depend on it transitively"),
     },
     "urllib3": {
         "category": "http-client",
-        "description": "Low-level HTTP connection pool library. Powers the 'requests' library. Use directly only if you need fine-grained connection control.",
+        "description": (
+            "Low-level HTTP connection pool library. Powers the 'requests' "
+            "library. Use directly only if you need fine-grained connection "
+            "control."
+        ),
         "alternatives": "requests (higher-level), httpx, aiohttp",
         "ecosystem_role": "Transitive dep of requests, pip, and many tools",
     },
     "flask": {
         "category": "web-framework",
-        "description": "Lightweight WSGI web framework. Provides routing, templates (Jinja2), and Werkzeug WSGI utilities. Best for small-to-medium APIs and web apps.",
+        "description": (
+            "Lightweight WSGI web framework. Provides routing, templates "
+            "(Jinja2), and Werkzeug WSGI utilities. Best for small-to-medium "
+            "APIs and web apps."
+        ),
         "alternatives": "fastapi, django, starlette, bottle",
-        "ecosystem_role": "Web framework; pulls in Jinja2, Werkzeug, click, itsdangerous",
+        "ecosystem_role": ("Web framework; pulls in Jinja2, Werkzeug, click, itsdangerous"),
     },
     "django": {
         "category": "web-framework",
-        "description": "Full-featured web framework with ORM, admin, auth, and templating. Best for large applications with complex data models.",
+        "description": (
+            "Full-featured web framework with ORM, admin, auth, and "
+            "templating. Best for large applications with complex data models."
+        ),
         "alternatives": "flask, fastapi, sqlalchemy+starlette",
         "ecosystem_role": "Full-stack framework; large transitive dependency tree",
     },
     "fastapi": {
         "category": "web-framework",
-        "description": "Modern async web framework with automatic OpenAPI docs. Built on Starlette and Pydantic. Best for async APIs with validation.",
+        "description": (
+            "Modern async web framework with automatic OpenAPI docs. Built on "
+            "Starlette and Pydantic. Best for async APIs with validation."
+        ),
         "alternatives": "flask, django, starlette (lower-level)",
-        "ecosystem_role": "Async API framework; pulls in starlette, pydantic, uvicorn",
+        "ecosystem_role": ("Async API framework; pulls in starlette, pydantic, uvicorn"),
     },
     "numpy": {
         "category": "scientific-computing",
-        "description": "Fundamental package for numerical computing in Python. Provides N-dimensional arrays, linear algebra, FFT, and random number capabilities.",
+        "description": (
+            "Fundamental package for numerical computing in Python. Provides "
+            "N-dimensional arrays, linear algebra, FFT, and random number "
+            "capabilities."
+        ),
         "alternatives": "jax, cupy (GPU), pytorch (tensors + autograd)",
-        "ecosystem_role": "Foundation for scientific Python; transitive dep of pandas, scipy, scikit-learn, matplotlib",
+        "ecosystem_role": (
+            "Foundation for scientific Python; transitive dep of pandas, "
+            "scipy, scikit-learn, matplotlib"
+        ),
     },
     "pandas": {
         "category": "data-analysis",
-        "description": "Data analysis and manipulation library. Provides DataFrames, time series, and statistical operations. Built on NumPy.",
+        "description": (
+            "Data analysis and manipulation library. Provides DataFrames, "
+            "time series, and statistical operations. Built on NumPy."
+        ),
         "alternatives": "polars (faster), dask (distributed), modin (ray-backed)",
-        "ecosystem_role": "Data analysis framework; pulls in numpy, python-dateutil, pytz",
+        "ecosystem_role": ("Data analysis framework; pulls in numpy, python-dateutil, pytz"),
     },
     "click": {
         "category": "cli",
-        "description": "Command-line interface creation toolkit. Provides decorators for building CLIs with arguments, options, and subcommands.",
+        "description": (
+            "Command-line interface creation toolkit. Provides decorators for "
+            "building CLIs with arguments, options, and subcommands."
+        ),
         "alternatives": "argparse (stdlib), typer (type-based), docopt",
-        "ecosystem_role": "CLI framework; transitive dep of Flask, pip, black, many tools",
+        "ecosystem_role": ("CLI framework; transitive dep of Flask, pip, black, many tools"),
     },
     "rich": {
         "category": "cli",
-        "description": "Terminal formatting library. Provides colored output, tables, progress bars, markdown rendering, and tree displays.",
+        "description": (
+            "Terminal formatting library. Provides colored output, tables, "
+            "progress bars, markdown rendering, and tree displays."
+        ),
         "alternatives": "colorama (basic color), blessed (terminal control), textual (TUI)",
-        "ecosystem_role": "Terminal formatting; increasingly common in Python CLI tools",
+        "ecosystem_role": ("Terminal formatting; increasingly common in Python CLI tools"),
     },
     "pydantic": {
         "category": "data-validation",
-        "description": "Data validation using Python type annotations. Provides BaseModel with automatic validation, serialization, and JSON Schema generation.",
+        "description": (
+            "Data validation using Python type annotations. Provides BaseModel "
+            "with automatic validation, serialization, and JSON Schema "
+            "generation."
+        ),
         "alternatives": "marshmallow, attrs+cattrs, dataclasses (stdlib, no validation)",
         "ecosystem_role": "Validation framework; required by FastAPI, used by many APIs",
     },
     "pytest": {
         "category": "testing",
-        "description": "Testing framework with fixtures, parametrize, and powerful plugin system. The de facto standard for Python testing.",
+        "description": (
+            "Testing framework with fixtures, parametrize, and powerful "
+            "plugin system. The de facto standard for Python testing."
+        ),
         "alternatives": "unittest (stdlib), nose2, hypothesis (property-based)",
         "ecosystem_role": "Test framework; many plugins extend it",
     },
     "httpx": {
         "category": "http-client",
-        "description": "Modern HTTP client supporting both sync and async. API-compatible with requests. Best choice for new projects needing async HTTP.",
+        "description": (
+            "Modern HTTP client supporting both sync and async. "
+            "API-compatible with requests. Best choice for new projects "
+            "needing async HTTP."
+        ),
         "alternatives": "requests (sync only), aiohttp (async), urllib3 (low-level)",
         "ecosystem_role": "HTTP client; supports HTTP/2 via h2 package",
     },
     "jinja2": {
         "category": "templating",
-        "description": "Template engine for Python. Provides Django-like template syntax with expressions, inheritance, and filters.",
+        "description": (
+            "Template engine for Python. Provides Django-like template syntax "
+            "with expressions, inheritance, and filters."
+        ),
         "alternatives": "mako, cheetah3, chameleon",
         "ecosystem_role": "Template engine; transitive dep of Flask, Ansible, many tools",
     },
     "setuptools": {
         "category": "packaging",
-        "description": "Package build and distribution system. Provides setup.py support, package discovery, and build backend. Increasingly replaced by hatchling/flit.",
+        "description": (
+            "Package build and distribution system. Provides setup.py support, "
+            "package discovery, and build backend. Increasingly replaced by "
+            "hatchling/flit."
+        ),
         "alternatives": "hatchling, flit, poetry-core, setuptools-rust",
         "ecosystem_role": "Build system; historically ubiquitous, now optional",
     },
@@ -128,73 +177,110 @@ PACKAGE_KNOWLEDGE: dict[str, dict[str, str]] = {
     },
     "wheel": {
         "category": "packaging",
-        "description": "Wheel package format support. Provides the bdist_wheel command and wheel installation. Part of the Python packaging ecosystem.",
+        "description": (
+            "Wheel package format support. Provides the bdist_wheel command "
+            "and wheel installation. Part of the Python packaging ecosystem."
+        ),
         "alternatives": "None (standard format)",
         "ecosystem_role": "Packaging format; required for building wheels",
     },
     "certifi": {
         "category": "security",
-        "description": "Mozilla CA certificate bundle. Provides SSL/TLS root certificates for HTTPS connections.",
+        "description": (
+            "Mozilla CA certificate bundle. Provides SSL/TLS root certificates "
+            "for HTTPS connections."
+        ),
         "alternatives": "pip-system-certs, truststore (Python 3.10+)",
         "ecosystem_role": "SSL certificates; transitive dep of requests, httpx, urllib3",
     },
     "cryptography": {
         "category": "security",
-        "description": "Cryptographic primitives and recipes. Provides symmetric/asymmetric encryption, hashing, HMAC, and X.509 operations.",
+        "description": (
+            "Cryptographic primitives and recipes. Provides symmetric/asymmetric "
+            "encryption, hashing, HMAC, and X.509 operations."
+        ),
         "alternatives": "pycryptodome, nacl (libsodium), hashlib (stdlib, limited)",
         "ecosystem_role": "Crypto library; transitive dep of paramiko, pyOpenSSL, jose",
     },
     "packaging": {
         "category": "packaging",
-        "description": "Core utilities for Python package versioning, specifiers, and markers. PEP 440 version parsing and comparison.",
+        "description": (
+            "Core utilities for Python package versioning, specifiers, and "
+            "markers. PEP 440 version parsing and comparison."
+        ),
         "alternatives": "None (standard library replacement)",
         "ecosystem_role": "Packaging utilities; transitive dep of pip, setuptools, many tools",
     },
     "black": {
         "category": "formatting",
-        "description": "Uncompromising code formatter. Enforces a consistent style automatically. The most popular Python code formatter.",
+        "description": (
+            "Uncompromising code formatter. Enforces a consistent style "
+            "automatically. The most popular Python code formatter."
+        ),
         "alternatives": "ruff (faster, replaces isort too), autopep8, yapf",
         "ecosystem_role": "Code formatter; dev dependency",
     },
     "ruff": {
         "category": "formatting",
-        "description": "Fast Python linter and formatter written in Rust. Replaces flake8, isort, and black in many projects.",
+        "description": (
+            "Fast Python linter and formatter written in Rust. Replaces "
+            "flake8, isort, and black in many projects."
+        ),
         "alternatives": "flake8, black+isort, pylint",
         "ecosystem_role": "Linter/formatter; dev dependency, very fast",
     },
     "mypy": {
         "category": "type-checking",
-        "description": "Static type checker for Python. Enforces type annotations and catches type errors at development time.",
+        "description": (
+            "Static type checker for Python. Enforces type annotations and "
+            "catches type errors at development time."
+        ),
         "alternatives": "pyright, pytype, pyre",
         "ecosystem_role": "Type checker; dev dependency",
     },
     "sqlalchemy": {
         "category": "database",
-        "description": "SQL toolkit and ORM. Provides both a high-level ORM and a low-level SQL expression language. The standard Python database library.",
+        "description": (
+            "SQL toolkit and ORM. Provides both a high-level ORM and a "
+            "low-level SQL expression language. The standard Python database "
+            "library."
+        ),
         "alternatives": "tortoise-orm (async), peewee, django-orm",
         "ecosystem_role": "Database toolkit; many frameworks integrate with it",
     },
     "alembic": {
         "category": "database",
-        "description": "Database migration tool for SQLAlchemy. Provides schema versioning and migration generation.",
+        "description": (
+            "Database migration tool for SQLAlchemy. Provides schema versioning "
+            "and migration generation."
+        ),
         "alternatives": "django-migrations, flyway (JVM), prisma",
         "ecosystem_role": "Migration tool; typically paired with SQLAlchemy",
     },
     "celery": {
         "category": "task-queue",
-        "description": "Distributed task queue for Python. Supports Redis, RabbitMQ, and other brokers. Best for background job processing.",
+        "description": (
+            "Distributed task queue for Python. Supports Redis, RabbitMQ, and "
+            "other brokers. Best for background job processing."
+        ),
         "alternatives": "huey, dramatiq, arq (async), rq (simpler)",
         "ecosystem_role": "Task queue; pulls in billiard, kombu, vine",
     },
     "redis": {
         "category": "database",
-        "description": "Redis Python client. Provides connection pooling, pub/sub, pipelines, and cluster support.",
+        "description": (
+            "Redis Python client. Provides connection pooling, pub/sub, "
+            "pipelines, and cluster support."
+        ),
         "alternatives": "aioredis (now part of redis), valkey client",
         "ecosystem_role": "Cache/message broker client; commonly used with Celery",
     },
     "pillow": {
         "category": "imaging",
-        "description": "Python imaging library (PIL fork). Provides image processing, format conversion, and manipulation capabilities.",
+        "description": (
+            "Python imaging library (PIL fork). Provides image processing, "
+            "format conversion, and manipulation capabilities."
+        ),
         "alternatives": "opencv-python, imageio, wand (ImageMagick)",
         "ecosystem_role": "Image processing; transitive dep of many data/ML tools",
     },
@@ -494,9 +580,7 @@ class ExplainReport:
     total_packages: int = 0
     at_risk_count: int = 0
     healthy_count: int = 0
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -642,11 +726,7 @@ def explain_project(
     for pkg in scan_result.packages:
         explanations.append(explain_package(pkg))
 
-    at_risk = sum(
-        1
-        for e in explanations
-        if e.is_vulnerable or e.is_unmaintained or e.is_outdated
-    )
+    at_risk = sum(1 for e in explanations if e.is_vulnerable or e.is_unmaintained or e.is_outdated)
     healthy = len(explanations) - at_risk
 
     return ExplainReport(
@@ -699,10 +779,15 @@ def render_explain_plain(report: ExplainReport, *, console: Any = None) -> None:
             HealthStatus.UNKNOWN: "dim",
         }.get(pkg.status, "dim")
 
-        console.print(f"[{color}]{icon}[/{color}] [bold]{pkg.name}[/bold] {pkg.installed_version}", highlight=False)
+        console.print(
+            f"[{color}]{icon}[/{color}] [bold]{pkg.name}[/bold] {pkg.installed_version}",
+            highlight=False,
+        )
 
         if pkg.description:
-            wrapped = textwrap.fill(pkg.description, width=72, initial_indent="  ", subsequent_indent="  ")
+            wrapped = textwrap.fill(
+                pkg.description, width=72, initial_indent="  ", subsequent_indent="  "
+            )
             console.print(f"  [dim]{wrapped}[/dim]")
 
         if pkg.category != "unknown":
@@ -817,7 +902,9 @@ def render_explain_ai(report: ExplainReport, *, console: Any = None) -> None:
         console = Console(force_terminal=False, no_color=True)
 
     lines: list[str] = []
-    lines.append(f"DEPS {report.project_path} total={report.total_packages} risk={report.at_risk_count} ok={report.healthy_count}")
+    lines.append(
+        f"DEPS {report.project_path} total={report.total_packages} risk={report.at_risk_count} ok={report.healthy_count}"
+    )
 
     for pkg in report.packages:
         parts = [

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import enum
 import json
-import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +28,6 @@ from rich.table import Table
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
-
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -129,59 +127,47 @@ class HistoryReport:
 
     @property
     def accelerating_count(self) -> int:
-        return sum(
-            1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.ACCELERATING
-        )
+        return sum(1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.ACCELERATING)
 
     @property
     def steady_count(self) -> int:
-        return sum(
-            1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.STEADY
-        )
+        return sum(1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.STEADY)
 
     @property
     def slowing_count(self) -> int:
-        return sum(
-            1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.SLOWING
-        )
+        return sum(1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.SLOWING)
 
     @property
     def abandoned_count(self) -> int:
-        return sum(
-            1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.ABANDONED
-        )
+        return sum(1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.ABANDONED)
 
     @property
     def new_count(self) -> int:
-        return sum(
-            1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.NEW
-        )
+        return sum(1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.NEW)
 
     @property
     def unknown_count(self) -> int:
-        return sum(
-            1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.UNKNOWN
-        )
+        return sum(1 for p in self.packages if p.maintenance_trend == MaintenanceTrend.UNKNOWN)
 
     @property
     def avg_current_version_age(self) -> float | None:
-        ages = [p.current_version_age_days for p in self.packages if p.current_version_age_days is not None]
+        ages = [
+            p.current_version_age_days
+            for p in self.packages
+            if p.current_version_age_days is not None
+        ]
         return sum(ages) / len(ages) if ages else None
 
     @property
     def oldest_current_version(self) -> PackageHistory | None:
-        with_ages = [
-            p for p in self.packages if p.current_version_age_days is not None
-        ]
+        with_ages = [p for p in self.packages if p.current_version_age_days is not None]
         if not with_ages:
             return None
         return max(with_ages, key=lambda p: p.current_version_age_days or 0)
 
     @property
     def newest_current_version(self) -> PackageHistory | None:
-        with_ages = [
-            p for p in self.packages if p.current_version_age_days is not None
-        ]
+        with_ages = [p for p in self.packages if p.current_version_age_days is not None]
         if not with_ages:
             return None
         return min(with_ages, key=lambda p: p.current_version_age_days or 0)
@@ -314,9 +300,7 @@ def analyze_package_history(
             if not files:
                 continue
             # Use the first file's upload time as the release date
-            upload_time = files[0].get("upload_time_iso_8601") or files[0].get(
-                "upload_time"
-            )
+            upload_time = files[0].get("upload_time_iso_8601") or files[0].get("upload_time")
             if not upload_time:
                 continue
 
@@ -366,27 +350,23 @@ def analyze_package_history(
             history.years_active = days_active / 365.25
 
         # Current version age
-        current_release = next(
-            (v for v in version_releases if v.is_current), None
-        )
+        current_release = next((v for v in version_releases if v.is_current), None)
         if current_release:
             try:
-                current_dt = datetime.fromisoformat(
-                    current_release.release_date
-                ).replace(tzinfo=timezone.utc)
+                current_dt = datetime.fromisoformat(current_release.release_date).replace(
+                    tzinfo=timezone.utc
+                )
                 history.current_version_age_days = (now - current_dt).days
             except (ValueError, TypeError):
                 pass
 
         # Latest version age
-        latest_release = next(
-            (v for v in version_releases if v.is_latest), None
-        )
+        latest_release = next((v for v in version_releases if v.is_latest), None)
         if latest_release:
             try:
-                latest_dt = datetime.fromisoformat(
-                    latest_release.release_date
-                ).replace(tzinfo=timezone.utc)
+                latest_dt = datetime.fromisoformat(latest_release.release_date).replace(
+                    tzinfo=timezone.utc
+                )
                 history.latest_version_age_days = (now - latest_dt).days
             except (ValueError, TypeError):
                 pass
@@ -395,9 +375,7 @@ def analyze_package_history(
         if len(release_dates) >= 2 and history.years_active and history.years_active > 0:
             total_days = (release_dates[-1] - release_dates[0]).days
             if total_days > 0:
-                history.releases_per_year = (
-                    (len(release_dates) - 1) / total_days
-                ) * 365.25
+                history.releases_per_year = ((len(release_dates) - 1) / total_days) * 365.25
 
                 # Average days between releases
             gaps = []
@@ -479,9 +457,7 @@ def _trend_style(trend: MaintenanceTrend) -> str:
     return styles.get(trend, "[dim]? unknown[/dim]")
 
 
-def render_history_table(
-    report: HistoryReport, console: Console | None = None
-) -> None:
+def render_history_table(report: HistoryReport, console: Console | None = None) -> None:
     """Render history report as a Rich table."""
     if console is None:
         console = Console()
@@ -566,13 +542,27 @@ def render_history_table(
     for pkg in sorted(report.packages, key=lambda p: p.name):
         if pkg.error:
             pkg_table.add_row(
-                pkg.name, pkg.installed_version, "-", "-", "-", "-",
-                "[dim]error[/dim]", "-",
+                pkg.name,
+                pkg.installed_version,
+                "-",
+                "-",
+                "-",
+                "-",
+                "[dim]error[/dim]",
+                "-",
             )
         else:
-            age = str(pkg.current_version_age_days) if pkg.current_version_age_days is not None else "-"
+            age = (
+                str(pkg.current_version_age_days)
+                if pkg.current_version_age_days is not None
+                else "-"
+            )
             rpy = f"{pkg.releases_per_year:.1f}" if pkg.releases_per_year is not None else "-"
-            avg_gap = f"{pkg.avg_days_between_releases:.0f}" if pkg.avg_days_between_releases is not None else "-"
+            avg_gap = (
+                f"{pkg.avg_days_between_releases:.0f}"
+                if pkg.avg_days_between_releases is not None
+                else "-"
+            )
             yrs = f"{pkg.years_active:.1f}" if pkg.years_active is not None else "-"
             pkg_table.add_row(
                 pkg.name,
@@ -589,9 +579,7 @@ def render_history_table(
     console.print()
 
 
-def render_history_json(
-    report: HistoryReport, console: Console | None = None
-) -> None:
+def render_history_json(report: HistoryReport, console: Console | None = None) -> None:
     """Render history report as JSON."""
     data = report.to_dict()
     output = json.dumps(data, indent=2)

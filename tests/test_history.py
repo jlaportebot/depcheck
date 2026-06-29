@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +21,6 @@ from depcheck.history import (
     render_history_table,
 )
 from depcheck.models import ParsedDependency
-
 
 # ---------------------------------------------------------------------------
 # VersionRelease tests
@@ -98,31 +97,37 @@ class TestHistoryReport:
     def _make_report(self) -> HistoryReport:
         packages = [
             PackageHistory(
-                name="a", installed_version="1.0",
+                name="a",
+                installed_version="1.0",
                 maintenance_trend=MaintenanceTrend.ACCELERATING,
                 current_version_age_days=30,
             ),
             PackageHistory(
-                name="b", installed_version="2.0",
+                name="b",
+                installed_version="2.0",
                 maintenance_trend=MaintenanceTrend.STEADY,
                 current_version_age_days=60,
             ),
             PackageHistory(
-                name="c", installed_version="3.0",
+                name="c",
+                installed_version="3.0",
                 maintenance_trend=MaintenanceTrend.ABANDONED,
                 current_version_age_days=800,
             ),
             PackageHistory(
-                name="d", installed_version="4.0",
+                name="d",
+                installed_version="4.0",
                 maintenance_trend=MaintenanceTrend.SLOWING,
                 current_version_age_days=200,
             ),
             PackageHistory(
-                name="e", installed_version="5.0",
+                name="e",
+                installed_version="5.0",
                 maintenance_trend=MaintenanceTrend.NEW,
             ),
             PackageHistory(
-                name="f", installed_version="6.0",
+                name="f",
+                installed_version="6.0",
                 maintenance_trend=MaintenanceTrend.UNKNOWN,
             ),
         ]
@@ -355,7 +360,8 @@ class TestRenderHistoryTable:
             project_path="/tmp/test",
             packages=[
                 PackageHistory(
-                    name="a", installed_version="1.0",
+                    name="a",
+                    installed_version="1.0",
                     maintenance_trend=MaintenanceTrend.STEADY,
                     current_version_age_days=100,
                     releases_per_year=4.0,
@@ -385,7 +391,8 @@ class TestRenderHistoryJson:
             project_path="/tmp/test",
             packages=[
                 PackageHistory(
-                    name="a", installed_version="1.0",
+                    name="a",
+                    installed_version="1.0",
                     maintenance_trend=MaintenanceTrend.STEADY,
                     current_version_age_days=100,
                 ),

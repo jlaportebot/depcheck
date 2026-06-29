@@ -12,10 +12,8 @@ project audits.
 from __future__ import annotations
 
 import enum
-import hashlib
 import json
 import math
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,9 +23,8 @@ from typing import Any
 from packaging.version import Version
 
 from depcheck.audit import RiskLevel, run_audit
-from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.models import HealthStatus, ScanResult
 from depcheck.scanner import scan_project
-
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -152,9 +149,7 @@ class HealthReport:
     transitive_depths: list[TransitiveDepth] = field(default_factory=list)
     scan_result: ScanResult | None = None
     audit_risk_level: RiskLevel = RiskLevel.NONE
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     duration_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
 
@@ -195,9 +190,7 @@ def _score_vulnerability(scan_result: ScanResult) -> CategoryScore:
     Starting score is 100. Each vulnerability deducts points based on
     severity: CRITICAL -30, HIGH -15, MEDIUM -8, LOW -3.
     """
-    vuln_packages = [
-        p for p in scan_result.packages if p.status == HealthStatus.VULNERABLE
-    ]
+    vuln_packages = [p for p in scan_result.packages if p.status == HealthStatus.VULNERABLE]
     all_vulns: list[Any] = []
     for pkg in vuln_packages:
         all_vulns.extend(pkg.vulnerabilities)
@@ -317,8 +310,11 @@ def _score_freshness(
         weight=DEFAULT_WEIGHTS["freshness"],
         details={
             "average_days_behind": (
-                round(sum(f.days_behind for f in freshness_data if f.days_behind is not None)
-                / max(1, sum(1 for f in freshness_data if f.days_behind is not None)), 1)
+                round(
+                    sum(f.days_behind for f in freshness_data if f.days_behind is not None)
+                    / max(1, sum(1 for f in freshness_data if f.days_behind is not None)),
+                    1,
+                )
             ),
             "stale_count": stale_count,
             "very_stale_count": very_stale_count,
@@ -346,9 +342,7 @@ def _score_license(scan_result: ScanResult) -> CategoryScore:
 
     non_compliant = sum(1 for p in scan_result.packages if p.has_license_issue)
     unknown = sum(
-        1
-        for p in scan_result.packages
-        if p.license_info and p.license_info.category == "unknown"
+        1 for p in scan_result.packages if p.license_info and p.license_info.category == "unknown"
     )
     compliant = total - non_compliant
 
@@ -418,8 +412,7 @@ def _score_maintenance(
         )
     if slow_count > 0:
         recs.append(
-            f"{slow_count} package{'s' if slow_count != 1 else ''} "
-            "have slow release cadence"
+            f"{slow_count} package{'s' if slow_count != 1 else ''} have slow release cadence"
         )
     if not recs:
         recs.append("All dependencies appear actively maintained")
@@ -544,8 +537,7 @@ def _score_outdated(scan_result: ScanResult) -> CategoryScore:
     # Weighted score: major behind is worse than minor behind
     score = max(
         0.0,
-        100.0
-        - (major_behind * 20 + minor_behind * 8 + patch_behind * 3),
+        100.0 - (major_behind * 20 + minor_behind * 8 + patch_behind * 3),
     )
     grade = Grade.from_score(score)
 
@@ -583,6 +575,7 @@ def _score_outdated(scan_result: ScanResult) -> CategoryScore:
 # ---------------------------------------------------------------------------
 # Freshness analysis
 # ---------------------------------------------------------------------------
+
 
 def analyze_freshness(scan_result: ScanResult) -> list[DependencyFreshness]:
     """Compute freshness data for each package in a scan result.
@@ -630,6 +623,7 @@ def analyze_freshness(scan_result: ScanResult) -> list[DependencyFreshness]:
 # Maintainer signal analysis
 # ---------------------------------------------------------------------------
 
+
 def analyze_maintainer_signals(scan_result: ScanResult) -> list[MaintainerSignal]:
     """Analyze maintainer activity signals for each package.
 
@@ -644,9 +638,7 @@ def analyze_maintainer_signals(scan_result: ScanResult) -> list[MaintainerSignal
 
         if pkg.last_release_date:
             try:
-                release_dt = datetime.fromisoformat(
-                    pkg.last_release_date.replace("Z", "+00:00")
-                )
+                release_dt = datetime.fromisoformat(pkg.last_release_date.replace("Z", "+00:00"))
                 now = datetime.now(timezone.utc)
                 days_since = max(0, (now - release_dt).days)
             except Exception:
@@ -687,6 +679,7 @@ def analyze_maintainer_signals(scan_result: ScanResult) -> list[MaintainerSignal
 # ---------------------------------------------------------------------------
 # Transitive depth analysis (lightweight — from scan result metadata)
 # ---------------------------------------------------------------------------
+
 
 def analyze_transitive_depth(scan_result: ScanResult) -> list[TransitiveDepth]:
     """Estimate transitive dependency depth from scan result data.
@@ -739,7 +732,7 @@ def run_check(
     """
     start = time.monotonic()
 
-    w = weights or DEFAULT_WEIGHTS
+    _ = weights or DEFAULT_WEIGHTS
 
     # Run the full scan
     scan_result = scan_project(

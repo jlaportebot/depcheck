@@ -6,23 +6,20 @@ import json
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.bundle import (
     BundleCommand,
     BundleReport,
     CommandResult,
-    run_bundle,
+    _run_audit,
+    _run_check,
+    _run_history,
+    _run_license,
+    _run_outdated,
+    _run_size,
     render_bundle_json,
     render_bundle_table,
-    _run_check,
-    _run_audit,
-    _run_outdated,
-    _run_license,
-    _run_size,
-    _run_history,
+    run_bundle,
 )
-
 
 # ---------------------------------------------------------------------------
 # BundleCommand tests
@@ -108,9 +105,16 @@ class TestBundleReport:
     def _make_report(self, success: bool = True) -> BundleReport:
         results = [
             CommandResult(command="check", success=True, duration_seconds=0.5, summary="Score: 90"),
-            CommandResult(command="audit", success=success, duration_seconds=1.0,
-                         summary="" if success else "", error="" if success else "fail"),
-            CommandResult(command="outdated", success=True, duration_seconds=0.3, summary="3 outdated"),
+            CommandResult(
+                command="audit",
+                success=success,
+                duration_seconds=1.0,
+                summary="" if success else "",
+                error="" if success else "fail",
+            ),
+            CommandResult(
+                command="outdated", success=True, duration_seconds=0.3, summary="3 outdated"
+            ),
         ]
         if not success:
             results[1].success = False
@@ -225,8 +229,10 @@ class TestRunOutdated:
         mock_outdated.patch_count = 1
         mock_outdated.up_to_date_count = 5
 
-        with patch("depcheck.scanner.scan_project", return_value=mock_scan), \
-             patch("depcheck.outdated.build_outdated_report", return_value=mock_outdated):
+        with (
+            patch("depcheck.scanner.scan_project", return_value=mock_scan),
+            patch("depcheck.outdated.build_outdated_report", return_value=mock_outdated),
+        ):
             result = _run_outdated("/tmp/test")
             assert result.command == "outdated"
             assert result.success is True
@@ -329,16 +335,25 @@ class TestRunBundle:
         with patch("depcheck.bundle.COMMAND_RUNNERS") as mock_runners:
             mock_runners.get.side_effect = lambda cmd: MagicMock(return_value=mock_result)
             report = run_bundle(str(tmp_path), commands=list(BundleCommand))
-            assert report.commands_run == ["check", "audit", "outdated", "license", "size", "history"]
+            assert report.commands_run == [
+                "check",
+                "audit",
+                "outdated",
+                "license",
+                "size",
+                "history",
+            ]
             assert len(report.results) == 6
 
     def test_mixed_success_failure(self, tmp_path) -> None:
         """Test that one failure makes overall_success False."""
-        results_iter = iter([
-            CommandResult(command="check", success=True, duration_seconds=0.1),
-            CommandResult(command="audit", success=False, error="fail", duration_seconds=0.1),
-            CommandResult(command="outdated", success=True, duration_seconds=0.1),
-        ])
+        results_iter = iter(
+            [
+                CommandResult(command="check", success=True, duration_seconds=0.1),
+                CommandResult(command="audit", success=False, error="fail", duration_seconds=0.1),
+                CommandResult(command="outdated", success=True, duration_seconds=0.1),
+            ]
+        )
         mock_runner = MagicMock(side_effect=lambda path: next(results_iter))
         with patch("depcheck.bundle.COMMAND_RUNNERS") as mock_runners:
             mock_runners.get.return_value = mock_runner
@@ -368,8 +383,12 @@ class TestRenderBundleTable:
             project_path="/tmp/test",
             commands_run=["check", "audit"],
             results=[
-                CommandResult(command="check", success=True, duration_seconds=0.5, summary="Score: 90"),
-                CommandResult(command="audit", success=True, duration_seconds=1.0, summary="No vulns"),
+                CommandResult(
+                    command="check", success=True, duration_seconds=0.5, summary="Score: 90"
+                ),
+                CommandResult(
+                    command="audit", success=True, duration_seconds=1.0, summary="No vulns"
+                ),
             ],
             total_duration_seconds=1.5,
             timestamp="2024-01-15T00:00:00Z",
