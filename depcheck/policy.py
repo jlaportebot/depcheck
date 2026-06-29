@@ -336,6 +336,12 @@ class PolicyConfig:
 
         return cls(rules=rules)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "rules": [r.to_dict() for r in self.rules],
+        }
+
     @classmethod
     def from_pyproject(cls, project_path: Path) -> PolicyConfig | None:
         """Load policy config from [tool.depcheck.policy] in pyproject.toml."""

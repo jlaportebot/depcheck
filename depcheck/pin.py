@@ -778,25 +778,25 @@ def load_pin_policy(project_path: str = ".") -> PinPolicyConfig:
         return config
 
     try:
-        if hasattr("", "removesuffix"):  # Python 3.9+
-            import tomllib
-        else:
-            import tomli as tomllib
+        import tomllib
+    except ImportError:
+        import tomllib  # Python 3.11+ has tomllib in stdlib
 
-        with open(path, "rb") as f:
-            data = tomllib.load(f)
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
 
-        pin_config = data.get("tool", {}).get("depcheck", {}).get("pin", {})
-        if not pin_config:
-            return config
+    pin_config = data.get("tool", {}).get("depcheck", {}).get("pin", {})
+    if not pin_config:
+        return config
 
-        config.default_policy = PinPolicy(pin_config.get("default_policy", "exact"))
-        config.require_hashes = pin_config.get("require_hashes", True)
-        config.fail_on_yanked = pin_config.get("fail_on_yanked", True)
-        config.fail_on_deprecated = pin_config.get("fail_on_deprecated", False)
-        config.auto_update = pin_config.get("auto_update", False)
-        config.max_stale_days = pin_config.get("max_stale_days", 90)
+    config.default_policy = PinPolicy(pin_config.get("default_policy", "exact"))
+    config.require_hashes = pin_config.get("require_hashes", True)
+    config.fail_on_yanked = pin_config.get("fail_on_yanked", True)
+    config.fail_on_deprecated = pin_config.get("fail_on_deprecated", False)
+    config.auto_update = pin_config.get("auto_update", False)
+    config.max_stale_days = pin_config.get("max_stale_days", 90)
 
+    try:
         for rule_data in pin_config.get("rules", []):
             rule = PinPolicyRule(
                 pattern=rule_data.get("pattern", "*"),
@@ -807,7 +807,6 @@ def load_pin_policy(project_path: str = ".") -> PinPolicyConfig:
                 max_age_days=rule_data.get("max_age_days", 0),
             )
             config.rules.append(rule)
-
     except Exception:
         pass
 

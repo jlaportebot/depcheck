@@ -269,6 +269,8 @@ def _check_unpinned_deps(project_path: Path, findings: list[Finding]) -> None:
         )
 
     for dep in loose:
+        if dep.specifier is None:
+            continue
         spec_type = "compatible" if dep.specifier.startswith("~=") else "minimum"
         findings.append(
             Finding(

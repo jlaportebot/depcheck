@@ -627,18 +627,24 @@ def license(
     for pkg in result.packages:
         info = pkg.license_info
         if info is None:
-            info = LicenseInfo(spdx_id="", raw_license="UNKNOWN")
+            info = LicenseInfo(spdx_id="", raw_license="UNKNOWN", category=LicenseCategory.UNKNOWN, is_compliant=True, compliance_note="")
 
         # Re-check against policy
         compliance = policy.check(info.spdx_id)
-        info.is_compliant = compliance.is_compliant
-        if not compliance.is_compliant:
-            info.compliance_note = compliance.reason
+        
+        # Convert models.LicenseInfo to licenses.LicenseInfo for PackageComplianceEntry
+        license_info_for_entry = LicenseInfo(
+            spdx_id=info.spdx_id,
+            raw_license=info.raw_license,
+            category=LicenseCategory(info.category) if isinstance(info.category, str) else info.category,
+            is_compliant=compliance.is_compliant,
+            compliance_note=compliance.reason if not compliance.is_compliant else "",
+        )
 
         entry = PackageComplianceEntry(
             name=pkg.name,
             version=pkg.installed_version,
-            license_info=info,
+            license_info=license_info_for_entry,
             is_compliant=compliance.is_compliant,
             denial_reason=compliance.reason if not compliance.is_compliant else "",
         )

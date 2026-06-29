@@ -17,6 +17,7 @@ from __future__ import annotations
 import enum
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -314,7 +315,7 @@ def _run_history(project_path: str) -> CommandResult:
 
 
 # Command dispatch
-COMMAND_RUNNERS: dict[BundleCommand, callable] = {  # type: ignore[type-arg]
+COMMAND_RUNNERS: dict[BundleCommand, Callable] = {
     BundleCommand.CHECK: _run_check,
     BundleCommand.AUDIT: _run_audit,
     BundleCommand.OUTDATED: _run_outdated,

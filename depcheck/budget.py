@@ -92,6 +92,17 @@ class BudgetConfig:
             groups=data.get("groups", {}),
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "total": self.total,
+            "direct": self.direct,
+            "transitive": self.transitive,
+            "dev": self.dev,
+            "optional": self.optional,
+            "groups": self.groups,
+        }
+
     @classmethod
     def from_pyproject(cls, project_path: Path) -> BudgetConfig | None:
         """Load budget config from [tool.depcheck.budget] in pyproject.toml."""

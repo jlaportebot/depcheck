@@ -55,7 +55,7 @@ class Config:
                 "quiet": self.scan.quiet,
                 "output_json": self.scan.output_json,
             },
-            "budget": self.budget.to_dict() if hasattr(self.budget, "to_dict") else {},
+            "budget": self.budget.to_dict() if hasattr(self.budget, "to_dict") else {},  # type: ignore[attr-defined]
             "policy": policy_dict,
             "project_path": str(self.project_path),
         }

@@ -322,6 +322,7 @@ def _score_age(pkg: PackageReport) -> DimensionScore:
     Based on: how far behind the latest version the installed
     version is, and whether the package is significantly outdated.
     """
+    factors: list[str] = []
     if pkg.status == HealthStatus.OUTDATED:
         score = 0.5
         details = "Installed version is not the latest"
