@@ -631,7 +631,7 @@ def license(
 
         # Re-check against policy
         compliance = policy.check(info.spdx_id)
-        
+
         # Convert models.LicenseInfo to licenses.LicenseInfo for PackageComplianceEntry
         license_info_for_entry = LicenseInfo(
             spdx_id=info.spdx_id,
