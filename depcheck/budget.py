@@ -1,555 +1,525 @@
 """Dependency budget management for depcheck.
 
-Define and enforce dependency budgets for your project — limits on
-total count, download size, install footprint, transitive depth, and
-allowed categories. Catches budget violations early in CI and provides
-clear reports of where budgets are being spent.
+Define a budget of allowed dependencies per category and check
+whether your project stays within those limits. Budgets can be
+defined in pyproject.toml under [tool.depcheck.budget] or passed
+via CLI flags. Supports total budget, per-category budgets
+(direct, transitive, dev, optional), and custom group budgets.
 """
 
 from __future__ import annotations
 
 import json
+import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
+from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
-from depcheck.scanner import discover_dependencies, normalize_package_name
-from depcheck.size import _fetch_package_size, _human_size
+from depcheck.scanner import discover_dependencies
 
-# ── Data models ──────────────────────────────────────────────────────────
+# Package name regex (PEP 503)
+_PKG_RE = re.compile(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)")
+
+
+# ─── Data Models ───────────────────────────────────────────────────────────
 
 
 @dataclass
-class BudgetRule:
-    """A single budget constraint.
+class BudgetCategory:
+    """A single budget category with its limit and current count."""
 
-    Attributes:
-        name: Human-readable rule name.
-        metric: What to measure (count, download_kb, install_kb, max_deps, max_depth,
-        license_category).
-        limit: The budget limit value.
-        current: Current measured value (filled after analysis).
-        unit: Unit for display (e.g., "packages", "KB", "MB").
-        severity: Violation severity (warning, error).
-    """
-
-    name: str = ""
-    metric: str = ""
-    limit: float = 0.0
-    current: float = 0.0
-    unit: str = ""
-    severity: str = "error"
+    name: str
+    limit: int | None = None  # None means unlimited
+    count: int = 0
+    packages: list[str] = field(default_factory=list)
 
     @property
-    def is_violated(self) -> bool:
-        """Check if the budget rule is violated."""
-        return self.current > self.limit
+    def is_over(self) -> bool:
+        """Whether the budget category exceeds its limit."""
+        return self.limit is not None and self.count > self.limit
 
     @property
-    def utilization(self) -> float:
-        """Utilization as a percentage (0-100+)."""
-        if self.limit <= 0:
-            return 0.0
-        return (self.current / self.limit) * 100.0
+    def remaining(self) -> int | None:
+        """Remaining slots in this budget category."""
+        if self.limit is None:
+            return None
+        return max(0, self.limit - self.count)
 
     @property
-    def remaining(self) -> float:
-        """Remaining budget."""
-        return max(0.0, self.limit - self.current)
+    def utilization(self) -> float | None:
+        """Utilization percentage (0–100+)."""
+        if self.limit is None or self.limit == 0:
+            return None
+        return round((self.count / self.limit) * 100, 1)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
-            "metric": self.metric,
             "limit": self.limit,
-            "current": self.current,
+            "count": self.count,
             "remaining": self.remaining,
-            "unit": self.unit,
-            "utilization_pct": round(self.utilization, 1),
-            "is_violated": self.is_violated,
-            "severity": self.severity,
+            "utilization_percent": self.utilization,
+            "is_over": self.is_over,
+            "packages": self.packages,
         }
 
 
 @dataclass
 class BudgetConfig:
-    """Budget configuration for a project.
+    """Budget configuration loaded from pyproject.toml or CLI flags."""
 
-    Attributes:
-        max_packages: Maximum number of direct dependencies.
-        max_total_download_kb: Maximum total download size in KB.
-        max_total_install_kb: Maximum total install size in KB.
-        max_single_package_kb: Maximum download size for a single package.
-        max_transitive_depth: Maximum dependency tree depth.
-        allowed_license_categories: Set of allowed license categories.
-        denied_packages: Set of denied package names.
-        required_packages: Set of required package names.
-    """
-
-    max_packages: int = 50
-    max_total_download_kb: float = 500_000  # 500 MB
-    max_total_install_kb: float = 1_000_000  # 1 GB
-    max_single_package_kb: float = 100_000  # 100 MB
-    max_transitive_depth: int = 6
-    allowed_license_categories: set[str] = field(
-        default_factory=lambda: {"permissive", "public_domain"},
-    )
-    denied_packages: set[str] = field(default_factory=set)
-    required_packages: set[str] = field(default_factory=set)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "max_packages": self.max_packages,
-            "max_total_download_kb": self.max_total_download_kb,
-            "max_total_install_kb": self.max_total_install_kb,
-            "max_single_package_kb": self.max_single_package_kb,
-            "max_transitive_depth": self.max_transitive_depth,
-            "allowed_license_categories": sorted(self.allowed_license_categories),
-            "denied_packages": sorted(self.denied_packages),
-            "required_packages": sorted(self.required_packages),
-        }
+    total: int | None = None
+    direct: int | None = None
+    transitive: int | None = None
+    dev: int | None = None
+    optional: int | None = None
+    groups: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BudgetConfig:
-        """Create a BudgetConfig from a dictionary.
-
-        Args:
-            data: Dictionary with budget configuration values.
-
-        Returns:
-            BudgetConfig instance.
-        """
-        config = cls()
-        if "max_packages" in data:
-            config.max_packages = int(data["max_packages"])
-        if "max_total_download_kb" in data:
-            config.max_total_download_kb = float(data["max_total_download_kb"])
-        if "max_total_install_kb" in data:
-            config.max_total_install_kb = float(data["max_total_install_kb"])
-        if "max_single_package_kb" in data:
-            config.max_single_package_kb = float(data["max_single_package_kb"])
-        if "max_transitive_depth" in data:
-            config.max_transitive_depth = int(data["max_transitive_depth"])
-        if "allowed_license_categories" in data:
-            config.allowed_license_categories = set(data["allowed_license_categories"])
-        if "denied_packages" in data:
-            config.denied_packages = {normalize_package_name(p) for p in data["denied_packages"]}
-        if "required_packages" in data:
-            config.required_packages = {
-                normalize_package_name(p) for p in data["required_packages"]
-            }
-        return config
+        """Create BudgetConfig from a dictionary (e.g., parsed TOML)."""
+        return cls(
+            total=data.get("total"),
+            direct=data.get("direct"),
+            transitive=data.get("transitive"),
+            dev=data.get("dev"),
+            optional=data.get("optional"),
+            groups=data.get("groups", {}),
+        )
 
     @classmethod
-    def from_file(cls, filepath: Path) -> BudgetConfig:
-        """Load budget configuration from a JSON file.
+    def from_pyproject(cls, project_path: Path) -> BudgetConfig | None:
+        """Load budget config from [tool.depcheck.budget] in pyproject.toml."""
+        pyproject = project_path / "pyproject.toml"
+        if not pyproject.is_file():
+            return None
 
-        Args:
-            filepath: Path to the budget config file.
-
-        Returns:
-            BudgetConfig instance.
-        """
         try:
-            content = filepath.read_text(encoding="utf-8")
-            data = json.loads(content)
-            return cls.from_dict(data)
+            content = pyproject.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+
+        if sys.version_info >= (3, 11):
+            import tomllib
+        else:
+            try:
+                import tomli as tomllib  # type: ignore[no-redef]
+            except ImportError:
+                return None
+
+        try:
+            data = tomllib.loads(content)
         except Exception:
-            return cls()  # Return defaults on error
+            return None
+
+        budget_data = data.get("tool", {}).get("depcheck", {}).get("budget")
+        if budget_data is None:
+            return None
+
+        return cls.from_dict(budget_data)
 
 
 @dataclass
 class BudgetReport:
-    """Result of budget compliance analysis.
+    """Complete budget analysis report."""
 
-    Attributes:
-        project_path: Path to the analyzed project.
-        config: The budget configuration used.
-        rules: List of evaluated budget rules.
-        violations: List of violated rules.
-        warnings: List of rules that are close to being violated (>80%).
-        package_details: Size and license info for each package.
-        total_packages: Total number of direct dependencies.
-        total_download_kb: Total download size.
-        total_install_kb: Total estimated install size.
-        is_compliant: Whether all rules are satisfied.
-    """
-
-    project_path: str = ""
-    config: BudgetConfig = field(default_factory=BudgetConfig)
-    rules: list[BudgetRule] = field(default_factory=list)
-    violations: list[BudgetRule] = field(default_factory=list)
-    warnings: list[BudgetRule] = field(default_factory=list)
-    package_details: list[dict[str, Any]] = field(default_factory=list)
-    total_packages: int = 0
-    total_download_kb: float = 0.0
-    total_install_kb: float = 0.0
+    project_path: str
+    config: BudgetConfig
+    categories: list[BudgetCategory] = field(default_factory=list)
+    total_deps: int = 0
+    total_direct: int = 0
+    total_transitive: int = 0
+    total_dev: int = 0
+    total_optional: int = 0
+    group_counts: dict[str, int] = field(default_factory=dict)
+    group_packages: dict[str, list[str]] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
 
     @property
-    def is_compliant(self) -> bool:
-        """Check if the project is budget-compliant (no error violations)."""
-        return not any(r.severity == "error" and r.is_violated for r in self.rules)
+    def is_within_budget(self) -> bool:
+        """Whether all budget categories are within limits."""
+        return not any(cat.is_over for cat in self.categories)
+
+    @property
+    def over_budget_categories(self) -> list[BudgetCategory]:
+        """Categories that exceed their budget."""
+        return [cat for cat in self.categories if cat.is_over]
+
+    @property
+    def utilization_summary(self) -> dict[str, float | None]:
+        """Utilization percentages for all categories."""
+        return {cat.name: cat.utilization for cat in self.categories}
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "project_path": self.project_path,
-            "is_compliant": self.is_compliant,
-            "total_packages": self.total_packages,
-            "total_download_kb": round(self.total_download_kb, 1),
-            "total_install_kb": round(self.total_install_kb, 1),
-            "config": self.config.to_dict(),
-            "rules": [r.to_dict() for r in self.rules],
-            "violations": [r.to_dict() for r in self.violations],
-            "warnings": [r.to_dict() for r in self.warnings],
-            "package_details": self.package_details,
+            "is_within_budget": self.is_within_budget,
+            "total_deps": self.total_deps,
+            "total_direct": self.total_direct,
+            "total_transitive": self.total_transitive,
+            "total_dev": self.total_dev,
+            "total_optional": self.total_optional,
+            "group_counts": self.group_counts,
+            "categories": [cat.to_dict() for cat in self.categories],
+            "errors": self.errors,
         }
 
 
-# ── Budget analysis implementation ──────────────────────────────────────
+# ─── Core Logic ────────────────────────────────────────────────────────────
 
 
-def _classify_license_simple(license_str: str) -> str:
-    """Quick license classification from raw string.
-
-    Args:
-        license_str: Raw license string.
+def _classify_dependencies(
+    project_path: Path,
+) -> tuple[
+    list[ParsedDependency],
+    list[ParsedDependency],
+    list[ParsedDependency],
+    list[ParsedDependency],
+]:
+    """Classify dependencies into direct, dev, optional, and transitive.
 
     Returns:
-        Category string (permissive, copyleft, proprietary, unknown).
+        Tuple of (direct_deps, dev_deps, optional_deps, transitive_deps).
     """
-    if not license_str:
-        return "unknown"
-    lower = license_str.lower()
-    if any(kw in lower for kw in ("mit", "bsd", "apache", "isc")):
-        return "permissive"
-    if any(kw in lower for kw in ("gpl", "agpl", "lgpl", "mpl")):
-        return "copyleft"
-    if any(kw in lower for kw in ("cc0", "unlicense", "public domain")):
-        return "public_domain"
-    if any(kw in lower for kw in ("proprietary", "commercial")):
-        return "proprietary"
-    return "unknown"
+    all_deps, _ = discover_dependencies(project_path)
+
+    # Try to parse pyproject.toml for richer classification
+    pyproject = project_path / "pyproject.toml"
+    direct_deps: list[ParsedDependency] = []
+    dev_deps: list[ParsedDependency] = []
+    optional_deps: list[ParsedDependency] = []
+
+    if pyproject.is_file():
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+            if sys.version_info >= (3, 11):
+                import tomllib
+            else:
+                try:
+                    import tomli as tomllib  # type: ignore[no-redef]
+                except ImportError:
+                    tomllib = None  # type: ignore[assignment]
+
+            if tomllib:
+                data = tomllib.loads(content)
+                project_section = data.get("project", {})
+
+                # PEP 621 dependencies
+                dep_names = set()
+                for dep_str in project_section.get("dependencies", []):
+                    match = _PKG_RE.match(dep_str.strip())
+                    if match:
+                        name = match.group(1).lower().replace("_", "-")
+                        dep_names.add(name)
+                        direct_deps.append(
+                            ParsedDependency(name=name, version=None, specifier=dep_str.strip())
+                        )
+
+                # Optional dependency groups
+                optional_groups = project_section.get("optional-dependencies", {})
+                for group_name, group_deps in optional_groups.items():
+                    for dep_str in group_deps:
+                        match = _PKG_RE.match(dep_str.strip())
+                        if match:
+                            name = match.group(1).lower().replace("_", "-")
+                            optional_deps.append(
+                                ParsedDependency(
+                                    name=f"{name} [{group_name}]",
+                                    version=None,
+                                    specifier=dep_str.strip(),
+                                )
+                            )
+
+                # Dev dependencies
+                dev_dep_names = set()
+                for dep_str in project_section.get("dev-dependencies", []):
+                    match = _PKG_RE.match(dep_str.strip())
+                    if match:
+                        name = match.group(1).lower().replace("_", "-")
+                        dev_dep_names.add(name)
+                        dev_deps.append(
+                            ParsedDependency(name=name, version=None, specifier=dep_str.strip())
+                        )
+
+                # Also check optional-dependencies.dev
+                dev_optional = optional_groups.get("dev", [])
+                for dep_str in dev_optional:
+                    match = _PKG_RE.match(dep_str.strip())
+                    if match:
+                        name = match.group(1).lower().replace("_", "-")
+                        if name not in dev_dep_names:
+                            dev_dep_names.add(name)
+                            dev_deps.append(
+                                ParsedDependency(name=name, version=None, specifier=dep_str.strip())
+                            )
+        except Exception:
+            pass
+
+    # If we couldn't parse pyproject, fall back to all_deps as direct
+    if not direct_deps:
+        direct_deps = list(all_deps)
+
+    # Transitive deps = all_deps - direct_deps (approximation without full resolve)
+    # For a more accurate count, we'd need to resolve the dependency tree
+    direct_names = {d.name for d in direct_deps}
+    dev_names = {d.name for d in dev_deps}
+    transitive_deps = [
+        d for d in all_deps if d.name not in direct_names and d.name not in dev_names
+    ]
+
+    return direct_deps, dev_deps, optional_deps, transitive_deps
+
+
+def _count_transitive_deps(
+    direct_deps: list[ParsedDependency],
+    direct_names: set[str],
+    max_depth: int = 3,
+) -> tuple[list[str], dict[str, list[str]]]:
+    """Resolve transitive dependencies via PyPI.
+
+    Returns:
+        Tuple of (all_transitive_names, dependency_map).
+    """
+    transitive_names: set[str] = set()
+    dep_map: dict[str, list[str]] = {}
+    visited: set[str] = set(direct_names)
+
+    with PyPIClient() as client:
+        queue = list(direct_names)
+        depth = 0
+        while queue and depth < max_depth:
+            next_queue: list[str] = []
+            for pkg_name in queue:
+                if pkg_name in visited:
+                    continue
+                visited.add(pkg_name)
+                info = client.get_package_info(pkg_name)
+                if info is None:
+                    continue
+
+                # Get requires_dist
+                requires_dist = info.get("info", {}).get("requires_dist", []) or []
+                sub_deps: list[str] = []
+            for req_str in requires_dist:
+                # Parse requirement — handle extras and version specs
+                match = _PKG_RE.match(req_str.strip())
+                if match:
+                    sub_name = match.group(1).lower().replace("_", "-")
+                    sub_name = re.sub(r"[-_.]+", "-", sub_name)  # noqa: RUF005
+                    # Skip extras markers for simplicity
+                    if ";" in req_str:
+                        continue
+                    sub_deps.append(sub_name)
+                    if sub_name not in visited and sub_name not in direct_names:
+                        transitive_names.add(sub_name)
+                        next_queue.append(sub_name)
+
+                dep_map[pkg_name] = sub_deps
+
+            queue = next_queue
+            depth += 1
+
+    return sorted(transitive_names), dep_map
 
 
 def check_budget(
     project_path: str | Path,
     config: BudgetConfig | None = None,
+    resolve_transitive: bool = True,
 ) -> BudgetReport:
-    """Check a project's dependencies against budget constraints.
+    """Check a project's dependency budget.
 
     Args:
         project_path: Path to the project directory.
-        config: Budget configuration (uses defaults if None).
+        config: Budget configuration (loaded from pyproject.toml if None).
+        resolve_transitive: Whether to resolve transitive deps via PyPI.
 
     Returns:
-        BudgetReport with compliance details.
+        A BudgetReport with budget analysis.
     """
     project_path = Path(project_path).resolve()
-    if config is None:
-        config = BudgetConfig()
 
+    if not project_path.is_dir():
+        return BudgetReport(
+            project_path=str(project_path),
+            config=config or BudgetConfig(),
+            errors=[f"Path is not a directory: {project_path}"],
+        )
+
+    # Load config from pyproject.toml if not provided
+    if config is None:
+        config = BudgetConfig.from_pyproject(project_path) or BudgetConfig()
+
+    # Classify dependencies
+    direct_deps, dev_deps, optional_deps, transitive_deps = _classify_dependencies(project_path)
+
+    direct_names = [d.name for d in direct_deps]
+    dev_names = [d.name for d in dev_deps]
+    optional_names = [d.name for d in optional_deps]
+
+    # Resolve transitive deps if requested
+    transitive_names: list[str] = []
+    if resolve_transitive and direct_deps:
+        resolved_transitive, _ = _count_transitive_deps(direct_deps, set(direct_names), max_depth=3)
+        transitive_names = resolved_transitive
+    else:
+        transitive_names = [d.name for d in transitive_deps]
+
+    # Build report
     report = BudgetReport(
         project_path=str(project_path),
         config=config,
+        total_deps=len(direct_names) + len(transitive_names),
+        total_direct=len(direct_names),
+        total_transitive=len(transitive_names),
+        total_dev=len(dev_names),
+        total_optional=len(optional_names),
     )
 
-    # Try loading config from project if not explicitly provided
-    budget_file = project_path / "depcheck.budget.json"
-    if budget_file.is_file() and config == BudgetConfig():
-        config = BudgetConfig.from_file(budget_file)
-        report.config = config
+    # Build budget categories
+    categories: list[BudgetCategory] = []
 
-    if not project_path.is_dir():
-        report.violations.append(BudgetRule(name="project_path", metric="path", severity="error"))
-        return report
+    # Total budget
+    categories.append(
+        BudgetCategory(
+            name="total",
+            limit=config.total,
+            count=report.total_deps,
+            packages=direct_names + transitive_names,
+        )
+    )
 
-    # Discover dependencies
-    dependencies, _ = discover_dependencies(project_path)
-    if not dependencies:
-        report.violations.append(
-            BudgetRule(
-                name="no_dependencies",
-                metric="count",
-                limit=1,
-                current=0,
-                unit="packages",
-                severity="warning",
+    # Direct budget
+    categories.append(
+        BudgetCategory(
+            name="direct",
+            limit=config.direct,
+            count=report.total_direct,
+            packages=direct_names,
+        )
+    )
+
+    # Transitive budget
+    categories.append(
+        BudgetCategory(
+            name="transitive",
+            limit=config.transitive,
+            count=report.total_transitive,
+            packages=transitive_names,
+        )
+    )
+
+    # Dev budget
+    categories.append(
+        BudgetCategory(
+            name="dev",
+            limit=config.dev,
+            count=report.total_dev,
+            packages=dev_names,
+        )
+    )
+
+    # Optional budget
+    categories.append(
+        BudgetCategory(
+            name="optional",
+            limit=config.optional,
+            count=report.total_optional,
+            packages=optional_names,
+        )
+    )
+
+    # Custom group budgets
+    for group_name, group_limit in config.groups.items():
+        # Try to match against optional dependency groups
+        group_pkgs = _resolve_group_packages(project_path, group_name)
+        categories.append(
+            BudgetCategory(
+                name=f"group:{group_name}",
+                limit=group_limit,
+                count=len(group_pkgs),
+                packages=group_pkgs,
             )
         )
-        return report
 
-    report.total_packages = len(dependencies)
-
-    # Fetch package details
-    total_download = 0.0
-    total_install = 0.0
-    package_details: list[dict[str, Any]] = []
-
-    with PyPIClient() as pypi_client:
-        for dep in dependencies:
-            try:
-                size_info = _fetch_package_size(pypi_client, dep.name, dep.version)
-
-                # Get license info
-                info = pypi_client.get_package_info(dep.name)
-                raw_license = ""
-                if info:
-                    pkg_info = info.get("info", {})
-                    raw_license = pkg_info.get("license", "") or ""
-                    # Try classifiers
-                    classifiers = pkg_info.get("classifiers", []) or []
-                    for cls in classifiers:
-                        if cls.startswith("License ::"):
-                            parts = cls.split("::")
-                            if len(parts) >= 3:
-                                classifier_lic = parts[-1].strip()
-                                if classifier_lic not in ("OSI Approved", "Other/Proprietary"):
-                                    raw_license = classifier_lic
-                                    break
-
-                license_cat = _classify_license_simple(raw_license)
-
-                detail = {
-                    "name": dep.name,
-                    "version": dep.version or size_info.version,
-                    "download_kb": round(size_info.download_size_kb, 1),
-                    "install_kb": round(size_info.estimated_install_kb, 1),
-                    "category": size_info.category,
-                    "license": raw_license,
-                    "license_category": license_cat,
-                }
-                package_details.append(detail)
-
-                total_download += size_info.download_size_kb
-                total_install += size_info.estimated_install_kb
-
-            except Exception:
-                package_details.append(
-                    {
-                        "name": dep.name,
-                        "version": dep.version or "unknown",
-                        "download_kb": 0,
-                        "install_kb": 0,
-                        "category": "unknown",
-                        "license": "",
-                        "license_category": "unknown",
-                    }
-                )
-
-    report.package_details = package_details
-    report.total_download_kb = total_download
-    report.total_install_kb = total_install
-
-    # ── Evaluate budget rules ────────────────────────────────────────────
-
-    # Rule 1: Package count
-    rule = BudgetRule(
-        name="Package Count",
-        metric="count",
-        limit=config.max_packages,
-        current=len(dependencies),
-        unit="packages",
-        severity="error",
-    )
-    report.rules.append(rule)
-
-    # Rule 2: Total download size
-    rule = BudgetRule(
-        name="Total Download Size",
-        metric="download_kb",
-        limit=config.max_total_download_kb,
-        current=total_download,
-        unit="KB",
-        severity="error",
-    )
-    report.rules.append(rule)
-
-    # Rule 3: Total install size
-    rule = BudgetRule(
-        name="Total Install Size",
-        metric="install_kb",
-        limit=config.max_total_install_kb,
-        current=total_install,
-        unit="KB",
-        severity="error",
-    )
-    report.rules.append(rule)
-
-    # Rule 4: Single package size
-    max_pkg = max(package_details, key=lambda p: p.get("download_kb", 0)) if package_details else {}
-    rule = BudgetRule(
-        name=f"Largest Package ({max_pkg.get('name', 'N/A')})",
-        metric="single_package_kb",
-        limit=config.max_single_package_kb,
-        current=max_pkg.get("download_kb", 0),
-        unit="KB",
-        severity="warning",
-    )
-    report.rules.append(rule)
-
-    # Rule 5: License category compliance
-    non_compliant_licenses = [
-        p
-        for p in package_details
-        if p.get("license_category", "unknown") not in config.allowed_license_categories
-        and p.get("license_category", "unknown") != "unknown"
-    ]
-    rule = BudgetRule(
-        name="License Compliance",
-        metric="license_category",
-        limit=0,  # Zero non-compliant packages allowed
-        current=len(non_compliant_licenses),
-        unit="packages",
-        severity="warning",
-    )
-    report.rules.append(rule)
-
-    # Rule 6: Denied packages
-    found_denied = [
-        p
-        for p in package_details
-        if normalize_package_name(p.get("name", "")) in config.denied_packages
-    ]
-    rule = BudgetRule(
-        name="Denied Packages",
-        metric="denied_packages",
-        limit=0,
-        current=len(found_denied),
-        unit="packages",
-        severity="error",
-    )
-    report.rules.append(rule)
-
-    # Rule 7: Required packages
-    present_names = {normalize_package_name(p.get("name", "")) for p in package_details}
-    missing_required = config.required_packages - present_names
-    rule = BudgetRule(
-        name="Required Packages",
-        metric="required_packages",
-        limit=len(config.required_packages),
-        current=len(config.required_packages) - len(missing_required),
-        unit="packages",
-        severity="warning" if missing_required else "error",
-    )
-    report.rules.append(rule)
-
-    # ── Classify violations and warnings ──────────────────────────────────
-
-    for rule in report.rules:
-        if rule.is_violated:
-            report.violations.append(rule)
-        elif rule.utilization >= 80:
-            report.warnings.append(rule)
-
+    report.categories = categories
     return report
 
 
-def init_budget_file(project_path: str | Path) -> Path:
-    """Create a default budget configuration file.
+def _resolve_group_packages(project_path: Path, group_name: str) -> list[str]:
+    """Resolve package names for a custom budget group.
 
-    Args:
-        project_path: Path to the project directory.
-
-    Returns:
-        Path to the created budget file.
+    Looks up optional-dependencies groups in pyproject.toml
+    and extras in requirements.txt.
     """
-    project_path = Path(project_path).resolve()
-    config = BudgetConfig()
-    filepath = project_path / "depcheck.budget.json"
+    pyproject = project_path / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            content = pyproject.read_text(encoding="utf-8")
+            if sys.version_info >= (3, 11):
+                import tomllib
+            else:
+                try:
+                    import tomli as tomllib  # type: ignore[no-redef]
+                except ImportError:
+                    return []
 
-    filepath.write_text(
-        json.dumps(config.to_dict(), indent=2) + "\n",
-        encoding="utf-8",
-    )
+            data = tomllib.loads(content)
+            optional_deps = data.get("project", {}).get("optional-dependencies", {})
+            group_deps = optional_deps.get(group_name, [])
 
-    return filepath
+            packages: list[str] = []
+            for dep_str in group_deps:
+                match = _PKG_RE.match(dep_str.strip())
+                if match:
+                    packages.append(match.group(1).lower().replace("_", "-"))
+            return packages
+        except Exception:
+            pass
+
+    return []
 
 
-# ── Rendering ────────────────────────────────────────────────────────────
+# ─── Rendering ─────────────────────────────────────────────────────────────
 
 
 def render_budget_table(report: BudgetReport, console: Console | None = None) -> None:
-    """Render a budget compliance report as Rich tables.
-
-    Args:
-        report: The budget report to render.
-        console: Rich console instance.
-    """
+    """Render budget report as a Rich table."""
     if console is None:
         console = Console()
 
-    console.print()
+    console.print(f"\n[bold]Dependency Budget: {report.project_path}[/bold]\n")
 
-    status_icon = "✅" if report.is_compliant else "❌"
-    status_color = "green" if report.is_compliant else "red"
-    console.print(
-        Panel(
-            f"[bold]depcheck budget[/bold] — Dependency Budget Report\n"
-            f"[dim]Project: {report.project_path}[/dim]\n"
-            f"[{status_color}]{status_icon} "
-            f"[{'COMPLIANT' if report.is_compliant else 'VIOLATIONS FOUND'}[/{status_color}]",
-            border_style=status_color,
-        )
-    )
+    table = Table(title="Budget Status", show_lines=True)
+    table.add_column("Category", style="bold")
+    table.add_column("Limit", justify="right")
+    table.add_column("Count", justify="right")
+    table.add_column("Remaining", justify="right")
+    table.add_column("Utilization", justify="right")
+    table.add_column("Status", justify="center")
 
-    if not report.rules:
-        console.print("[dim]No budget rules evaluated.[/dim]")
-        return
+    for cat in report.categories:
+        limit_str = str(cat.limit) if cat.limit is not None else "∞"
+        remaining_str = str(cat.remaining) if cat.remaining is not None else "∞"
+        util_str = f"{cat.utilization}%" if cat.utilization is not None else "N/A"
 
-    # Budget rules table
-    table = Table(
-        title="Budget Rules",
-        show_header=True,
-        header_style="bold cyan",
-        show_lines=False,
-        pad_edge=False,
-        expand=True,
-    )
-
-    table.add_column("Rule", style="bold", min_width=25)
-    table.add_column("Current", min_width=12, justify="right")
-    table.add_column("Limit", min_width=12, justify="right")
-    table.add_column("Remaining", min_width=12, justify="right")
-    table.add_column("Utilization", min_width=12, justify="center")
-    table.add_column("Status", width=10, justify="center")
-
-    for rule in report.rules:
-        # Format current/limit values
-        if rule.metric in ("download_kb", "install_kb", "single_package_kb"):
-            current_str = _human_size(rule.current)
-            limit_str = _human_size(rule.limit)
-            remaining_str = _human_size(rule.remaining)
-        else:
-            current_str = f"{int(rule.current)} {rule.unit}"
-            limit_str = f"{int(rule.limit)} {rule.unit}"
-            remaining_str = f"{int(rule.remaining)} {rule.unit}"
-
-        # Utilization bar
-        util = rule.utilization
-        if util > 100:
-            util_str = f"[red]{util:.0f}%[/red]"
-        elif util >= 80:
-            util_str = f"[yellow]{util:.0f}%[/yellow]"
-        else:
-            util_str = f"[green]{util:.0f}%[/green]"
-
-        # Status icon
-        if rule.is_violated:
-            status = "[red]✗ FAIL[/red]"
-        elif rule.utilization >= 80:
-            status = "[yellow]⚠ WARN[/yellow]"
+        if cat.is_over:
+            status = "[red]✗ OVER[/red]"
+        elif cat.utilization is not None and cat.utilization >= 80:
+            status = "[yellow]⚠ NEAR[/yellow]"
         else:
             status = "[green]✓ OK[/green]"
 
         table.add_row(
-            rule.name,
-            current_str,
+            cat.name,
             limit_str,
+            str(cat.count),
             remaining_str,
             util_str,
             status,
@@ -557,100 +527,36 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
 
     console.print(table)
 
-    # Violations detail
-    if report.violations:
-        console.print()
-        console.print("[bold red]Violations:[/bold red]")
-        for v in report.violations:
-            if v.metric in ("download_kb", "install_kb", "single_package_kb"):
-                over_by = _human_size(v.current - v.limit)
-                console.print(
-                    f"  [red]✗[/red] {v.name}: over budget by {over_by} "
-                    f"({v.utilization:.0f}% utilization)"
-                )
-            else:
-                over_by = int(v.current - v.limit)
-                console.print(f"  [red]✗[/red] {v.name}: {over_by} {v.unit} over limit")
+    # Show over-budget details
+    over_cats = report.over_budget_categories
+    if over_cats:
+        console.print("\n[bold red]Over-budget categories:[/bold red]")
+        for cat in over_cats:
+            excess = cat.count - (cat.limit or 0)
+            console.print(f"  [red]• {cat.name}: {cat.count}/{cat.limit} ({excess} over)[/red]")
+            # Show first 10 packages
+            for pkg in cat.packages[:10]:
+                console.print(f"    - {pkg}")
+            if len(cat.packages) > 10:
+                console.print(f"    ... and {len(cat.packages) - 10} more")
 
-    # Warnings detail
-    if report.warnings:
-        console.print()
-        console.print("[bold yellow]Warnings:[/bold yellow]")
-        for w in report.warnings:
-            size_str = (
-                _human_size(w.remaining) if "kb" in w.metric else f"{int(w.remaining)} {w.unit}"
-            )
-            console.print(
-                f"  [yellow]⚠[/yellow] {w.name}: {w.utilization:.0f}%"
-                f" utilization ({size_str} remaining)"
-            )
+    # Summary
+    console.print("\n[bold]Summary:[/bold]")
+    console.print(f"  Total dependencies: {report.total_deps}")
+    console.print(f"  Direct: {report.total_direct}")
+    console.print(f"  Transitive: {report.total_transitive}")
+    console.print(f"  Dev: {report.total_dev}")
+    console.print(f"  Optional: {report.total_optional}")
 
-    # Package details table
-    if report.package_details:
-        console.print()
-        pkg_table = Table(
-            title="Package Budget Details",
-            show_header=True,
-            header_style="bold cyan",
-            show_lines=False,
-            pad_edge=False,
-        )
-
-        pkg_table.add_column("Package", style="bold", min_width=20)
-        pkg_table.add_column("Version", min_width=10)
-        pkg_table.add_column("Download", min_width=10, justify="right")
-        pkg_table.add_column("Install", min_width=10, justify="right")
-        pkg_table.add_column("Category", min_width=8)
-        pkg_table.add_column("License", min_width=12)
-
-        for pkg in sorted(
-            report.package_details, key=lambda p: p.get("download_kb", 0), reverse=True
-        ):
-            dl_kb = pkg.get("download_kb", 0)
-            inst_kb = pkg.get("install_kb", 0)
-            cat = pkg.get("category", "unknown")
-            lic = pkg.get("license", "Unknown") or "Unknown"
-            lic_cat = pkg.get("license_category", "unknown")
-
-            cat_colors = {
-                "tiny": "green",
-                "small": "green",
-                "medium": "yellow",
-                "large": "red",
-                "very_large": "red bold",
-                "unknown": "dim",
-            }
-            lic_colors = {
-                "permissive": "green",
-                "copyleft": "yellow",
-                "public_domain": "green",
-                "proprietary": "red",
-                "unknown": "dim",
-            }
-            cat_color = cat_colors.get(cat, "white")
-            lic_color = lic_colors.get(lic_cat, "white")
-
-            pkg_table.add_row(
-                f"[cyan]{pkg.get('name', '')}[/cyan]",
-                pkg.get("version", "—"),
-                _human_size(dl_kb),
-                _human_size(inst_kb),
-                f"[{cat_color}]{cat}[/{cat_color}]",
-                f"[{lic_color}]{lic[:20]}[/{lic_color}]",
-            )
-
-        console.print(pkg_table)
-
-    console.print()
+    if report.is_within_budget:
+        console.print("\n[green]✓ All categories within budget[/green]")
+    else:
+        console.print(f"\n[red]✗ {len(over_cats)} category(s) over budget[/red]")
 
 
-def render_budget_json(report: BudgetReport) -> str:
-    """Render budget report as JSON string.
-
-    Args:
-        report: The budget report to render.
-
-    Returns:
-        JSON string.
-    """
-    return json.dumps(report.to_dict(), indent=2)
+def render_budget_json(report: BudgetReport, console: Console | None = None) -> None:
+    """Render budget report as JSON."""
+    output = json.dumps(report.to_dict(), indent=2)
+    if console is None:
+        console = Console(force_terminal=False, no_color=True)
+    console.print(output)

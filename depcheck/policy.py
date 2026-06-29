@@ -13,7 +13,7 @@ import datetime
 import enum
 import json
 import re
-import tomllib
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -203,8 +203,8 @@ class PolicyConfig:
                         category=RuleCategory.LICENSE,
                         severity=RuleSeverity(license_config.get("severity", "error")),
                         description="License compliance policy",
-                        allow_licenses=allow_list or None,
-                        deny_licenses=deny_list or None,
+                        allow_licenses=allow_list if allow_list else None,
+                        deny_licenses=deny_list if deny_list else None,
                         deny_copyleft=deny_copyleft,
                         strict_unknown=strict_unknown,
                     )
@@ -287,7 +287,7 @@ class PolicyConfig:
                         name="maintenance-policy",
                         category=RuleCategory.MAINTENANCE,
                         severity=RuleSeverity(maint_config.get("severity", "warning")),
-                        description=f"Dependencies must have been updated in the last {min_days} days",  # noqa: E501
+                        description=f"Dependencies must have been updated in the last {min_days} days",
                         min_maintained_days=min_days,
                     )
                 )
@@ -349,6 +349,14 @@ class PolicyConfig:
         except (OSError, UnicodeDecodeError):
             return None
 
+        if sys.version_info >= (3, 11):
+            import tomllib
+        else:
+            try:
+                import tomli as tomllib  # type: ignore[no-redef]
+            except ImportError:
+                return None
+
         try:
             data = tomllib.loads(content)
         except Exception:
@@ -359,10 +367,6 @@ class PolicyConfig:
             return None
 
         return cls.from_dict(policy_data)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {"rules": [r.to_dict() for r in self.rules]}
 
 
 # ─── Rule Evaluation ───────────────────────────────────────────────────────
@@ -443,9 +447,9 @@ def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None
 
     try:
         last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-            tzinfo=datetime.UTC
+            tzinfo=datetime.timezone.utc
         )
-        days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
+        days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
         if days_since > rule.max_age_days:
             return Violation(
@@ -541,7 +545,7 @@ def _evaluate_vulnerability_rule(rule: PolicyRule, pkg: PackageReport) -> Violat
                 version=pkg.installed_version,
                 severity=rule.severity,
                 category=rule.category,
-                message=f"Vulnerability {vuln.vuln_id} ({vuln.severity}) at or above threshold {rule.max_severity}",  # noqa: E501
+                message=f"Vulnerability {vuln.vuln_id} ({vuln.severity}) at or above threshold {rule.max_severity}",
                 remediation=f"Update {pkg.name} to a patched version",
             )
 
@@ -567,9 +571,9 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
     if pkg.last_release_date:
         try:
             last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.UTC
+                tzinfo=datetime.timezone.utc
             )
-            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
+            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
 
             if days_since > rule.min_maintained_days:
                 return Violation(
@@ -578,7 +582,7 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
                     version=pkg.installed_version,
                     severity=rule.severity,
                     category=rule.category,
-                    message=f"Last release {days_since} days ago (policy: {rule.min_maintained_days})",  # noqa: E501
+                    message=f"Last release {days_since} days ago (policy: {rule.min_maintained_days})",
                     remediation=f"Find an alternative to {pkg.name} or verify maintenance",
                 )
         except (ValueError, TypeError):
@@ -764,7 +768,7 @@ def render_policy_table(report: PolicyReport, console: Console | None = None) ->
         f"Status: {status}\n"
         f"Compliance Score: [bold]{report.compliance_score}%[/bold]\n"
         f"Total packages: {report.total_packages}\n"
-        f"Errors: {report.error_count}  Warnings: {report.warning_count}  Info: {report.info_count}\n"  # noqa: E501
+        f"Errors: {report.error_count}  Warnings: {report.warning_count}  Info: {report.info_count}\n"
         f"Pass: {report.pass_count}  Fail: {report.fail_count}\n"
         f"Active rules: {len(report.rules)}"
     )

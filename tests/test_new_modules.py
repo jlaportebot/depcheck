@@ -11,6 +11,217 @@ import pytest
 # ─── Budget Module Tests ───────────────────────────────────────────────────
 
 
+class TestBudgetConfig:
+    """Tests for BudgetConfig data model."""
+
+    def test_default_config(self):
+        from depcheck.budget import BudgetConfig
+
+        config = BudgetConfig()
+        assert config.total is None
+        assert config.direct is None
+        assert config.transitive is None
+        assert config.dev is None
+        assert config.optional is None
+        assert config.groups == {}
+
+    def test_from_dict(self):
+        from depcheck.budget import BudgetConfig
+
+        data = {"total": 50, "direct": 10, "transitive": 40, "dev": 5, "optional": 3}
+        config = BudgetConfig.from_dict(data)
+        assert config.total == 50
+        assert config.direct == 10
+        assert config.transitive == 40
+        assert config.dev == 5
+        assert config.optional == 3
+
+    def test_from_dict_partial(self):
+        from depcheck.budget import BudgetConfig
+
+        data = {"total": 100}
+        config = BudgetConfig.from_dict(data)
+        assert config.total == 100
+        assert config.direct is None
+
+    def test_from_dict_with_groups(self):
+        from depcheck.budget import BudgetConfig
+
+        data = {"total": 50, "groups": {"test": 5, "docs": 3}}
+        config = BudgetConfig.from_dict(data)
+        assert config.groups == {"test": 5, "docs": 3}
+
+    def test_from_pyproject_missing(self):
+        from depcheck.budget import BudgetConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = BudgetConfig.from_pyproject(Path(tmpdir))
+            assert result is None
+
+    def test_from_pyproject_no_budget_section(self):
+        from depcheck.budget import BudgetConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pyproject = Path(tmpdir) / "pyproject.toml"
+            pyproject.write_text('[tool.depcheck]\nother = "value"\n')
+            result = BudgetConfig.from_pyproject(Path(tmpdir))
+            assert result is None
+
+    def test_from_pyproject_with_budget(self):
+        from depcheck.budget import BudgetConfig
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pyproject = Path(tmpdir) / "pyproject.toml"
+            pyproject.write_text("[tool.depcheck.budget]\ntotal = 50\ndirect = 10\n")
+            result = BudgetConfig.from_pyproject(Path(tmpdir))
+            assert result is not None
+            assert result.total == 50
+            assert result.direct == 10
+
+
+class TestBudgetCategory:
+    """Tests for BudgetCategory data model."""
+
+    def test_basic_category(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="direct", limit=10, count=5)
+        assert cat.name == "direct"
+        assert cat.limit == 10
+        assert cat.count == 5
+        assert not cat.is_over
+        assert cat.utilization == 50.0
+
+    def test_over_budget(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="direct", limit=10, count=15)
+        assert cat.is_over
+        assert cat.utilization == 150.0
+
+    def test_no_limit(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="direct", limit=None, count=5)
+        assert not cat.is_over
+        assert cat.utilization is None
+
+    def test_zero_limit(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="dev", limit=0, count=0)
+        assert not cat.is_over
+        assert cat.utilization is None  # limit == 0 returns None
+
+    def test_remaining(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="direct", limit=10, count=7)
+        assert cat.remaining == 3
+
+    def test_remaining_unlimited(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="direct", limit=None, count=5)
+        assert cat.remaining is None
+
+    def test_to_dict(self):
+        from depcheck.budget import BudgetCategory
+
+        cat = BudgetCategory(name="total", limit=100, count=75)
+        d = cat.to_dict()
+        assert d["name"] == "total"
+        assert d["limit"] == 100
+        assert d["count"] == 75
+        assert d["is_over"] is False
+        assert d["utilization_percent"] == 75.0
+
+
+class TestBudgetReport:
+    """Tests for BudgetReport data model."""
+
+    def test_within_budget(self):
+        from depcheck.budget import BudgetCategory, BudgetConfig, BudgetReport
+
+        cats = [
+            BudgetCategory(name="total", limit=100, count=50),
+            BudgetCategory(name="direct", limit=10, count=5),
+        ]
+        report = BudgetReport(
+            project_path="/test",
+            config=BudgetConfig(total=100),
+            categories=cats,
+        )
+        assert report.is_within_budget
+        assert report.over_budget_categories == []
+
+    def test_over_budget(self):
+        from depcheck.budget import BudgetCategory, BudgetConfig, BudgetReport
+
+        cats = [
+            BudgetCategory(name="total", limit=10, count=50),
+            BudgetCategory(name="direct", limit=10, count=5),
+        ]
+        report = BudgetReport(
+            project_path="/test",
+            config=BudgetConfig(total=10),
+            categories=cats,
+        )
+        assert not report.is_within_budget
+        assert len(report.over_budget_categories) == 1
+
+    def test_utilization_summary(self):
+        from depcheck.budget import BudgetCategory, BudgetConfig, BudgetReport
+
+        cats = [
+            BudgetCategory(name="total", limit=100, count=75),
+        ]
+        report = BudgetReport(
+            project_path="/test",
+            config=BudgetConfig(total=100),
+            categories=cats,
+        )
+        assert report.utilization_summary["total"] == 75.0
+
+    def test_to_dict(self):
+        from depcheck.budget import BudgetCategory, BudgetConfig, BudgetReport
+
+        cats = [BudgetCategory(name="total", limit=100, count=50)]
+        report = BudgetReport(
+            project_path="/test",
+            config=BudgetConfig(total=100),
+            categories=cats,
+            total_deps=50,
+        )
+        d = report.to_dict()
+        assert d["project_path"] == "/test"
+        assert d["is_within_budget"] is True
+        assert d["total_deps"] == 50
+
+
+class TestCheckBudget:
+    """Tests for the check_budget function."""
+
+    def test_nonexistent_path(self):
+        from depcheck.budget import check_budget
+
+        report = check_budget(project_path="/nonexistent/path")
+        assert report.errors
+
+    def test_with_config(self):
+        from depcheck.budget import BudgetConfig, check_budget
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pyproject = Path(tmpdir) / "pyproject.toml"
+            pyproject.write_text('[project]\nname = "test"\ndependencies = []\n')
+            config = BudgetConfig(total=100)
+            report = check_budget(project_path=tmpdir, config=config)
+            assert report.project_path == str(Path(tmpdir).resolve())
+
+
+# ─── Risks Module Tests ────────────────────────────────────────────────────
+
+
 class TestRiskDimension:
     """Tests for RiskDimension enum."""
 
@@ -772,6 +983,321 @@ class TestSearchAdvisories:
 
 
 # ─── Graph Module Tests ────────────────────────────────────────────────────
+
+
+class TestGraphNode:
+    """Tests for GraphNode data model."""
+
+    def test_label_with_version(self):
+        from depcheck.graph import GraphNode
+
+        node = GraphNode(name="requests", version="2.28.0")
+        assert node.label == "requests==2.28.0"
+
+    def test_label_without_version(self):
+        from depcheck.graph import GraphNode
+
+        node = GraphNode(name="requests")
+        assert node.label == "requests"
+
+    def test_to_dict(self):
+        from depcheck.graph import GraphNode
+
+        node = GraphNode(name="requests", version="2.28.0", is_direct=True, depth=0)
+        d = node.to_dict()
+        assert d["name"] == "requests"
+        assert d["version"] == "2.28.0"
+        assert d["is_direct"] is True
+
+
+class TestGraphEdge:
+    """Tests for GraphEdge data model."""
+
+    def test_basic_edge(self):
+        from depcheck.graph import GraphEdge
+
+        edge = GraphEdge(source="requests", target="urllib3", label=">=1.21")
+        assert edge.source == "requests"
+        assert edge.target == "urllib3"
+        assert edge.label == ">=1.21"
+
+    def test_to_dict(self):
+        from depcheck.graph import GraphEdge
+
+        edge = GraphEdge(source="a", target="b")
+        d = edge.to_dict()
+        assert d["source"] == "a"
+        assert d["target"] == "b"
+
+
+class TestCycleInfo:
+    """Tests for CycleInfo data model."""
+
+    def test_basic_cycle(self):
+        from depcheck.graph import CycleInfo
+
+        cycle = CycleInfo(nodes=["a", "b", "c"], length=3)
+        assert cycle.length == 3
+
+    def test_to_dict(self):
+        from depcheck.graph import CycleInfo
+
+        cycle = CycleInfo(nodes=["a", "b"], length=2)
+        d = cycle.to_dict()
+        assert d["nodes"] == ["a", "b"]
+        assert d["length"] == 2
+
+
+class TestDiamondDependency:
+    """Tests for DiamondDependency data model."""
+
+    def test_basic_diamond(self):
+        from depcheck.graph import DiamondDependency
+
+        diamond = DiamondDependency(
+            package="urllib3",
+            paths=[["requests", "urllib3"], ["botocore", "urllib3"]],
+        )
+        assert diamond.package == "urllib3"
+        assert len(diamond.paths) == 2
+        assert not diamond.version_conflict
+
+    def test_version_conflict(self):
+        from depcheck.graph import DiamondDependency
+
+        diamond = DiamondDependency(
+            package="urllib3",
+            paths=[["a", "urllib3"], ["b", "urllib3"]],
+            version_conflict=True,
+            conflicting_versions=[">=1.25", "<1.25"],
+        )
+        assert diamond.version_conflict
+        assert len(diamond.conflicting_versions) == 2
+
+
+class TestCentralityMetrics:
+    """Tests for CentralityMetrics data model."""
+
+    def test_basic_metrics(self):
+        from depcheck.graph import CentralityMetrics
+
+        m = CentralityMetrics(name="requests", in_degree=5, out_degree=3, betweenness=0.25)
+        assert m.name == "requests"
+        assert not m.is_bottleneck
+
+    def test_bottleneck(self):
+        from depcheck.graph import CentralityMetrics
+
+        m = CentralityMetrics(
+            name="urllib3", in_degree=10, out_degree=2, betweenness=0.35, is_bottleneck=True
+        )
+        assert m.is_bottleneck
+
+    def test_to_dict(self):
+        from depcheck.graph import CentralityMetrics
+
+        m = CentralityMetrics(name="test", in_degree=3, out_degree=1, betweenness=0.15)
+        d = m.to_dict()
+        assert d["name"] == "test"
+        assert d["betweenness"] == 0.15
+
+
+class TestDependencyGraph:
+    """Tests for DependencyGraph data model."""
+
+    def test_empty_graph(self):
+        from depcheck.graph import DependencyGraph
+
+        graph = DependencyGraph(project_path="/test")
+        assert graph.total_nodes == 0
+        assert graph.total_edges == 0
+        assert graph.cycles == []
+
+    def test_to_dict(self):
+        from depcheck.graph import DependencyGraph, GraphNode
+
+        graph = DependencyGraph(project_path="/test")
+        graph.nodes["requests"] = GraphNode(name="requests", version="2.28.0")
+        d = graph.to_dict()
+        assert d["project_path"] == "/test"
+        assert "requests" in d["nodes"]
+
+
+class TestDetectCycles:
+    """Tests for _detect_cycles function."""
+
+    def test_no_cycles(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _detect_cycles
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["b"], "b": ["c"], "c": []}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        cycles = _detect_cycles(graph)
+        assert len(cycles) == 0
+
+    def test_simple_cycle(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _detect_cycles
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["b"], "b": ["c"], "c": ["a"]}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        cycles = _detect_cycles(graph)
+        assert len(cycles) >= 1
+
+    def test_self_cycle(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _detect_cycles
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["a"]}
+        graph.nodes = {"a": GraphNode(name="a")}
+        cycles = _detect_cycles(graph)
+        assert len(cycles) >= 1
+
+    def test_disconnected_no_cycle(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _detect_cycles
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": [], "b": [], "c": []}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        cycles = _detect_cycles(graph)
+        assert len(cycles) == 0
+
+
+class TestDetectDiamonds:
+    """Tests for _detect_diamonds function."""
+
+    def test_no_diamonds(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _detect_diamonds
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["b"], "b": ["c"]}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        graph.direct_packages = ["a"]
+        diamonds = _detect_diamonds(graph)
+        assert len(diamonds) == 0
+
+    def test_diamond_detected(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _detect_diamonds
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["c"], "b": ["c"]}
+        graph.reverse_adjacency = {"c": ["a", "b"]}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        graph.direct_packages = ["a", "b"]
+        diamonds = _detect_diamonds(graph)
+        assert len(diamonds) >= 1
+
+
+class TestComputeCentrality:
+    """Tests for _compute_centrality function."""
+
+    def test_basic_centrality(self):
+        from depcheck.graph import DependencyGraph, GraphNode, _compute_centrality
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["b", "c"], "b": ["d"], "c": ["d"]}
+        graph.reverse_adjacency = {"b": ["a"], "c": ["a"], "d": ["b", "c"]}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c", "d")}
+        graph.direct_packages = ["a"]
+        metrics = _compute_centrality(graph)
+        assert len(metrics) == 4
+        # Node "d" has the highest in-degree
+        d_metric = next(m for m in metrics if m.name == "d")
+        assert d_metric.in_degree == 2
+
+
+class TestFindShortestPath:
+    """Tests for find_shortest_path function."""
+
+    def test_direct_path(self):
+        from depcheck.graph import DependencyGraph, GraphNode, find_shortest_path
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["b"], "b": ["c"]}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        path = find_shortest_path(graph, "a", "c")
+        assert path == ["a", "b", "c"]
+
+    def test_no_path(self):
+        from depcheck.graph import DependencyGraph, GraphNode, find_shortest_path
+
+        graph = DependencyGraph(project_path="/test")
+        graph.adjacency = {"a": ["b"], "c": []}
+        graph.nodes = {n: GraphNode(name=n) for n in ("a", "b", "c")}
+        path = find_shortest_path(graph, "a", "c")
+        assert path is None
+
+    def test_same_node(self):
+        from depcheck.graph import DependencyGraph, GraphNode, find_shortest_path
+
+        graph = DependencyGraph(project_path="/test")
+        graph.nodes = {"a": GraphNode(name="a")}
+        path = find_shortest_path(graph, "a", "a")
+        assert path == ["a"]
+
+    def test_missing_node(self):
+        from depcheck.graph import DependencyGraph, find_shortest_path
+
+        graph = DependencyGraph(project_path="/test")
+        path = find_shortest_path(graph, "a", "b")
+        assert path is None
+
+
+class TestExtractSubgraph:
+    """Tests for extract_subgraph function."""
+
+    def test_subgraph_extraction(self):
+        from depcheck.graph import DependencyGraph, GraphEdge, GraphNode, extract_subgraph
+
+        graph = DependencyGraph(project_path="/test")
+        graph.nodes = {
+            "a": GraphNode(name="a"),
+            "b": GraphNode(name="b"),
+            "c": GraphNode(name="c"),
+            "d": GraphNode(name="d"),
+        }
+        graph.edges = [
+            GraphEdge(source="a", target="b"),
+            GraphEdge(source="b", target="c"),
+            GraphEdge(source="c", target="d"),
+        ]
+        graph.adjacency = {"a": ["b"], "b": ["c"], "c": ["d"]}
+
+        sub = extract_subgraph(graph, root="b", max_depth=2)
+        assert "b" in sub.nodes
+        assert "c" in sub.nodes
+
+    def test_missing_node(self):
+        from depcheck.graph import DependencyGraph, extract_subgraph
+
+        graph = DependencyGraph(project_path="/test")
+        sub = extract_subgraph(graph, root="nonexistent")
+        assert sub.errors
+
+
+class TestBuildDependencyGraph:
+    """Tests for build_dependency_graph function."""
+
+    def test_nonexistent_path(self):
+        from depcheck.graph import build_dependency_graph
+
+        graph = build_dependency_graph("/nonexistent/path")
+        assert graph.errors
+
+
+class TestGraphFormat:
+    """Tests for GraphFormat enum."""
+
+    def test_formats(self):
+        from depcheck.graph import GraphFormat
+
+        assert GraphFormat.ASCII.value == "ascii"
+        assert GraphFormat.DOT.value == "dot"
+        assert GraphFormat.MERMAID.value == "mermaid"
+        assert GraphFormat.JSON.value == "json"
+
+
+# ─── Policy Module Tests ───────────────────────────────────────────────────
 
 
 class TestRuleSeverity:
@@ -1551,8 +2077,8 @@ class TestCLICommands:
         runner = CliRunner()
         result = runner.invoke(main, ["budget", "--help"])
         assert "--json" in result.output
-        assert "--max-packages" in result.output
-        assert "--max-download-kb" in result.output
+        assert "--per-dep-limit" in result.output
+        assert "--transitive-limit" in result.output
 
     def test_risks_command_options(self):
         from click.testing import CliRunner
@@ -1583,9 +2109,9 @@ class TestCLICommands:
 
         runner = CliRunner()
         result = runner.invoke(main, ["graph", "--help"])
+        assert "--format" in result.output
         assert "--max-depth" in result.output
-        assert "--max-depth" in result.output
-        assert "--check-licenses" in result.output
+        assert "--subgraph" in result.output
 
     def test_policy_command_options(self):
         from click.testing import CliRunner
@@ -1596,53 +2122,3 @@ class TestCLICommands:
         result = runner.invoke(main, ["policy", "--help"])
         assert "--no-vulns" in result.output
         assert "--no-licenses" in result.output
-
-
-# ─── Summary Command Tests ──────────────────────────────────────────────
-
-
-class TestSummaryCommand:
-    """Tests for the summary command."""
-
-    def test_summary_command_exists(self):
-        from click.testing import CliRunner
-
-        from depcheck.cli import main
-
-        runner = CliRunner()
-        result = runner.invoke(main, ["summary", "--help"])
-        assert result.exit_code == 0
-        assert "summary" in result.output.lower()
-
-    def test_summary_command_on_empty_project(self, tmp_path):
-        from click.testing import CliRunner
-
-        from depcheck.cli import main
-
-        # Create an empty pyproject.toml
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n')
-
-        runner = CliRunner()
-        result = runner.invoke(main, ["summary", str(tmp_path)])
-        assert result.exit_code == 0
-        # Should show a grade for empty project
-        assert any(g in result.output for g in ["A", "B", "C", "D", "F"])
-
-    def test_summary_command_json_output(self, tmp_path):
-        from click.testing import CliRunner
-
-        from depcheck.cli import main
-
-        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n')
-
-        runner = CliRunner()
-        result = runner.invoke(main, ["summary", str(tmp_path), "--json"])
-        assert result.exit_code == 0
-        import json
-
-        data = json.loads(result.output)
-        assert "grade" in data
-        assert "score" in data
-        assert "vulnerabilities" in data
-        assert "outdated" in data
-        assert "unmaintained" in data
