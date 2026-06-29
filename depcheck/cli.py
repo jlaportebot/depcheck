@@ -627,7 +627,13 @@ def license(
     for pkg in result.packages:
         info = pkg.license_info
         if info is None:
-            info = LicenseInfo(spdx_id="", raw_license="UNKNOWN", category=LicenseCategory.UNKNOWN, is_compliant=True, compliance_note="")
+            info = LicenseInfo(
+                spdx_id="",
+                raw_license="UNKNOWN",
+                category=LicenseCategory.UNKNOWN,
+                is_compliant=True,
+                compliance_note="",
+            )
 
         # Re-check against policy
         compliance = policy.check(info.spdx_id)
@@ -636,7 +642,9 @@ def license(
         license_info_for_entry = LicenseInfo(
             spdx_id=info.spdx_id,
             raw_license=info.raw_license,
-            category=LicenseCategory(info.category) if isinstance(info.category, str) else info.category,
+            category=LicenseCategory(info.category)
+            if isinstance(info.category, str)
+            else info.category,
             is_compliant=compliance.is_compliant,
             compliance_note=compliance.reason if not compliance.is_compliant else "",
         )
