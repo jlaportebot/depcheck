@@ -364,9 +364,7 @@ def analyze_package_history(
         latest_release = next((v for v in version_releases if v.is_latest), None)
         if latest_release:
             try:
-                latest_dt = datetime.fromisoformat(latest_release.release_date).replace(
-                    tzinfo=UTC
-                )
+                latest_dt = datetime.fromisoformat(latest_release.release_date).replace(tzinfo=UTC)
                 history.latest_version_age_days = (now - latest_dt).days
             except (ValueError, TypeError):
                 pass
