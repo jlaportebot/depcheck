@@ -154,11 +154,16 @@ def validate_config(config: Config) -> list[str]:
             )
 
     # Validate budget config
-    if config.budget.max_packages is not None and config.budget.max_packages < 0:
-        errors.append("budget.max_packages: must be non-negative")
-
-    if config.budget.max_total_download_kb is not None and config.budget.max_total_download_kb < 0:
-        errors.append("budget.max_total_download_kb: must be non-negative")
+    if config.budget.total is not None and config.budget.total < 0:
+        errors.append("budget.total: must be non-negative")
+    if config.budget.direct is not None and config.budget.direct < 0:
+        errors.append("budget.direct: must be non-negative")
+    if config.budget.transitive is not None and config.budget.transitive < 0:
+        errors.append("budget.transitive: must be non-negative")
+    if config.budget.dev is not None and config.budget.dev < 0:
+        errors.append("budget.dev: must be non-negative")
+    if config.budget.optional is not None and config.budget.optional < 0:
+        errors.append("budget.optional: must be non-negative")
 
     # Validate policy config
     for rule in config.policy.rules:

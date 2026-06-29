@@ -8,7 +8,7 @@ version = "0.3.0"
 description = "A dependency health checker for Python projects"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 authors = [
     { name = "jlaportebot" },
 ]
@@ -19,8 +19,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -41,10 +39,19 @@ depcheck = "depcheck.cli:main"
 
 [project.optional-dependencies]
 dev = [
- "pytest>=7.0",
- "pytest-cov>=4.0",
- "ruff>=0.1",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "ty>=0.0.51",
+]
+audit = ["pip-audit>=2.8"]
 
 [project.urls]
 Homepage = "https://github.com/jlaportebot/depcheck"
@@ -52,7 +59,7 @@ Repository = "https://github.com/jlaportebot/depcheck"
 Issues = "https://github.com/jlaportebot/depcheck/issues"
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -61,3 +68,9 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.terminal]
+error-on-warning = true
