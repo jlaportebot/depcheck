@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from depcheck.github_pr import GitHubPRClient, PRConfig, PRDescription
-from depcheck.models import HealthStatus, PackageReport, ScanResult
 from depcheck.remediate import (
     RemediationGroup,
-    RemediationPlan,
     build_remediation_plan,
     group_by_priority,
 )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from io import StringIO
 from unittest.mock import MagicMock
 
@@ -183,12 +183,12 @@ class TestComputeTrend:
     """Tests for the _compute_trend helper."""
 
     def test_new_single_release(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         dates = [now - timedelta(days=30)]
         assert _compute_trend(dates) == MaintenanceTrend.NEW
 
     def test_abandoned(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         dates = [
             now - timedelta(days=1000),
             now - timedelta(days=800),
@@ -198,7 +198,7 @@ class TestComputeTrend:
         assert _compute_trend(dates) == MaintenanceTrend.ABANDONED
 
     def test_accelerating(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         # Need at least 4 releases. First half: large gaps, second half: small gaps
         # ratio = second_avg / first_avg < 0.67 → ACCELERATING
         dates = [
@@ -216,7 +216,7 @@ class TestComputeTrend:
         assert result == MaintenanceTrend.ACCELERATING
 
     def test_slowing(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         # First half: small gaps, second half: large gaps
         # ratio = second_avg / first_avg > 1.5 → SLOWING
         dates = [
@@ -234,7 +234,7 @@ class TestComputeTrend:
         assert result == MaintenanceTrend.SLOWING
 
     def test_steady(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         # Consistent ~100-day gaps (ratio near 1.0)
         dates = [
             now - timedelta(days=700),
@@ -250,7 +250,7 @@ class TestComputeTrend:
         assert result == MaintenanceTrend.STEADY
 
     def test_few_releases_steady(self) -> None:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         dates = [now - timedelta(days=200), now - timedelta(days=10)]
         assert _compute_trend(dates) == MaintenanceTrend.STEADY
 
@@ -268,7 +268,7 @@ class TestAnalyzePackageHistory:
 
     def _make_pypi_response(self) -> dict:
         """Create a mock PyPI API response."""
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         releases = {}
         for i in range(5):
             dt = now - timedelta(days=(5 - i) * 100)
@@ -287,7 +287,7 @@ class TestAnalyzePackageHistory:
     def test_success(self) -> None:
         mock_client = MagicMock()
         mock_client.get_package_info.return_value = self._make_pypi_response()
-        mock_client.get_last_release_date.return_value = datetime.now(tz=timezone.utc)
+        mock_client.get_last_release_date.return_value = datetime.now(tz=UTC)
 
         dep = ParsedDependency(name="requests", version="1.3.0")
         result = analyze_package_history(dep, mock_client)

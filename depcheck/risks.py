@@ -283,9 +283,9 @@ def _score_maintenance(pkg: PackageReport) -> DimensionScore:
     if pkg.last_release_date:
         try:
             last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.timezone.utc
+                tzinfo=datetime.UTC
             )
-            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
+            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
 
             if days_since > 730:  # 2+ years
                 age_risk = 0.8

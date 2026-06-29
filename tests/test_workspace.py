@@ -179,7 +179,7 @@ def test_workspace_member_model():
 
 def test_workspace_scan_result_model():
     """Test WorkspaceScanResult data model."""
-    from depcheck.workspace import WorkspaceMember, WorkspaceScanResult, WorkspaceType
+    from depcheck.workspace import WorkspaceScanResult, WorkspaceType
 
     result = WorkspaceScanResult(
         root=Path("/tmp/workspace"),

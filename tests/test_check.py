@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 from depcheck.check import (
@@ -511,9 +512,9 @@ class TestAnalyzeFreshness:
         assert freshness[0].days_behind == 0
 
     def test_outdated_with_date(self):
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        recent = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        recent = (datetime.now(UTC) - timedelta(days=30)).isoformat()
         result = ScanResult(
             project_path=".",
             packages=[

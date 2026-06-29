@@ -18,7 +18,7 @@ import enum
 import json
 import textwrap
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -580,7 +580,7 @@ class ExplainReport:
     total_packages: int = 0
     at_risk_count: int = 0
     healthy_count: int = 0
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     errors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:

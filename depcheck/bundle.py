@@ -18,7 +18,7 @@ import enum
 import json
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -378,7 +378,7 @@ def run_bundle(
         commands_run=commands_run,
         results=results,
         total_duration_seconds=total_duration,
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),
+        timestamp=datetime.now(tz=UTC).isoformat(),
         overall_success=overall_success,
     )
 

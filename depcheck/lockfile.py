@@ -14,7 +14,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -168,7 +168,7 @@ class LockfileReport:
     total_packages: int = 0
     direct_packages: int = 0
     transitive_packages: int = 0
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     errors: list[str] = field(default_factory=list)
 
     @property
