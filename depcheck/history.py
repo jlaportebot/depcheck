@@ -18,7 +18,7 @@ from __future__ import annotations
 import enum
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -212,7 +212,7 @@ def _compute_trend(
     if len(release_dates) < 2:
         return MaintenanceTrend.NEW
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     days_since_last = (now - release_dates[-1]).days
 
     # Abandoned: no release in 18+ months
@@ -292,7 +292,7 @@ def analyze_package_history(
             return history
 
         # Parse release dates
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         version_releases: list[VersionRelease] = []
         release_dates: list[datetime] = []
 
@@ -311,7 +311,7 @@ def analyze_package_history(
                     dt = datetime.fromisoformat(upload_time)
                 # Ensure timezone-aware
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                    dt = dt.replace(tzinfo=UTC)
             except (ValueError, TypeError):
                 continue
 
@@ -354,7 +354,7 @@ def analyze_package_history(
         if current_release:
             try:
                 current_dt = datetime.fromisoformat(current_release.release_date).replace(
-                    tzinfo=timezone.utc
+                    tzinfo=UTC
                 )
                 history.current_version_age_days = (now - current_dt).days
             except (ValueError, TypeError):
@@ -364,9 +364,7 @@ def analyze_package_history(
         latest_release = next((v for v in version_releases if v.is_latest), None)
         if latest_release:
             try:
-                latest_dt = datetime.fromisoformat(latest_release.release_date).replace(
-                    tzinfo=timezone.utc
-                )
+                latest_dt = datetime.fromisoformat(latest_release.release_date).replace(tzinfo=UTC)
                 history.latest_version_age_days = (now - latest_dt).days
             except (ValueError, TypeError):
                 pass

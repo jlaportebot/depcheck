@@ -16,7 +16,7 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -149,7 +149,7 @@ class HealthReport:
     transitive_depths: list[TransitiveDepth] = field(default_factory=list)
     scan_result: ScanResult | None = None
     audit_risk_level: RiskLevel = RiskLevel.NONE
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     duration_seconds: float = 0.0
     errors: list[str] = field(default_factory=list)
 
@@ -593,7 +593,7 @@ def analyze_freshness(scan_result: ScanResult) -> list[DependencyFreshness]:
             try:
                 # Parse ISO date
                 release_dt = datetime.fromisoformat(pkg.last_release_date.replace("Z", "+00:00"))
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 delta = now - release_dt
                 days_behind = max(0, delta.days)
             except Exception:
@@ -639,7 +639,7 @@ def analyze_maintainer_signals(scan_result: ScanResult) -> list[MaintainerSignal
         if pkg.last_release_date:
             try:
                 release_dt = datetime.fromisoformat(pkg.last_release_date.replace("Z", "+00:00"))
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 days_since = max(0, (now - release_dt).days)
             except Exception:
                 pass

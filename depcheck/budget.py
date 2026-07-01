@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -93,6 +92,17 @@ class BudgetConfig:
             groups=data.get("groups", {}),
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "total": self.total,
+            "direct": self.direct,
+            "transitive": self.transitive,
+            "dev": self.dev,
+            "optional": self.optional,
+            "groups": self.groups,
+        }
+
     @classmethod
     def from_pyproject(cls, project_path: Path) -> BudgetConfig | None:
         """Load budget config from [tool.depcheck.budget] in pyproject.toml."""
@@ -105,13 +115,7 @@ class BudgetConfig:
         except (OSError, UnicodeDecodeError):
             return None
 
-        if sys.version_info >= (3, 11):
-            import tomllib
-        else:
-            try:
-                import tomli as tomllib  # type: ignore[no-redef]
-            except ImportError:
-                return None
+        import tomllib
 
         try:
             data = tomllib.loads(content)
@@ -198,68 +202,62 @@ def _classify_dependencies(
     if pyproject.is_file():
         try:
             content = pyproject.read_text(encoding="utf-8")
-            if sys.version_info >= (3, 11):
-                import tomllib
-            else:
-                try:
-                    import tomli as tomllib  # type: ignore[no-redef]
-                except ImportError:
-                    tomllib = None  # type: ignore[assignment]
+            import tomllib
 
-            if tomllib:
-                data = tomllib.loads(content)
-                project_section = data.get("project", {})
+            data = tomllib.loads(content)
+        except Exception:
+            pass
+        else:
+            project_section = data.get("project", {})
 
-                # PEP 621 dependencies
-                dep_names = set()
-                for dep_str in project_section.get("dependencies", []):
+            # PEP 621 dependencies
+            dep_names = set()
+            for dep_str in project_section.get("dependencies", []):
+                match = _PKG_RE.match(dep_str.strip())
+                if match:
+                    name = match.group(1).lower().replace("_", "-")
+                    dep_names.add(name)
+                    direct_deps.append(
+                        ParsedDependency(name=name, version=None, specifier=dep_str.strip())
+                    )
+
+            # Optional dependency groups
+            optional_groups = project_section.get("optional-dependencies", {})
+            for group_name, group_deps in optional_groups.items():
+                for dep_str in group_deps:
                     match = _PKG_RE.match(dep_str.strip())
                     if match:
                         name = match.group(1).lower().replace("_", "-")
-                        dep_names.add(name)
-                        direct_deps.append(
-                            ParsedDependency(name=name, version=None, specifier=dep_str.strip())
+                        optional_deps.append(
+                            ParsedDependency(
+                                name=f"{name} [{group_name}]",
+                                version=None,
+                                specifier=dep_str.strip(),
+                            )
                         )
 
-                # Optional dependency groups
-                optional_groups = project_section.get("optional-dependencies", {})
-                for group_name, group_deps in optional_groups.items():
-                    for dep_str in group_deps:
-                        match = _PKG_RE.match(dep_str.strip())
-                        if match:
-                            name = match.group(1).lower().replace("_", "-")
-                            optional_deps.append(
-                                ParsedDependency(
-                                    name=f"{name} [{group_name}]",
-                                    version=None,
-                                    specifier=dep_str.strip(),
-                                )
-                            )
+            # Dev dependencies
+            dev_dep_names = set()
+            for dep_str in project_section.get("dev-dependencies", []):
+                match = _PKG_RE.match(dep_str.strip())
+                if match:
+                    name = match.group(1).lower().replace("_", "-")
+                    dev_dep_names.add(name)
+                    dev_deps.append(
+                        ParsedDependency(name=name, version=None, specifier=dep_str.strip())
+                    )
 
-                # Dev dependencies
-                dev_dep_names = set()
-                for dep_str in project_section.get("dev-dependencies", []):
-                    match = _PKG_RE.match(dep_str.strip())
-                    if match:
-                        name = match.group(1).lower().replace("_", "-")
+            # Also check optional-dependencies.dev
+            dev_optional = optional_groups.get("dev", [])
+            for dep_str in dev_optional:
+                match = _PKG_RE.match(dep_str.strip())
+                if match:
+                    name = match.group(1).lower().replace("_", "-")
+                    if name not in dev_dep_names:
                         dev_dep_names.add(name)
                         dev_deps.append(
                             ParsedDependency(name=name, version=None, specifier=dep_str.strip())
                         )
-
-                # Also check optional-dependencies.dev
-                dev_optional = optional_groups.get("dev", [])
-                for dep_str in dev_optional:
-                    match = _PKG_RE.match(dep_str.strip())
-                    if match:
-                        name = match.group(1).lower().replace("_", "-")
-                        if name not in dev_dep_names:
-                            dev_dep_names.add(name)
-                            dev_deps.append(
-                                ParsedDependency(name=name, version=None, specifier=dep_str.strip())
-                            )
-        except Exception:
-            pass
 
     # If we couldn't parse pyproject, fall back to all_deps as direct
     if not direct_deps:
@@ -462,13 +460,7 @@ def _resolve_group_packages(project_path: Path, group_name: str) -> list[str]:
     if pyproject.is_file():
         try:
             content = pyproject.read_text(encoding="utf-8")
-            if sys.version_info >= (3, 11):
-                import tomllib
-            else:
-                try:
-                    import tomli as tomllib  # type: ignore[no-redef]
-                except ImportError:
-                    return []
+            import tomllib
 
             data = tomllib.loads(content)
             optional_deps = data.get("project", {}).get("optional-dependencies", {})

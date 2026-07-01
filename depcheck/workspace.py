@@ -6,7 +6,7 @@ import tomllib
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from depcheck.models import ScanResult as ModelScanResult
@@ -39,8 +39,8 @@ class WorkspaceMember:
 
     name: str
     path: Path
-    scan_result: Optional[ModelScanResult] = None
-    workspace_root: Optional[Path] = None
+    scan_result: ModelScanResult | None = None
+    workspace_root: Path | None = None
 
     @property
     def relative_path(self) -> Path:
@@ -88,7 +88,7 @@ class WorkspaceScanResult:
         return total
 
 
-def detect_workspace_config(root: Path) -> Optional[WorkspaceConfig]:
+def detect_workspace_config(root: Path) -> WorkspaceConfig | None:
     """Detect workspace configuration in a project root.
 
     Supports uv, Poetry, Hatch, PDM, and setuptools/PEP 621 workspace configurations.

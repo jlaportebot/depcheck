@@ -11,7 +11,7 @@ import json
 import os
 import subprocess
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from depcheck.remediate import RemediationGroup, RemediationPlan
 
@@ -23,9 +23,9 @@ class PRConfig:
     base_branch: str = "main"
     auto_merge: bool = False
     draft: bool = False
-    labels: Optional[list[str]] = None
-    reviewers: Optional[list[str]] = None
-    assignees: Optional[list[str]] = None
+    labels: list[str] | None = None
+    reviewers: list[str] | None = None
+    assignees: list[str] | None = None
 
     def __post_init__(self):
         if self.labels is None:

@@ -22,14 +22,18 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          cache-dependency-glob: ""
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Generate uv.lock
+        run: uv lock
+
       - name: Install dependencies
-        run: uv sync --all-groups
+        run: uv sync --group dev
 
       - name: Lint with ruff
         run: uv run ruff check .
@@ -52,10 +56,13 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          cache-dependency-glob: ""
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+      - name: Generate uv.lock
+        run: uv lock
       - name: Install dependencies
         run: uv sync --group audit
       - name: Run pip-audit
@@ -71,10 +78,13 @@ jobs:
         with:
           version: "latest"
           enable-cache: true
+          cache-dependency-glob: ""
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+      - name: Generate uv.lock
+        run: uv lock
       - name: Build package
         run: uv build
       - name: Verify package

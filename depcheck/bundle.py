@@ -17,8 +17,9 @@ from __future__ import annotations
 import enum
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -314,7 +315,7 @@ def _run_history(project_path: str) -> CommandResult:
 
 
 # Command dispatch
-COMMAND_RUNNERS: dict[BundleCommand, callable] = {  # type: ignore[type-arg]
+COMMAND_RUNNERS: dict[BundleCommand, Callable] = {
     BundleCommand.CHECK: _run_check,
     BundleCommand.AUDIT: _run_audit,
     BundleCommand.OUTDATED: _run_outdated,
@@ -378,7 +379,7 @@ def run_bundle(
         commands_run=commands_run,
         results=results,
         total_duration_seconds=total_duration,
-        timestamp=datetime.now(tz=timezone.utc).isoformat(),
+        timestamp=datetime.now(tz=UTC).isoformat(),
         overall_success=overall_success,
     )
 

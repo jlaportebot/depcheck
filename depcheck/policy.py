@@ -13,7 +13,6 @@ import datetime
 import enum
 import json
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -337,6 +336,12 @@ class PolicyConfig:
 
         return cls(rules=rules)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "rules": [r.to_dict() for r in self.rules],
+        }
+
     @classmethod
     def from_pyproject(cls, project_path: Path) -> PolicyConfig | None:
         """Load policy config from [tool.depcheck.policy] in pyproject.toml."""
@@ -349,13 +354,7 @@ class PolicyConfig:
         except (OSError, UnicodeDecodeError):
             return None
 
-        if sys.version_info >= (3, 11):
-            import tomllib
-        else:
-            try:
-                import tomli as tomllib  # type: ignore[no-redef]
-            except ImportError:
-                return None
+        import tomllib
 
         try:
             data = tomllib.loads(content)
@@ -447,9 +446,9 @@ def _evaluate_age_rule(rule: PolicyRule, pkg: PackageReport) -> Violation | None
 
     try:
         last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-            tzinfo=datetime.timezone.utc
+            tzinfo=datetime.UTC
         )
-        days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
+        days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
 
         if days_since > rule.max_age_days:
             return Violation(
@@ -571,9 +570,9 @@ def _evaluate_maintenance_rule(rule: PolicyRule, pkg: PackageReport) -> Violatio
     if pkg.last_release_date:
         try:
             last_release = datetime.datetime.strptime(pkg.last_release_date, "%Y-%m-%d").replace(
-                tzinfo=datetime.timezone.utc
+                tzinfo=datetime.UTC
             )
-            days_since = (datetime.datetime.now(datetime.timezone.utc) - last_release).days
+            days_since = (datetime.datetime.now(datetime.UTC) - last_release).days
 
             if days_since > rule.min_maintained_days:
                 return Violation(

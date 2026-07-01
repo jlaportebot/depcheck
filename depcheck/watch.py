@@ -30,11 +30,6 @@ from rich.text import Text
 from depcheck.models import HealthStatus, ScanResult
 from depcheck.scanner import scan_project
 
-try:
-    from depcheck.licenses import LicenseCategory
-except ImportError:
-    LicenseCategory = None  # type: ignore[assignment,misc]
-
 # --- Default watched file patterns ---
 DEFAULT_WATCH_PATTERNS: list[str] = [
     "requirements.txt",

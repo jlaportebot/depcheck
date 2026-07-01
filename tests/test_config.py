@@ -79,8 +79,8 @@ quiet = true
 output_json = false
 
 [tool.depcheck.budget]
-max_packages = 100
-max_total_download_kb = 1000000
+total = 100
+direct = 20
 
 [tool.depcheck.policy.license]
 deny_copyleft = true
@@ -97,8 +97,8 @@ severity = "error"
             assert config.scan.fail_on == "vulnerable"
             assert config.scan.quiet is True
             assert config.scan.output_json is False
-            assert config.budget.max_packages == 100
-            assert config.budget.max_total_download_kb == 1000000
+            assert config.budget.total == 100
+            assert config.budget.direct == 20
             assert len(config.policy.rules) == 1
             assert config.policy.rules[0].name == "license-policy"
             assert config.policy.rules[0].deny_copyleft is True
@@ -149,7 +149,7 @@ class TestValidateConfig:
 
     def test_negative_budget(self) -> None:
         config = Config()
-        config.budget.max_packages = -1
+        config.budget.total = -1
         issues = validate_config(config)
         assert any("must be non-negative" in issue for issue in issues)
 
