@@ -1706,7 +1706,7 @@ def suggest(
     )
 
     if output_json:
-        console = Console(quiet=False, force_terminal=False, no_color=True)
+        console = Console(quiet=False, force_terminal=False, no_color=True, width=10000)
         console.print(render_suggest_json(result))
     elif not quiet:
         render_suggest_table(result, console=console)
