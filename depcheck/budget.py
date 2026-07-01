@@ -304,19 +304,19 @@ def _count_transitive_deps(
                 # Get requires_dist
                 requires_dist = info.get("info", {}).get("requires_dist", []) or []
                 sub_deps: list[str] = []
-            for req_str in requires_dist:
-                # Parse requirement — handle extras and version specs
-                match = _PKG_RE.match(req_str.strip())
-                if match:
-                    sub_name = match.group(1).lower().replace("_", "-")
-                    sub_name = re.sub(r"[-_.]+", "-", sub_name)  # noqa: RUF005
-                    # Skip extras markers for simplicity
-                    if ";" in req_str:
-                        continue
-                    sub_deps.append(sub_name)
-                    if sub_name not in visited and sub_name not in direct_names:
-                        transitive_names.add(sub_name)
-                        next_queue.append(sub_name)
+                for req_str in requires_dist:
+                    # Parse requirement — handle extras and version specs
+                    match = _PKG_RE.match(req_str.strip())
+                    if match:
+                        sub_name = match.group(1).lower().replace("_", "-")
+                        sub_name = re.sub(r"[-_.]+", "-", sub_name)  # noqa: RUF005
+                        # Skip extras markers for simplicity
+                        if ";" in req_str:
+                            continue
+                        sub_deps.append(sub_name)
+                        if sub_name not in visited and sub_name not in direct_names:
+                            transitive_names.add(sub_name)
+                            next_queue.append(sub_name)
 
                 dep_map[pkg_name] = sub_deps
 
