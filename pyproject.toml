@@ -53,7 +53,7 @@ dev = [
     "ty>=0.0.51",
     "pytest-asyncio>=0.21",
 ]
-audit = ["pip-audit>=2.8"]
+audit = ["pip-audit>=2.10.1"]
 
 [project.urls]
 Homepage = "https://github.com/jlaportebot/depcheck"
