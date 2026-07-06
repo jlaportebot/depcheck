@@ -29,7 +29,7 @@ classifiers = [
 dependencies = [
     "click>=8.0",
     "rich>=13.0",
-    "httpx>=0.24",
+    "httpx>=0.28.1",
     "packaging>=23.0",
     "tomli>=2.0; python_version < '3.11'",
 ]
@@ -40,20 +40,20 @@ depcheck = "depcheck.cli:main"
 [project.optional-dependencies]
 dev = [
  "pytest>=7.0",
- "pytest-cov>=4.0",
+ "pytest-cov>=7.1.0",
  "ruff>=0.1",
- "pytest-asyncio>=0.21",
+ "pytest-asyncio>=1.4.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=7.0",
-    "pytest-cov>=4.0",
+    "pytest-cov>=7.1.0",
     "ruff>=0.1",
-    "ty>=0.0.51",
-    "pytest-asyncio>=0.21",
+    "ty>=0.0.56",
+    "pytest-asyncio>=1.4.0",
 ]
-audit = ["pip-audit>=2.8"]
+audit = ["pip-audit>=2.10.1"]
 
 [project.urls]
 Homepage = "https://github.com/jlaportebot/depcheck"
