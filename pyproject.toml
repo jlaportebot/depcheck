@@ -30,7 +30,7 @@ dependencies = [
     "click>=8.0",
     "rich>=13.0",
     "httpx>=0.28.1",
-    "packaging>=23.0",
+    "packaging>=26.2",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
