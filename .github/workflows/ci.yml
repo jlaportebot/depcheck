@@ -35,7 +35,7 @@ jobs:
         run: uv lock
 
       - name: Install dependencies
-        run: uv sync --all-groups
+        run: uv sync --group test --group lint
 
       - name: Lint with ruff
         run: uv run ruff check .
