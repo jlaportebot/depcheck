@@ -72,6 +72,7 @@ from pathlib import Path
 from typing import Optional
 import tomllib
 
+
 class WorkspaceType(Enum):
     UV = "uv"
     POETRY = "poetry"
@@ -80,6 +81,7 @@ class WorkspaceType(Enum):
     SETUPTOOLS = "setuptools"
     UNKNOWN = "unknown"
 
+
 @dataclass
 class WorkspaceConfig:
     workspace_type: WorkspaceType
@@ -87,14 +89,15 @@ class WorkspaceConfig:
     members: list[Path]
     config_path: Path
 
+
 def detect_workspace_config(root: Path) -> Optional[WorkspaceConfig]:
     pyproject = root / "pyproject.toml"
     if not pyproject.exists():
         return None
-    
+
     with open(pyproject, "rb") as f:
         data = tomllib.load(f)
-    
+
     # Check uv workspace
     if "tool" in data and "uv" in data["tool"] and "workspace" in data["tool"]["uv"]:
         ws = data["tool"]["uv"]["workspace"]
@@ -106,8 +109,9 @@ def detect_workspace_config(root: Path) -> Optional[WorkspaceConfig]:
             members=member_paths,
             config_path=pyproject,
         )
-    
+
     return None
+
 
 def _expand_globs(root: Path, patterns: list[str]) -> list[Path]:
     results = []
@@ -326,29 +330,55 @@ def test_cross_project_analysis():
     from depcheck.workspace import WorkspaceScanResult, WorkspaceMember
     from depcheck.models import PackageInfo, PackageStatus
     from pathlib import Path
-    
+
     # Create mock scan results with overlapping dependencies
-    pkg1_result = create_mock_scan_result([
-        PackageInfo(name="requests", installed_version="2.28.0", latest_version="2.31.0", status=PackageStatus.OUTDATED),
-        PackageInfo(name="urllib3", installed_version="1.26.15", latest_version="2.0.0", status=PackageStatus.OUTDATED),
-    ])
-    pkg2_result = create_mock_scan_result([
-        PackageInfo(name="requests", installed_version="2.28.0", latest_version="2.31.0", status=PackageStatus.OUTDATED),
-        PackageInfo(name="certifi", installed_version="2023.01.01", latest_version="2023.07.22", status=PackageStatus.OUTDATED),
-    ])
-    
+    pkg1_result = create_mock_scan_result(
+        [
+            PackageInfo(
+                name="requests",
+                installed_version="2.28.0",
+                latest_version="2.31.0",
+                status=PackageStatus.OUTDATED,
+            ),
+            PackageInfo(
+                name="urllib3",
+                installed_version="1.26.15",
+                latest_version="2.0.0",
+                status=PackageStatus.OUTDATED,
+            ),
+        ]
+    )
+    pkg2_result = create_mock_scan_result(
+        [
+            PackageInfo(
+                name="requests",
+                installed_version="2.28.0",
+                latest_version="2.31.0",
+                status=PackageStatus.OUTDATED,
+            ),
+            PackageInfo(
+                name="certifi",
+                installed_version="2023.01.01",
+                latest_version="2023.07.22",
+                status=PackageStatus.OUTDATED,
+            ),
+        ]
+    )
+
     members = [
         WorkspaceMember(name="pkg1", path=Path("packages/pkg1"), scan_result=pkg1_result),
         WorkspaceMember(name="pkg2", path=Path("packages/pkg2"), scan_result=pkg2_result),
     ]
-    workspace_result = WorkspaceScanResult(root=Path("/tmp"), members=members, workspace_type=WorkspaceType.UV)
-    
+    workspace_result = WorkspaceScanResult(
+        root=Path("/tmp"), members=members, workspace_type=WorkspaceType.UV
+    )
+
     analysis = analyze_workspace_dependencies(workspace_result)
-    
+
     # Should detect shared dependency
     assert "requests" in analysis.shared_dependencies
     assert len(analysis.shared_dependencies["requests"]) == 2
-    
+
     # Should detect version conflict (both same version in this case - no conflict)
     # But if versions differed, should flag
 ```
