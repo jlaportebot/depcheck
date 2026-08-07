@@ -356,93 +356,107 @@ def _generate_remediations(pkg: PackageReport, risk: PackageRisk) -> list[Remedi
     actions: list[RemediationAction] = []
 
     if pkg.is_removed:
-        actions.append(RemediationAction(
-            package=pkg.name,
-            action="remove",
-            description=(
-                f"{pkg.name} no longer exists on PyPI — "
-                "remove immediately and find an alternative"
-            ),
-            urgency="critical",
-            from_version=pkg.installed_version,
-        ))
+        actions.append(
+            RemediationAction(
+                package=pkg.name,
+                action="remove",
+                description=(
+                    f"{pkg.name} no longer exists on PyPI — "
+                    "remove immediately and find an alternative"
+                ),
+                urgency="critical",
+                from_version=pkg.installed_version,
+            )
+        )
         return actions
 
     if pkg.is_yanked:
-        actions.append(RemediationAction(
-            package=pkg.name,
-            action="pin",
-            description=f"Version {pkg.installed_version} was yanked — pin to a safe version",
-            urgency="high",
-            from_version=pkg.installed_version,
-        ))
+        actions.append(
+            RemediationAction(
+                package=pkg.name,
+                action="pin",
+                description=f"Version {pkg.installed_version} was yanked — pin to a safe version",
+                urgency="high",
+                from_version=pkg.installed_version,
+            )
+        )
 
     # Vulnerability remediations
     if pkg.vulnerabilities:
         # Check if upgrading would fix (if latest version is newer)
         if pkg.latest_version and pkg.is_outdated:
             # Heuristic: if latest version is newer, upgrading likely fixes some vulns
-            actions.append(RemediationAction(
-                package=pkg.name,
-                action="upgrade",
-                description=(
-                    f"Upgrade from {pkg.installed_version} to "
-                    f"{pkg.latest_version} to address vulnerabilities"
-                ),
-                urgency="critical" if risk.highest_severity in ("CRITICAL", "HIGH") else "high",
-                from_version=pkg.installed_version,
-                to_version=pkg.latest_version,
-            ))
+            actions.append(
+                RemediationAction(
+                    package=pkg.name,
+                    action="upgrade",
+                    description=(
+                        f"Upgrade from {pkg.installed_version} to "
+                        f"{pkg.latest_version} to address vulnerabilities"
+                    ),
+                    urgency="critical" if risk.highest_severity in ("CRITICAL", "HIGH") else "high",
+                    from_version=pkg.installed_version,
+                    to_version=pkg.latest_version,
+                )
+            )
         else:
             # No upgrade available — need to review or replace
             highest = risk.highest_severity
             if highest in ("CRITICAL", "HIGH"):
-                actions.append(RemediationAction(
-                    package=pkg.name,
-                    action="review",
-                    description=(
-                        f"No safe upgrade available — review {pkg.name} "
-                        "for alternative packages or apply patches"
-                    ),
-                    urgency="critical",
-                    from_version=pkg.installed_version,
-                ))
+                actions.append(
+                    RemediationAction(
+                        package=pkg.name,
+                        action="review",
+                        description=(
+                            f"No safe upgrade available — review {pkg.name} "
+                            "for alternative packages or apply patches"
+                        ),
+                        urgency="critical",
+                        from_version=pkg.installed_version,
+                    )
+                )
             else:
-                actions.append(RemediationAction(
-                    package=pkg.name,
-                    action="review",
-                    description=f"Review {pkg.name} for known workarounds or mitigations",
-                    urgency="medium",
-                    from_version=pkg.installed_version,
-                ))
+                actions.append(
+                    RemediationAction(
+                        package=pkg.name,
+                        action="review",
+                        description=f"Review {pkg.name} for known workarounds or mitigations",
+                        urgency="medium",
+                        from_version=pkg.installed_version,
+                    )
+                )
 
     # Outdated but not vulnerable
     if pkg.is_outdated and not pkg.vulnerabilities:
-        actions.append(RemediationAction(
-            package=pkg.name,
-            action="upgrade",
-            description=(
-                f"Upgrade from {pkg.installed_version} to "
-                f"{pkg.latest_version} for latest patches"
-            ),
-            urgency="low",
-            from_version=pkg.installed_version,
-            to_version=pkg.latest_version,
-        ))
+        actions.append(
+            RemediationAction(
+                package=pkg.name,
+                action="upgrade",
+                description=(
+                    f"Upgrade from {pkg.installed_version} to "
+                    f"{pkg.latest_version} for latest patches"
+                ),
+                urgency="low",
+                from_version=pkg.installed_version,
+                to_version=pkg.latest_version,
+            )
+        )
 
     # Unmaintained
     if pkg.is_unmaintained and not pkg.is_removed:
-        actions.append(RemediationAction(
-            package=pkg.name,
-            action="replace",
-            description=(
-                f"{pkg.name} appears unmaintained "
-                f"(last release: {pkg.last_release_date or 'unknown'}) "
-                "— consider an actively maintained alternative"
-            ),
-            urgency="medium",
-            from_version=pkg.installed_version,
-        ))
+        actions.append(
+            RemediationAction(
+                package=pkg.name,
+                action="replace",
+                description=(
+                    f"{pkg.name} appears unmaintained "
+                    f"(last release: {pkg.last_release_date or 'unknown'}) "
+                    "— consider an actively maintained alternative"
+                ),
+                urgency="medium",
+                from_version=pkg.installed_version,
+            )
+        )
 
     return actions
 
@@ -472,17 +486,19 @@ def _build_vulnerability_details(packages: list[PackageReport]) -> list[Vulnerab
     for pkg in packages:
         for vuln in pkg.vulnerabilities:
             fix_available = pkg.is_outdated and pkg.latest_version is not None
-            details.append(VulnerabilityDetail(
-                vuln_id=vuln.vuln_id,
-                package=pkg.name,
-                installed_version=pkg.installed_version,
-                severity=vuln.severity,
-                summary=vuln.summary,
-                url=vuln.url,
-                aliases=vuln.aliases,
-                fix_available=fix_available,
-                fixed_in_version=pkg.latest_version if fix_available else None,
-            ))
+            details.append(
+                VulnerabilityDetail(
+                    vuln_id=vuln.vuln_id,
+                    package=pkg.name,
+                    installed_version=pkg.installed_version,
+                    severity=vuln.severity,
+                    summary=vuln.summary,
+                    url=vuln.url,
+                    aliases=vuln.aliases,
+                    fix_available=fix_available,
+                    fixed_in_version=pkg.latest_version if fix_available else None,
+                )
+            )
     # Sort by severity (highest first), then by package name
     details.sort(
         key=lambda d: (_SEVERITY_ORDER.get(d.severity.upper(), 0), d.package),
@@ -688,9 +704,7 @@ def render_audit_table(audit: AuditResult, console: Console | None = None) -> No
         vuln_table.add_column("Fix", width=6)
 
         for vuln in audit.vulnerabilities:
-            sev_icon, sev_style = _SEVERITY_STYLES.get(
-                vuln.severity.upper(), ("⚪", "white")
-            )
+            sev_icon, sev_style = _SEVERITY_STYLES.get(vuln.severity.upper(), ("⚪", "white"))
             fix_icon = "✅" if vuln.fix_available else "❌"
             summary = vuln.summary[:80] + "…" if len(vuln.summary) > 80 else vuln.summary
 

@@ -230,8 +230,8 @@ def resolve_dependency_tree(
         "skipped": total_skipped,
         "circular_deps_found": len(result.circular_deps),
         "max_depth_reached": (
-        max(n.depth for n in _flatten_tree(result.roots)) if result.roots else 0
-    ),
+            max(n.depth for n in _flatten_tree(result.roots)) if result.roots else 0
+        ),
     }
 
     return result
@@ -401,7 +401,7 @@ def _parse_requires_dist(requires_dist: list[str]) -> list[tuple[str, str | None
                     "python_version",
                     "implementation_name",
                     "extra ==",
-                    'extra ==',
+                    "extra ==",
                 )
             ):
                 continue
@@ -497,10 +497,8 @@ def render_tree(
         summary_parts.append(f"[red]🔄 Circular deps: {len(result.circular_deps)}[/red]")
 
     if result.stats:
-            depth_val = result.stats.get("max_depth_reached", 0)
-            summary_parts.append(
-                f"[dim]Max depth resolved: {depth_val}[/dim]"
-            )
+        depth_val = result.stats.get("max_depth_reached", 0)
+        summary_parts.append(f"[dim]Max depth resolved: {depth_val}[/dim]")
 
     from rich.panel import Panel
 

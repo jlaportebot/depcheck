@@ -186,9 +186,7 @@ def guess_changelog_url(package_name: str, pypi_info: dict[str, Any] | None = No
     return f"https://github.com/{package_name}/{package_name}/releases"
 
 
-def compute_days_behind(
-    installed_date: str | None, latest_date: str | None
-) -> int | None:
+def compute_days_behind(installed_date: str | None, latest_date: str | None) -> int | None:
     """Compute the number of days between two release dates.
 
     Args:

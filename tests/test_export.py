@@ -454,9 +454,7 @@ class TestSpdx:
         sbom = _make_sbom_result()
         doc = to_spdx(sbom)
         req = next(p for p in doc["packages"] if p["name"] == "requests")
-        purl_refs = [
-            r for r in req["externalReferences"] if r["referenceType"] == "purl"
-        ]
+        purl_refs = [r for r in req["externalReferences"] if r["referenceType"] == "purl"]
         assert len(purl_refs) == 1
         assert purl_refs[0]["referenceLocator"] == "pkg:pypi/requests@2.31.0"
 
@@ -833,9 +831,7 @@ class TestExportCLI:
 
             with patch("depcheck.export.scan_project", return_value=mock_scan_result):
                 runner = CliRunner()
-                result = runner.invoke(
-                    main, ["export", "--format", "cyclonedx", "--quiet", tmpdir]
-                )
+                result = runner.invoke(main, ["export", "--format", "cyclonedx", "--quiet", tmpdir])
                 assert result.exit_code == 0
 
     def test_export_no_vuln_check(self) -> None:

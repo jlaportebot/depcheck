@@ -218,6 +218,7 @@ def capture_snapshot(
     if content:
         # Write to temp file for parsing
         import tempfile
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(content)
             f.flush()
@@ -227,6 +228,7 @@ def capture_snapshot(
     content = get_file_at_commit(project_path, commit, "pyproject.toml")
     if content:
         import tempfile
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write(content)
             f.flush()
@@ -269,28 +271,32 @@ def compare_snapshots(
     # Added packages
     for name in sorted(new_names - old_names):
         dep = new.dependencies[name]
-        entries.append(DriftEntry(
-            name=name,
-            new_version=dep.version,
-            new_specifier=dep.specifier,
-            change_type="added",
-            drift_days=drift_days,
-            commit=new.commit,
-            date=new.date,
-        ))
+        entries.append(
+            DriftEntry(
+                name=name,
+                new_version=dep.version,
+                new_specifier=dep.specifier,
+                change_type="added",
+                drift_days=drift_days,
+                commit=new.commit,
+                date=new.date,
+            )
+        )
 
     # Removed packages
     for name in sorted(old_names - new_names):
         dep = old.dependencies[name]
-        entries.append(DriftEntry(
-            name=name,
-            old_version=dep.version,
-            old_specifier=dep.specifier,
-            change_type="removed",
-            drift_days=drift_days,
-            commit=new.commit,
-            date=new.date,
-        ))
+        entries.append(
+            DriftEntry(
+                name=name,
+                old_version=dep.version,
+                old_specifier=dep.specifier,
+                change_type="removed",
+                drift_days=drift_days,
+                commit=new.commit,
+                date=new.date,
+            )
+        )
 
     # Changed packages
     for name in sorted(old_names & new_names):
@@ -303,6 +309,7 @@ def compare_snapshots(
         if old_dep.version != new_dep.version and old_dep.version and new_dep.version:
             try:
                 from packaging.version import Version
+
                 old_ver = Version(old_dep.version)
                 new_ver = Version(new_dep.version)
                 if new_ver > old_ver:
@@ -338,17 +345,19 @@ def compare_snapshots(
 
         change_type = changes[0] if len(changes) == 1 else "+".join(changes)
 
-        entries.append(DriftEntry(
-            name=name,
-            old_version=old_dep.version,
-            new_version=new_dep.version,
-            old_specifier=old_dep.specifier,
-            new_specifier=new_dep.specifier,
-            change_type=change_type,
-            drift_days=drift_days,
-            commit=new.commit,
-            date=new.date,
-        ))
+        entries.append(
+            DriftEntry(
+                name=name,
+                old_version=old_dep.version,
+                new_version=new_dep.version,
+                old_specifier=old_dep.specifier,
+                new_specifier=new_dep.specifier,
+                change_type=change_type,
+                drift_days=drift_days,
+                commit=new.commit,
+                date=new.date,
+            )
+        )
 
     return entries
 
@@ -417,10 +426,12 @@ def build_drift_report(
     commits = get_git_commits(project_path, count=max_commits)
 
     if len(commits) < 2:
-        return DriftReport(errors=[
-            "Need at least 2 commits with dependency file changes. "
-            "Make sure this is a git repo with dependency files tracked."
-        ])
+        return DriftReport(
+            errors=[
+                "Need at least 2 commits with dependency file changes. "
+                "Make sure this is a git repo with dependency files tracked."
+            ]
+        )
 
     # Use oldest and newest if not specified
     if from_commit is None:
@@ -488,8 +499,12 @@ def build_drift_report(
 
     # Sort entries by type then name
     type_order = {
-        "added": 0, "removed": 1, "upgraded": 2,
-        "downgraded": 3, "pinned": 4, "unpinned": 5,
+        "added": 0,
+        "removed": 1,
+        "upgraded": 2,
+        "downgraded": 3,
+        "pinned": 4,
+        "unpinned": 5,
     }
     report.entries.sort(key=lambda e: (type_order.get(e.change_type, 6), e.name))
 

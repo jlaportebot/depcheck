@@ -19,97 +19,105 @@ class LicenseCategory(Enum):
 
 
 # Permissive licenses: allow use, modification, distribution with minimal restrictions
-PERMISSIVE_IDS: frozenset[str] = frozenset({
-    "MIT",
-    "MIT License",
-    "Apache-2.0",
-    "Apache License 2.0",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "BSD License",
-    "ISC",
-    "ISC License",
-    "PSF-2.0",
-    "Python-2.0",
-    "Python Software Foundation License",
-    "0BSD",
-    "BSD-1-Clause",
-    "PostgreSQL",
-    "X11",
-    "MIT-0",
-    "Apache-1.1",
-    "Unlicense",
-    "Zlib",
-    "libpng-2.0",
-    "BSL-1.0",
-    "AFL-3.0",
-    "AFL-2.1",
-    "AFL-2.0",
-    "Artistic-2.0",
-    "Unicode-DFS-2016",
-    "BlueOak-1.0.0",
-    "NIST-PD",
-    "NIST-PD-fallback",
-})
+PERMISSIVE_IDS: frozenset[str] = frozenset(
+    {
+        "MIT",
+        "MIT License",
+        "Apache-2.0",
+        "Apache License 2.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "BSD License",
+        "ISC",
+        "ISC License",
+        "PSF-2.0",
+        "Python-2.0",
+        "Python Software Foundation License",
+        "0BSD",
+        "BSD-1-Clause",
+        "PostgreSQL",
+        "X11",
+        "MIT-0",
+        "Apache-1.1",
+        "Unlicense",
+        "Zlib",
+        "libpng-2.0",
+        "BSL-1.0",
+        "AFL-3.0",
+        "AFL-2.1",
+        "AFL-2.0",
+        "Artistic-2.0",
+        "Unicode-DFS-2016",
+        "BlueOak-1.0.0",
+        "NIST-PD",
+        "NIST-PD-fallback",
+    }
+)
 
 # Copyleft licenses: require derivative works to use same license
-COPYLEFT_IDS: frozenset[str] = frozenset({
-    "GPL-2.0",
-    "GPL-2.0-only",
-    "GPL-2.0-or-later",
-    "GPL-3.0",
-    "GPL-3.0-only",
-    "GPL-3.0-or-later",
-    "AGPL-3.0",
-    "AGPL-3.0-only",
-    "AGPL-3.0-or-later",
-    "LGPL-2.0",
-    "LGPL-2.1",
-    "LGPL-2.1-only",
-    "LGPL-2.1-or-later",
-    "LGPL-3.0",
-    "LGPL-3.0-only",
-    "LGPL-3.0-or-later",
-    "MPL-2.0",
-    "MPL-1.1",
-    "EUPL-1.2",
-    "CPAL-1.0",
-    "OSL-3.0",
-    "OSL-2.1",
-    "RPL-1.5",
-    "RPL-1.1",
-    "Sleepycat",
-    "IPL-1.0",
-    "CDDL-1.0",
-    "CDDL-1.1",
-    "EPL-1.0",
-    "EPL-2.0",
-    "CPL-1.0",
-})
+COPYLEFT_IDS: frozenset[str] = frozenset(
+    {
+        "GPL-2.0",
+        "GPL-2.0-only",
+        "GPL-2.0-or-later",
+        "GPL-3.0",
+        "GPL-3.0-only",
+        "GPL-3.0-or-later",
+        "AGPL-3.0",
+        "AGPL-3.0-only",
+        "AGPL-3.0-or-later",
+        "LGPL-2.0",
+        "LGPL-2.1",
+        "LGPL-2.1-only",
+        "LGPL-2.1-or-later",
+        "LGPL-3.0",
+        "LGPL-3.0-only",
+        "LGPL-3.0-or-later",
+        "MPL-2.0",
+        "MPL-1.1",
+        "EUPL-1.2",
+        "CPAL-1.0",
+        "OSL-3.0",
+        "OSL-2.1",
+        "RPL-1.5",
+        "RPL-1.1",
+        "Sleepycat",
+        "IPL-1.0",
+        "CDDL-1.0",
+        "CDDL-1.1",
+        "EPL-1.0",
+        "EPL-2.0",
+        "CPL-1.0",
+    }
+)
 
 # Public domain licenses
-PUBLIC_DOMAIN_IDS: frozenset[str] = frozenset({
-    "CC0-1.0",
-    "Unlicense",
-    "CC-PDDC",
-    "WTFPL",
-})
+PUBLIC_DOMAIN_IDS: frozenset[str] = frozenset(
+    {
+        "CC0-1.0",
+        "Unlicense",
+        "CC-PDDC",
+        "WTFPL",
+    }
+)
 
 # Restricted/proprietary licenses (no commercial use, etc.)
-RESTRICTED_IDS: frozenset[str] = frozenset({
-    "CC-BY-NC-1.0",
-    "CC-BY-NC-2.0",
-    "CC-BY-NC-2.5",
-    "CC-BY-NC-3.0",
-    "CC-BY-NC-4.0",
-    "CC-BY-NC-ND-3.0",
-    "CC-BY-NC-ND-4.0",
-    "CC-BY-NC-SA-2.0",
-    "CC-BY-NC-SA-3.0",
-    "CC-BY-NC-SA-4.0",
-    "NPOSL-3.0",
-    "JSON License",
-})
+RESTRICTED_IDS: frozenset[str] = frozenset(
+    {
+        "CC-BY-NC-1.0",
+        "CC-BY-NC-2.0",
+        "CC-BY-NC-2.5",
+        "CC-BY-NC-3.0",
+        "CC-BY-NC-4.0",
+        "CC-BY-NC-ND-3.0",
+        "CC-BY-NC-ND-4.0",
+        "CC-BY-NC-SA-2.0",
+        "CC-BY-NC-SA-3.0",
+        "CC-BY-NC-SA-4.0",
+        "NPOSL-3.0",
+        "JSON License",
+    }
+)
 
 # License name aliases — maps common variations to canonical SPDX IDs
 LICENSE_ALIASES: dict[str, str] = {
@@ -206,11 +214,10 @@ def normalize_license_id(raw: str) -> str:
             # For OR, prefer permissive if available
             if separator.strip().upper() == "OR":
                 permissive = [
-                p
-                for p in parts
-                if classify_license(normalize_single_id(p))
-                == LicenseCategory.PERMISSIVE
-            ]
+                    p
+                    for p in parts
+                    if classify_license(normalize_single_id(p)) == LicenseCategory.PERMISSIVE
+                ]
                 if permissive:
                     cleaned = permissive[0]
                 else:
@@ -362,9 +369,7 @@ def parse_license_from_pypi(info: dict[str, Any]) -> LicenseInfo:
 
     # 1. Try classifiers (most reliable)
     classifiers = package_info.get("classifiers", [])
-    license_classifiers = [
-        c for c in classifiers if c.startswith("License ::")
-    ]
+    license_classifiers = [c for c in classifiers if c.startswith("License ::")]
 
     # Extract SPDX ID from Trove classifiers
     # Format: "License :: <Category> :: <Name>"
@@ -470,10 +475,7 @@ class LicensePolicy:
         if self.denied_categories and category in self.denied_categories:
             return _PolicyCheckResult(
                 is_compliant=False,
-                reason=(
-                    f"License {spdx_id} ({category.value}) is in a denied "
-                    f"category by policy"
-                ),
+                reason=(f"License {spdx_id} ({category.value}) is in a denied category by policy"),
             )
 
         # 3. Check allowed categories
@@ -485,8 +487,7 @@ class LicensePolicy:
                         return _PolicyCheckResult(
                             is_compliant=False,
                             reason=(
-                                f"License {spdx_id} is uncategorized and "
-                                f"strict mode is enabled"
+                                f"License {spdx_id} is uncategorized and strict mode is enabled"
                             ),
                         )
                     # default_allow=True: let uncategorized through
@@ -601,9 +602,7 @@ def render_compliance_json(report: ComplianceReport) -> None:
     print(json.dumps(report.to_dict(), indent=2))
 
 
-def render_compliance_table(
-    report: ComplianceReport, *, console: Any = None
-) -> None:
+def render_compliance_table(report: ComplianceReport, *, console: Any = None) -> None:
     """Render a compliance report as a Rich table.
 
     Args:
@@ -676,7 +675,5 @@ def render_compliance_table(
         parts.append(f"[dim]? Uncategorized: {report.uncategorized_count}[/dim]")
 
     border = "red" if report.non_compliant_count > 0 else "green"
-    console.print(
-        Panel("\n".join(parts), title="Summary", border_style=border)
-    )
+    console.print(Panel("\n".join(parts), title="Summary", border_style=border))
     console.print()

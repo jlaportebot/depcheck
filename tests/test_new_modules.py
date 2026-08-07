@@ -358,7 +358,9 @@ class TestBuildUpdatePlan:
             url="https://example.com",
         )
         pkg = _make_pkg_report(
-            "vuln-pkg", "1.0.0", "1.0.1",
+            "vuln-pkg",
+            "1.0.0",
+            "1.0.1",
             status=HealthStatus.VULNERABLE,
             vulnerabilities=[vuln],
         )
@@ -379,6 +381,7 @@ class TestUpdatePlanRender:
 
     def test_render_table_does_not_crash(self):
         from rich.console import Console
+
         plan = UpdatePlan()
         console = Console(width=120, force_terminal=False, no_color=True)
         render_update_plan_table(plan, console=console)
@@ -479,31 +482,39 @@ class TestComputeIsolationScore:
 
     def test_imported_package(self):
         score = compute_isolation_score(
-            is_imported=True, is_transitive_only=False,
-            required_by_count=0, requires_count=0,
+            is_imported=True,
+            is_transitive_only=False,
+            required_by_count=0,
+            requires_count=0,
         )
         assert isinstance(score, float)
         assert 0 <= score <= 1
 
     def test_unused_package(self):
         score = compute_isolation_score(
-            is_imported=False, is_transitive_only=False,
-            required_by_count=0, requires_count=0,
+            is_imported=False,
+            is_transitive_only=False,
+            required_by_count=0,
+            requires_count=0,
         )
         assert isinstance(score, float)
         assert score >= 0.4  # Not imported gives +0.4
 
     def test_transitive_only(self):
         score = compute_isolation_score(
-            is_imported=False, is_transitive_only=True,
-            required_by_count=1, requires_count=0,
+            is_imported=False,
+            is_transitive_only=True,
+            required_by_count=1,
+            requires_count=0,
         )
         assert isinstance(score, float)
 
     def test_deeply_embedded(self):
         score = compute_isolation_score(
-            is_imported=True, is_transitive_only=False,
-            required_by_count=5, requires_count=10,
+            is_imported=True,
+            is_transitive_only=False,
+            required_by_count=5,
+            requires_count=10,
         )
         assert score < 0.5
 
@@ -513,19 +524,25 @@ class TestAssessRemovalRisk:
 
     def test_unused_package_low_risk(self):
         risk, note = assess_removal_risk(
-            is_imported=False, required_by_count=0, isolation_score=0.8,
+            is_imported=False,
+            required_by_count=0,
+            isolation_score=0.8,
         )
         assert risk == "low"
 
     def test_required_by_others(self):
         risk, note = assess_removal_risk(
-            is_imported=False, required_by_count=2, isolation_score=0.5,
+            is_imported=False,
+            required_by_count=2,
+            isolation_score=0.5,
         )
         assert risk == "medium"
 
     def test_imported_package_high_risk(self):
         risk, note = assess_removal_risk(
-            is_imported=True, required_by_count=0, isolation_score=0.0,
+            is_imported=True,
+            required_by_count=0,
+            isolation_score=0.0,
         )
         assert risk == "high"
 
@@ -593,12 +610,14 @@ class TestIsolationRender:
 
     def test_render_table_empty(self):
         from rich.console import Console
+
         report = IsolationReport()
         console = Console(width=120, force_terminal=False, no_color=True)
         render_isolation_table(report, console=console)
 
     def test_render_table_with_entries(self):
         from rich.console import Console
+
         info = IsolationInfo(
             name="unused-lib",
             is_imported=False,
@@ -770,6 +789,7 @@ class TestSizeRender:
 
     def test_render_table_does_not_crash(self):
         from rich.console import Console
+
         report = SizeReport()
         console = Console(width=120, force_terminal=False, no_color=True)
         render_size_table(report, console=console)
@@ -819,41 +839,65 @@ class TestCompareSnapshots:
     """Tests for compare_snapshots."""
 
     def test_no_changes(self):
-        old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={
-            "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
-        })
-        new = DriftSnapshot(commit="b2", date="2024-02-01", dependencies={
-            "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
-        })
+        old = DriftSnapshot(
+            commit="a1",
+            date="2024-01-01",
+            dependencies={
+                "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
+            },
+        )
+        new = DriftSnapshot(
+            commit="b2",
+            date="2024-02-01",
+            dependencies={
+                "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
+            },
+        )
         entries = compare_snapshots(old, new)
         assert len(entries) == 0
 
     def test_added_package(self):
         old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={})
-        new = DriftSnapshot(commit="b2", date="2024-02-01", dependencies={
-            "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
-        })
+        new = DriftSnapshot(
+            commit="b2",
+            date="2024-02-01",
+            dependencies={
+                "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
+            },
+        )
         entries = compare_snapshots(old, new)
         assert len(entries) == 1
         assert entries[0].change_type == "added"
         assert entries[0].name == "flask"
 
     def test_removed_package(self):
-        old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={
-            "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
-        })
+        old = DriftSnapshot(
+            commit="a1",
+            date="2024-01-01",
+            dependencies={
+                "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
+            },
+        )
         new = DriftSnapshot(commit="b2", date="2024-02-01", dependencies={})
         entries = compare_snapshots(old, new)
         assert len(entries) == 1
         assert entries[0].change_type == "removed"
 
     def test_upgraded_package(self):
-        old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={
-            "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
-        })
-        new = DriftSnapshot(commit="b2", date="2024-02-01", dependencies={
-            "requests": ParsedDependency(name="requests", version="2.31.0", specifier=">="),
-        })
+        old = DriftSnapshot(
+            commit="a1",
+            date="2024-01-01",
+            dependencies={
+                "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
+            },
+        )
+        new = DriftSnapshot(
+            commit="b2",
+            date="2024-02-01",
+            dependencies={
+                "requests": ParsedDependency(name="requests", version="2.31.0", specifier=">="),
+            },
+        )
         entries = compare_snapshots(old, new)
         assert len(entries) == 1
         assert entries[0].change_type == "upgraded"
@@ -861,33 +905,53 @@ class TestCompareSnapshots:
         assert entries[0].new_version == "2.31.0"
 
     def test_downgraded_package(self):
-        old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={
-            "django": ParsedDependency(name="django", version="4.2.0", specifier=">="),
-        })
-        new = DriftSnapshot(commit="b2", date="2024-02-01", dependencies={
-            "django": ParsedDependency(name="django", version="4.1.0", specifier=">="),
-        })
+        old = DriftSnapshot(
+            commit="a1",
+            date="2024-01-01",
+            dependencies={
+                "django": ParsedDependency(name="django", version="4.2.0", specifier=">="),
+            },
+        )
+        new = DriftSnapshot(
+            commit="b2",
+            date="2024-02-01",
+            dependencies={
+                "django": ParsedDependency(name="django", version="4.1.0", specifier=">="),
+            },
+        )
         entries = compare_snapshots(old, new)
         assert len(entries) == 1
         assert entries[0].change_type == "downgraded"
 
     def test_multiple_changes(self):
-        old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={
-            "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
-            "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
-        })
-        new = DriftSnapshot(commit="b2", date="2024-02-01", dependencies={
-            "requests": ParsedDependency(name="requests", version="2.31.0", specifier=">="),
-            "django": ParsedDependency(name="django", version="4.2.0", specifier=">="),
-        })
+        old = DriftSnapshot(
+            commit="a1",
+            date="2024-01-01",
+            dependencies={
+                "requests": ParsedDependency(name="requests", version="2.28.0", specifier=">="),
+                "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
+            },
+        )
+        new = DriftSnapshot(
+            commit="b2",
+            date="2024-02-01",
+            dependencies={
+                "requests": ParsedDependency(name="requests", version="2.31.0", specifier=">="),
+                "django": ParsedDependency(name="django", version="4.2.0", specifier=">="),
+            },
+        )
         entries = compare_snapshots(old, new)
         assert len(entries) == 3  # requests upgraded, flask removed, django added
 
     def test_drift_days_computed(self):
         old = DriftSnapshot(commit="a1", date="2024-01-01", dependencies={})
-        new = DriftSnapshot(commit="b2", date="2024-03-01", dependencies={
-            "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
-        })
+        new = DriftSnapshot(
+            commit="b2",
+            date="2024-03-01",
+            dependencies={
+                "flask": ParsedDependency(name="flask", version="2.3.0", specifier=">="),
+            },
+        )
         entries = compare_snapshots(old, new)
         if entries:
             assert entries[0].drift_days == 60  # Jan 1 to Mar 1 = 60 days
@@ -988,12 +1052,14 @@ class TestDriftRender:
 
     def test_render_table_no_drift(self):
         from rich.console import Console
+
         report = DriftReport(entries=[], snapshots_compared=2)
         console = Console(width=120, force_terminal=False, no_color=True)
         render_drift_table(report, console=console)
 
     def test_render_table_with_entries(self):
         from rich.console import Console
+
         entry = DriftEntry(
             name="requests",
             old_version="2.28.0",
@@ -1214,8 +1280,13 @@ class TestCompatRender:
 
     def test_render_json(self):
         report = CompatReport(
-            packages=[], target_python="3.12", current_python="3.11",
-            total_packages=0, compatible_count=0, incompatible_count=0, unknown_count=0,
+            packages=[],
+            target_python="3.12",
+            current_python="3.11",
+            total_packages=0,
+            compatible_count=0,
+            incompatible_count=0,
+            unknown_count=0,
         )
         result = render_compat_json(report)
         data = json.loads(result)
@@ -1223,38 +1294,60 @@ class TestCompatRender:
 
     def test_render_table_no_packages(self):
         from rich.console import Console
+
         report = CompatReport(
-            packages=[], target_python="3.12", current_python="3.11",
-            total_packages=0, compatible_count=0, incompatible_count=0, unknown_count=0,
+            packages=[],
+            target_python="3.12",
+            current_python="3.11",
+            total_packages=0,
+            compatible_count=0,
+            incompatible_count=0,
+            unknown_count=0,
         )
         console = Console(width=120, force_terminal=False, no_color=True)
         render_compat_table(report, console=console)
 
     def test_render_table_with_compatible(self):
         from rich.console import Console
+
         info = CompatInfo(
-            name="requests", version="2.31.0", is_compatible=True,
+            name="requests",
+            version="2.31.0",
+            is_compatible=True,
             compatibility_detail="Explicitly supports Python 3.12",
         )
         report = CompatReport(
-            packages=[info], target_python="3.12", current_python="3.11",
-            total_packages=1, compatible_count=1, incompatible_count=0, unknown_count=0,
+            packages=[info],
+            target_python="3.12",
+            current_python="3.11",
+            total_packages=1,
+            compatible_count=1,
+            incompatible_count=0,
+            unknown_count=0,
         )
         console = Console(width=120, force_terminal=False, no_color=True)
         render_compat_table(report, console=console)
 
     def test_render_table_with_incompatible(self):
         from rich.console import Console
+
         info = CompatInfo(
-            name="old-lib", version="0.1.0", is_compatible=False,
+            name="old-lib",
+            version="0.1.0",
+            is_compatible=False,
             compatibility_detail="Only supports Python 3.8-3.10",
             breaking_on_upgrade=True,
             upgrade_note="Will break on Python 3.12",
         )
         report = CompatReport(
-            packages=[info], target_python="3.12", current_python="3.11",
-            total_packages=1, compatible_count=0, incompatible_count=1,
-            unknown_count=0, breaking_on_upgrade_count=1,
+            packages=[info],
+            target_python="3.12",
+            current_python="3.11",
+            total_packages=1,
+            compatible_count=0,
+            incompatible_count=1,
+            unknown_count=0,
+            breaking_on_upgrade_count=1,
         )
         console = Console(width=120, force_terminal=False, no_color=True)
         render_compat_table(report, console=console)
@@ -1262,31 +1355,38 @@ class TestCompatRender:
 
 # ===== Integration: CLI Command Registration Tests =====
 
+
 class TestCLIRegistration:
     """Test that all new CLI commands are registered."""
 
     def test_update_command_exists(self):
         from depcheck.cli import main
+
         assert "update" in main.commands
 
     def test_isolate_command_exists(self):
         from depcheck.cli import main
+
         assert "isolate" in main.commands
 
     def test_sizescore_command_exists(self):
         from depcheck.cli import main
+
         assert "sizescore" in main.commands
 
     def test_depdrift_command_exists(self):
         from depcheck.cli import main
+
         assert "depdrift" in main.commands
 
     def test_compat_command_exists(self):
         from depcheck.cli import main
+
         assert "compat" in main.commands
 
 
 # ===== Edge Case & Error Handling Tests =====
+
 
 class TestEdgeCases:
     """Test edge cases across all modules."""

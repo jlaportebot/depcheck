@@ -27,6 +27,7 @@ from depcheck.models import ParsedDependency
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _write_requirements(tmp: Path, name: str, content: str) -> Path:
     """Write a requirements-style file to tmp/name and return its path."""
     p = tmp / name
@@ -37,6 +38,7 @@ def _write_requirements(tmp: Path, name: str, content: str) -> Path:
 # ---------------------------------------------------------------------------
 # PackageDiff
 # ---------------------------------------------------------------------------
+
 
 class TestPackageDiff:
     """Unit tests for PackageDiff dataclass."""
@@ -103,6 +105,7 @@ class TestPackageDiff:
 # DiffResult
 # ---------------------------------------------------------------------------
 
+
 class TestDiffResult:
     """Unit tests for DiffResult dataclass."""
 
@@ -151,6 +154,7 @@ class TestDiffResult:
 # ---------------------------------------------------------------------------
 # compare_dependencies
 # ---------------------------------------------------------------------------
+
 
 class TestCompareDependencies:
     """Unit tests for compare_dependencies."""
@@ -284,6 +288,7 @@ class TestCompareDependencies:
 # diff_files
 # ---------------------------------------------------------------------------
 
+
 class TestDiffFiles:
     """Integration tests for diff_files using temp files."""
 
@@ -316,12 +321,8 @@ class TestDiffFiles:
         assert by_name["pandas"].diff_type == DiffType.ADDED
 
     def test_diff_no_changes(self, tmp_path: Path) -> None:
-        old_file = _write_requirements(
-            tmp_path, "old.txt", "requests==2.28.0\nflask==2.0.0\n"
-        )
-        new_file = _write_requirements(
-            tmp_path, "new.txt", "requests==2.28.0\nflask==2.0.0\n"
-        )
+        old_file = _write_requirements(tmp_path, "old.txt", "requests==2.28.0\nflask==2.0.0\n")
+        new_file = _write_requirements(tmp_path, "new.txt", "requests==2.28.0\nflask==2.0.0\n")
         result = diff_files(old_file, new_file)
         assert result.unchanged_count == 2
         assert result.added_count == 0
@@ -359,6 +360,7 @@ class TestDiffFiles:
 # generate_unified_diff
 # ---------------------------------------------------------------------------
 
+
 class TestUnifiedDiff:
     """Tests for the unified diff output."""
 
@@ -383,6 +385,7 @@ class TestUnifiedDiff:
 # ---------------------------------------------------------------------------
 # detect_lockfile_drift
 # ---------------------------------------------------------------------------
+
 
 class TestLockfileDrift:
     """Tests for lockfile drift detection."""
@@ -410,6 +413,7 @@ class TestLockfileDrift:
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
+
 
 class TestRendering:
     """Tests for diff rendering (table and JSON)."""
@@ -490,13 +494,12 @@ class TestRendering:
 # CLI integration
 # ---------------------------------------------------------------------------
 
+
 class TestDiffCLI:
     """Integration tests for `depcheck diff` CLI command."""
 
     def test_diff_cli_basic(self, tmp_path: Path) -> None:
-        old_file = _write_requirements(
-            tmp_path, "old.txt", "requests==2.28.0\nflask==2.0.0\n"
-        )
+        old_file = _write_requirements(tmp_path, "old.txt", "requests==2.28.0\nflask==2.0.0\n")
         new_file = _write_requirements(
             tmp_path, "new.txt", "requests==2.31.0\nflask==2.0.0\npandas==2.0.0\n"
         )
