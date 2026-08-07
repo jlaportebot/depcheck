@@ -50,7 +50,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ruff>=0.15.21",
-    "ty>=0.0.56",
+    "ty>=0.0.66",
     "pytest-asyncio>=1.4.0",
 ]
 audit = ["pip-audit>=2.10.1"]
