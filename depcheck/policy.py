@@ -19,12 +19,11 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
-from depcheck.scanner import scan_project, discover_dependencies
-from depcheck.pypi import PyPIClient
+from depcheck.models import HealthStatus, PackageReport
+from depcheck.scanner import scan_project
 
 # Package name regex (PEP 503)
 _PKG_RE = re.compile(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)")
@@ -575,7 +574,7 @@ def _evaluate_maintenance_rule(
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message=f"Package appears unmaintained",
+            message="Package appears unmaintained",
             remediation=f"Consider replacing {pkg.name} with an actively-maintained alternative",
         )
 
@@ -613,7 +612,7 @@ def _evaluate_package_rule(
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message=f"Package is on the deny list",
+            message="Package is on the deny list",
             remediation=f"Remove {pkg.name} from your dependencies",
         )
 
@@ -624,7 +623,7 @@ def _evaluate_package_rule(
             version=pkg.installed_version,
             severity=rule.severity,
             category=rule.category,
-            message=f"Package not on the allow list",
+            message="Package not on the allow list",
             remediation=f"Remove {pkg.name} or add it to the allow list",
         )
 

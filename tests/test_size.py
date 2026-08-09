@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import json
-import os
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from depcheck.models import ParsedDependency
 from depcheck.size import (
     PackageSize,
     SizeReport,
+    _human_size,
     analyze_sizes,
     find_site_packages,
     measure_package_size,
@@ -21,9 +19,7 @@ from depcheck.size import (
     render_size_table,
     resolve_package_dir,
     resolve_package_version,
-    _human_size,
 )
-
 
 # ---------------------------------------------------------------------------
 # PackageSize unit tests
@@ -388,6 +384,7 @@ class TestRenderSizeTable:
 
     def test_renders_without_error(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         report = SizeReport(
@@ -402,6 +399,7 @@ class TestRenderSizeTable:
 
     def test_renders_empty_report(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         report = SizeReport(project_path="/tmp/test")
@@ -414,6 +412,7 @@ class TestRenderSizeJson:
 
     def test_produces_valid_json(self) -> None:
         from io import StringIO
+
         from rich.console import Console
 
         report = SizeReport(

@@ -15,13 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from rich.columns import Columns
+from rich.table import Table
 
 from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
-
 
 # ─── Enums ─────────────────────────────────────────────────────────────────
 

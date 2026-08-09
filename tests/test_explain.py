@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from depcheck.explain import (
     ExplainReport,
@@ -22,7 +19,6 @@ from depcheck.explain import (
     render_explain_plain,
 )
 from depcheck.models import LicenseInfo, PackageReport, ScanResult, Vulnerability
-
 
 # ---------------------------------------------------------------------------
 # Package knowledge database tests
@@ -334,6 +330,7 @@ class TestRenderExplainPlain:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -367,6 +364,7 @@ class TestRenderExplainPlain:
 
     def test_render_healthy(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -398,6 +396,7 @@ class TestRenderExplainJson:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -421,6 +420,7 @@ class TestRenderExplainMarkdown:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -456,6 +456,7 @@ class TestRenderExplainMarkdown:
 
     def test_render_with_action_items(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -487,6 +488,7 @@ class TestRenderExplainAi:
 
     def test_basic_render(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(
@@ -516,6 +518,7 @@ class TestRenderExplainAi:
 
     def test_compact_format(self):
         from io import StringIO
+
         from rich.console import Console
 
         report = ExplainReport(

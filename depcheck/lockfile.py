@@ -9,7 +9,6 @@ security scanning.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import subprocess
@@ -21,7 +20,6 @@ from typing import Any
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-
 
 # ---------------------------------------------------------------------------
 # Constants

@@ -3,11 +3,7 @@
 from __future__ import annotations
 
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from depcheck.lockfile import (
     DriftEntry,
@@ -21,12 +17,10 @@ from depcheck.lockfile import (
     analyze_drift,
     analyze_hashes,
     analyze_lockfile,
-    analyze_project_lockfiles,
     analyze_unpinned,
     detect_lockfile_type,
     diff_lockfiles,
     find_lockfiles,
-    generate_freeze,
     parse_pip_freeze,
     parse_pipfile_lock,
     parse_poetry_lock,
@@ -35,7 +29,6 @@ from depcheck.lockfile import (
     render_lockfile_table,
     run_pip_audit,
 )
-
 
 # ---------------------------------------------------------------------------
 # Detect lockfile type
@@ -686,6 +679,7 @@ class TestLockfileRendering:
 
     def test_render_table_healthy(self):
         from io import StringIO
+
         from rich.console import Console
         report = LockfileReport(
             path="requirements.txt",
@@ -700,6 +694,7 @@ class TestLockfileRendering:
 
     def test_render_table_unhealthy(self):
         from io import StringIO
+
         from rich.console import Console
         report = LockfileReport(
             path="requirements.txt",
@@ -718,6 +713,7 @@ class TestLockfileRendering:
 
     def test_render_json(self):
         from io import StringIO
+
         from rich.console import Console
         report = LockfileReport(path="test.txt", lockfile_type="requirements_txt", total_packages=5)
         buf = StringIO()

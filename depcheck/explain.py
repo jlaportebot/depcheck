@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import enum
 import json
-import re
 import textwrap
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,9 +24,8 @@ from typing import Any
 
 from packaging.version import Version
 
-from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
-
 
 # ---------------------------------------------------------------------------
 # Package metadata database (curated knowledge)

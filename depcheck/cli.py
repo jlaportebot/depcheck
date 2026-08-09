@@ -1230,7 +1230,7 @@ def check(
     depcheck check --fail-on high
     depcheck check /path/to/project
     """
-    from depcheck.check import Grade, HealthReport, run_check, render_check_json, render_check_table
+    from depcheck.check import Grade, render_check_json, render_check_table, run_check
 
     console = Console(quiet=quiet)
 
@@ -1367,7 +1367,6 @@ def lockfile(
     from pathlib import Path
 
     from depcheck.lockfile import (
-        PipAuditResult,
         analyze_project_lockfiles,
         diff_lockfiles,
         find_lockfiles,
@@ -1521,8 +1520,6 @@ def explain(
     depcheck explain --check-licenses
     """
     from depcheck.explain import (
-        ExplainReport,
-        OutputFormat,
         explain_project,
         render_explain_ai,
         render_explain_json,
@@ -1979,7 +1976,6 @@ def budget(
     """
     from depcheck.budget import (
         BudgetConfig,
-        BudgetReport,
         check_budget,
         render_budget_json,
         render_budget_table,
@@ -2174,7 +2170,6 @@ def advisories(
         render_advisories_json,
         render_advisories_table,
         run_advisories,
-        search_advisories,
     )
 
     console = Console(quiet=quiet)
@@ -2280,7 +2275,6 @@ def graph(
     depcheck graph --max-depth 2 --format json
     """
     from depcheck.graph import (
-        DependencyGraph,
         GraphFormat,
         build_dependency_graph,
         extract_subgraph,
@@ -2385,7 +2379,6 @@ def policy(
     depcheck policy --no-vulns
     """
     from depcheck.policy import (
-        PolicyConfig,
         evaluate_policy,
         render_policy_json,
         render_policy_table,

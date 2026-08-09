@@ -8,7 +8,6 @@ remediation guidance.
 
 from __future__ import annotations
 
-import datetime
 import enum
 import json
 from dataclasses import dataclass, field
@@ -17,14 +16,11 @@ from typing import Any
 
 import httpx
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
-from depcheck.models import PackageReport, ScanResult, Vulnerability
 from depcheck.osv import OSVClient
-from depcheck.pypi import PyPIClient
-from depcheck.scanner import discover_dependencies, scan_project
-
+from depcheck.scanner import scan_project
 
 # ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -359,7 +355,7 @@ def _fetch_pypa_advisory(package_name: str) -> list[AdvisoryEntry]:
         # We use the OSV API instead since PyPA feeds into OSV
         client = httpx.Client(timeout=REQUEST_TIMEOUT, follow_redirects=True)
         # Use OSV's batch query for PyPA-sourced advisories
-        url = f"https://api.osv.dev/v1/query"
+        url = "https://api.osv.dev/v1/query"
         payload = {
             "package": {
                 "name": package_name,

@@ -19,9 +19,9 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from depcheck.models import HealthStatus, ParsedDependency, ScanResult
-from depcheck.scanner import discover_dependencies, scan_project
+from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
+from depcheck.scanner import discover_dependencies
 
 # Package name regex (PEP 503)
 _PKG_RE = re.compile(r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)")
@@ -549,7 +549,7 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
                 console.print(f"    ... and {len(cat.packages) - 10} more")
 
     # Summary
-    console.print(f"\n[bold]Summary:[/bold]")
+    console.print("\n[bold]Summary:[/bold]")
     console.print(f"  Total dependencies: {report.total_deps}")
     console.print(f"  Direct: {report.total_direct}")
     console.print(f"  Transitive: {report.total_transitive}")

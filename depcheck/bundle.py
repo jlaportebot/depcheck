@@ -25,7 +25,6 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -105,7 +104,7 @@ def _run_check(project_path: str) -> CommandResult:
     """Run the 'check' command and return its result."""
     start = time.monotonic()
     try:
-        from depcheck.check import Grade, run_check
+        from depcheck.check import run_check
 
         report = run_check(project_path, check_vulnerabilities=True, check_licenses=False)
         duration = time.monotonic() - start
@@ -210,13 +209,6 @@ def _run_license(project_path: str) -> CommandResult:
     """Run the 'license' command and return its result."""
     start = time.monotonic()
     try:
-        from depcheck.licenses import (
-            ComplianceReport,
-            LicenseCategory,
-            LicenseInfo,
-            LicensePolicy,
-            PackageComplianceEntry,
-        )
         from depcheck.scanner import scan_project
 
         scan_result = scan_project(

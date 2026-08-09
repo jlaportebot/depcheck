@@ -6,23 +6,20 @@ import json
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from depcheck.bundle import (
     BundleCommand,
     BundleReport,
     CommandResult,
-    run_bundle,
+    _run_audit,
+    _run_check,
+    _run_history,
+    _run_license,
+    _run_outdated,
+    _run_size,
     render_bundle_json,
     render_bundle_table,
-    _run_check,
-    _run_audit,
-    _run_outdated,
-    _run_license,
-    _run_size,
-    _run_history,
+    run_bundle,
 )
-
 
 # ---------------------------------------------------------------------------
 # BundleCommand tests

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import enum
 import json
-import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,7 +28,6 @@ from rich.table import Table
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
-
 
 # ---------------------------------------------------------------------------
 # Enums

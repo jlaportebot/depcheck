@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import enum
 import json
-import os
 import re
 import subprocess
 import sys
@@ -28,9 +27,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from depcheck.models import ParsedDependency
 from depcheck.scanner import discover_dependencies, normalize_package_name
-
 
 # ---------------------------------------------------------------------------
 # Enums

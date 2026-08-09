@@ -12,10 +12,8 @@ project audits.
 from __future__ import annotations
 
 import enum
-import hashlib
 import json
 import math
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -25,9 +23,8 @@ from typing import Any
 from packaging.version import Version
 
 from depcheck.audit import RiskLevel, run_audit
-from depcheck.models import HealthStatus, PackageReport, ScanResult
+from depcheck.models import HealthStatus, ScanResult
 from depcheck.scanner import scan_project
-
 
 # ---------------------------------------------------------------------------
 # Data models

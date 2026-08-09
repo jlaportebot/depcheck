@@ -5,10 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from depcheck.doctor import (
     Category,
@@ -25,7 +22,6 @@ from depcheck.doctor import (
     render_doctor_table,
     run_doctor,
 )
-
 
 # ---------------------------------------------------------------------------
 # Finding tests

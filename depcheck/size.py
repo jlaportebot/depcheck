@@ -25,9 +25,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from depcheck.models import ParsedDependency
 from depcheck.scanner import discover_dependencies
-
 
 # ---------------------------------------------------------------------------
 # Data models

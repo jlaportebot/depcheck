@@ -21,10 +21,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.tree import Tree
 
-from depcheck.models import HealthStatus, ParsedDependency
+from depcheck.models import HealthStatus
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
-
 
 # ─── Package Name Regex ────────────────────────────────────────────────────
 
@@ -609,7 +608,7 @@ def render_graph_ascii(graph: DependencyGraph, console: Console | None = None) -
         console.print(tree)
 
     # Print analysis summary
-    console.print(f"\n[bold]Graph Analysis:[/bold]")
+    console.print("\n[bold]Graph Analysis:[/bold]")
     console.print(f"  Nodes: {graph.total_nodes}")
     console.print(f"  Edges: {graph.total_edges}")
     console.print(f"  Max depth: {graph.max_depth}")

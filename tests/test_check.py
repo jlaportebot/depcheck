@@ -3,20 +3,14 @@
 from __future__ import annotations
 
 import json
-import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from depcheck.check import (
     CategoryScore,
     DependencyFreshness,
     Grade,
     HealthReport,
-    HealthStatus,
     MaintainerSignal,
-    PackageReport,
     ScanResult,
     TransitiveDepth,
     _score_freshness,
@@ -27,13 +21,11 @@ from depcheck.check import (
     _score_vulnerability,
     analyze_freshness,
     analyze_maintainer_signals,
-    analyze_transitive_depth,
     render_check_json,
     render_check_table,
     run_check,
 )
-from depcheck.models import LicenseInfo, Vulnerability
-
+from depcheck.models import HealthStatus, LicenseInfo, PackageReport, ScanResult, Vulnerability
 
 # ---------------------------------------------------------------------------
 # Grade tests
@@ -590,6 +582,7 @@ class TestRendering:
         )
         # Should not raise
         from io import StringIO
+
         from rich.console import Console
         buf = StringIO()
         console = Console(file=buf, force_terminal=False, no_color=True)
@@ -605,6 +598,7 @@ class TestRendering:
             overall_grade=Grade.A,
         )
         from io import StringIO
+
         from rich.console import Console
         buf = StringIO()
         console = Console(file=buf, force_terminal=False, no_color=True)

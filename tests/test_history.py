@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from io import StringIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +21,6 @@ from depcheck.history import (
     render_history_table,
 )
 from depcheck.models import ParsedDependency
-
 
 # ---------------------------------------------------------------------------
 # VersionRelease tests
