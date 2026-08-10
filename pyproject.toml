@@ -70,12 +70,14 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 markers = [
-    "asyncio = marks tests as asyncio",
+    "asyncio: marks tests as asyncio",
 ]
 
 [tool.ty.environment]
 python-version = "3.11"
+extra-paths = ["depcheck"]
 
 [tool.ty.terminal]
 error-on-warning = true
