@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "click>=8.0",
+    "click>=8.4.2",
     "rich>=15.0.0",
     "httpx>=0.28.1",
     "packaging>=26.2",
