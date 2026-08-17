@@ -41,7 +41,7 @@ depcheck = "depcheck.cli:main"
 dev = [
  "pytest>=9.1.1",
  "pytest-cov>=7.1.0",
- "ruff>=0.16.2",
+ "ruff>=0.16.3",
  "pytest-asyncio>=1.4.0",
 ]
 
@@ -49,7 +49,7 @@ dev = [
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
-    "ruff>=0.16.2",
+    "ruff>=0.16.3",
     "ty>=0.0.69",
     "pytest-asyncio>=1.4.0",
 ]
