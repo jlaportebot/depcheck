@@ -65,6 +65,8 @@ jobs:
         run: uv lock
       - name: Install dependencies
         run: uv sync --group audit
+      - name: Upgrade pip
+        run: uv pip install --upgrade pip
       - name: Run pip-audit
         run: uv run pip-audit --desc=on -f json -o /dev/null
 
