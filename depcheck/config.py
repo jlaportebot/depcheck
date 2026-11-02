@@ -73,7 +73,7 @@ class Config:
         config = cls(project_path=path)
 
         # Load from pyproject.toml if it exists
-        if pyproject_path.is_file() and tomllib:
+        if pyproject_path.is_file():
             try:
                 content = pyproject_path.read_text(encoding="utf-8")
                 data = tomllib.loads(content)
@@ -184,7 +184,7 @@ def generate_default_config(project_path: Path | str = ".") -> str:
 
     # Check if pyproject.toml exists and has depcheck config
     existing = {}
-    if pyproject_path.is_file() and tomllib:
+    if pyproject_path.is_file():
         try:
             content = pyproject_path.read_text(encoding="utf-8")
             data = tomllib.loads(content)
