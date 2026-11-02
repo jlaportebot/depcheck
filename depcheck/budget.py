@@ -9,7 +9,6 @@ via CLI flags. Supports total budget, per-category budgets
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +17,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
@@ -548,7 +548,6 @@ def render_budget_table(report: BudgetReport, console: Console | None = None) ->
 
 def render_budget_json(report: BudgetReport, console: Console | None = None) -> None:
     """Render budget report as JSON."""
-    output = json.dumps(report.to_dict(), indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)

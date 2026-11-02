@@ -16,7 +16,6 @@ Supports:
 from __future__ import annotations
 
 import enum
-import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +24,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import ParsedDependency
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
@@ -579,8 +579,6 @@ def render_history_table(report: HistoryReport, console: Console | None = None) 
 
 def render_history_json(report: HistoryReport, console: Console | None = None) -> None:
     """Render history report as JSON."""
-    data = report.to_dict()
-    output = json.dumps(data, indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)

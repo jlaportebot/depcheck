@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
 import click
 from rich.console import Console
 
-from depcheck import __version__
+from depcheck import __version__, jsonout
 from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
 from depcheck.scanner import scan_project
@@ -455,27 +454,14 @@ def export(
     # Output to stdout
     if fmt == "cyclonedx":
         content = render_cyclonedx(sbom)
-        if quiet:
-            clean_console = Console(quiet=False, force_terminal=False, no_color=True)
-        else:
-            clean_console = Console(force_terminal=False, no_color=True)
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif fmt == "spdx":
         content = render_spdx(sbom)
-        if quiet:
-            clean_console = Console(quiet=False, force_terminal=False, no_color=True)
-        else:
-            clean_console = Console(force_terminal=False, no_color=True)
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif fmt == "summary":
         if json_output:
             content = render_summary_json(sbom)
-            clean_console = (
-                Console(quiet=False, force_terminal=False, no_color=True)
-                if quiet
-                else Console(force_terminal=False, no_color=True)
-            )
-            clean_console.print(content)
+            jsonout.write_text(content)
     elif not quiet:
         render_summary_table(sbom, console=console)
 
@@ -780,12 +766,7 @@ def outdated(
     # Render output
     if output_json:
         content = render_outdated_json(outdated_report)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True)
-            if quiet
-            else Console(force_terminal=False, no_color=True)
-        )
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif not quiet:
         render_outdated_table(outdated_report, console=console)
         if show_commands:
@@ -1402,7 +1383,7 @@ def lockfile(
         old_path = lockfiles[0]
         result = diff_lockfiles(old_path, target_path)
         if output_json:
-            console.print(json.dumps(result.to_dict(), indent=2))
+            jsonout.write_json(result.to_dict())
         elif not quiet:
             render_lockfile_diff_table(result, console=console)
         if result.has_changes and fail_on_drift:
@@ -1707,8 +1688,7 @@ def suggest(
     )
 
     if output_json:
-        console = Console(quiet=False, force_terminal=False, no_color=True, width=10000)
-        console.print(render_suggest_json(result))
+        jsonout.write_text(render_suggest_json(result))
     elif not quiet:
         render_suggest_table(result, console=console)
 
@@ -2553,12 +2533,7 @@ def update(
     output_json = False  # update command doesn't have --json flag
     if output_json:
         content = render_update_plan_json(plan)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True)
-            if quiet
-            else Console(force_terminal=False, no_color=True)
-        )
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif not quiet:
         render_update_plan_table(plan, console=console)
 
@@ -2621,12 +2596,7 @@ def isolate(
 
     if output_json:
         content = render_isolation_json(report)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True)
-            if quiet
-            else Console(force_terminal=False, no_color=True)
-        )
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif not quiet:
         render_isolation_table(report, console=console)
 
@@ -2736,14 +2706,7 @@ def unused(
         sys.exit(2)
 
     if output_json:
-        # Emit raw JSON (bypass Rich console to avoid line-wrapping long strings)
-        rendered = json.dumps(result.to_dict(), indent=2, default=str)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True, width=10000)
-            if quiet
-            else Console(force_terminal=False, no_color=True, width=10000)
-        )
-        clean_console.print(rendered)
+        jsonout.write_json(result.to_dict())
     elif not quiet:
         render_unused_table(result, console=console)
 
@@ -2807,12 +2770,7 @@ def sizescore(
 
     if output_json:
         content = render_size_json(report)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True)
-            if quiet
-            else Console(force_terminal=False, no_color=True)
-        )
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif not quiet:
         render_size_table(report, console=console)
 
@@ -2901,12 +2859,7 @@ def depdrift(
 
     if output_json:
         content = render_drift_json(report)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True)
-            if quiet
-            else Console(force_terminal=False, no_color=True)
-        )
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif not quiet:
         render_drift_table(report, console=console)
 
@@ -2979,12 +2932,7 @@ def compat(
 
     if output_json:
         content = render_compat_json(report)
-        clean_console = (
-            Console(quiet=False, force_terminal=False, no_color=True)
-            if quiet
-            else Console(force_terminal=False, no_color=True)
-        )
-        clean_console.print(content)
+        jsonout.write_text(content)
     elif not quiet:
         render_compat_table(report, console=console)
 

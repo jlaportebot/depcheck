@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from depcheck import jsonout
+
 
 class LicenseCategory(Enum):
     """Broad license categories for compliance checking."""
@@ -597,9 +599,7 @@ def render_compliance_json(report: ComplianceReport) -> None:
     Args:
         report: The compliance report to render.
     """
-    import json
-
-    print(json.dumps(report.to_dict(), indent=2))
+    jsonout.write_json(report.to_dict())
 
 
 def render_compliance_table(report: ComplianceReport, *, console: Any = None) -> None:

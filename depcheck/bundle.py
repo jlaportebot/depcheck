@@ -15,7 +15,6 @@ Supports:
 from __future__ import annotations
 
 import enum
-import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -25,6 +24,8 @@ from typing import Any
 
 from rich.console import Console
 from rich.table import Table
+
+from depcheck import jsonout
 
 # ---------------------------------------------------------------------------
 # Data models
@@ -427,8 +428,6 @@ def render_bundle_table(report: BundleReport, console: Console | None = None) ->
 
 def render_bundle_json(report: BundleReport, console: Console | None = None) -> None:
     """Render bundle report as JSON."""
-    data = report.to_dict()
-    output = json.dumps(data, indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)

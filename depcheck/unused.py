@@ -23,7 +23,6 @@ Features:
 from __future__ import annotations
 
 import ast
-import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -35,6 +34,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import ParsedDependency
 from depcheck.scanner import discover_dependencies, normalize_package_name
 
@@ -1138,7 +1138,7 @@ def render_unused_json(
     """
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(json.dumps(result.to_dict(), indent=2, default=str))
+    jsonout.write_json(result.to_dict(), console=console)
 
 
 def determine_unused_exit_code(

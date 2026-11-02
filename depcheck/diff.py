@@ -20,6 +20,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import ParsedDependency
 from depcheck.scanner import (
     discover_dependencies,
@@ -601,16 +602,7 @@ def render_diff_json(result: DiffResult, console: Console | None = None) -> None
         result: The diff result to render.
         console: Optional Rich console.
     """
-    import json
-
     if console is None:
         console = Console()
 
-    data = result.to_dict()
-    clean_console = Console(
-        file=console.file,
-        force_terminal=False,
-        no_color=True,
-        legacy_windows=False,
-    )
-    clean_console.print(json.dumps(data, indent=2))
+    jsonout.write_json(result.to_dict(), console=console)

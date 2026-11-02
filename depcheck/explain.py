@@ -15,7 +15,6 @@ Supports multiple output formats:
 from __future__ import annotations
 
 import enum
-import json
 import textwrap
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -24,6 +23,7 @@ from typing import Any
 
 from packaging.version import Version
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
 
@@ -887,7 +887,7 @@ def render_explain_json(report: ExplainReport, *, console: Any = None) -> None:
     if console is None:
         console = Console(force_terminal=False, no_color=True)
 
-    console.print(json.dumps(report.to_dict(), indent=2))
+    jsonout.write_json(report.to_dict(), console=console)
 
 
 def render_explain_ai(report: ExplainReport, *, console: Any = None) -> None:

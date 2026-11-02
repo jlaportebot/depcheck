@@ -10,7 +10,6 @@ subgraph extraction.
 from __future__ import annotations
 
 import enum
-import json
 import re
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -21,6 +20,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.tree import Tree
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies
@@ -759,7 +759,7 @@ def render_graph_json(graph: DependencyGraph, console: Console | None = None) ->
     """Render the dependency graph as JSON."""
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(json.dumps(graph.to_dict(), indent=2))
+    jsonout.write_json(graph.to_dict(), console=console)
 
 
 def render_centrality_table(graph: DependencyGraph, console: Console | None = None) -> None:

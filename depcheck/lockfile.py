@@ -21,6 +21,8 @@ from typing import Any
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
+from depcheck import jsonout
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -922,7 +924,7 @@ def render_lockfile_json(reports: list[LockfileReport], *, console: Any = None) 
         console = Console(force_terminal=False, no_color=True)
 
     data = [r.to_dict() for r in reports]
-    console.print(json.dumps(data, indent=2))
+    jsonout.write_json(data, console=console)
 
 
 def render_pip_audit_table(audit_result: PipAuditResult, *, console: Any = None) -> None:

@@ -16,7 +16,6 @@ configuration, detecting common problems and suggesting fixes:
 from __future__ import annotations
 
 import enum
-import json
 import re
 import subprocess
 import sys
@@ -27,6 +26,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.scanner import discover_dependencies, normalize_package_name
 
 # ---------------------------------------------------------------------------
@@ -905,8 +905,6 @@ def render_doctor_table(report: DoctorReport, console: Console | None = None) ->
 
 def render_doctor_json(report: DoctorReport, console: Console | None = None) -> None:
     """Render doctor report as JSON."""
-    data = report.to_dict()
-    output = json.dumps(data, indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)

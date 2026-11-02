@@ -7,7 +7,6 @@ to the target package. Shows health status at each link in the chain.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus, ParsedDependency
 from depcheck.osv import OSVClient
 from depcheck.pypi import PyPIClient
@@ -537,5 +537,4 @@ def render_why_json(result: WhyResult, console: Console | None = None) -> None:
     if console is None:
         console = Console(force_terminal=False, no_color=True)
 
-    output = result.to_dict()
-    console.print(json.dumps(output, indent=2))
+    jsonout.write_json(result.to_dict(), console=console)

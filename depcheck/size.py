@@ -15,7 +15,6 @@ Supports:
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 from dataclasses import dataclass, field
@@ -25,6 +24,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.scanner import discover_dependencies
 
 # ---------------------------------------------------------------------------
@@ -491,11 +491,9 @@ def render_size_table(report: SizeReport, console: Console | None = None) -> Non
 
 def render_size_json(report: SizeReport, console: Console | None = None) -> None:
     """Render size report as JSON."""
-    data = report.to_dict()
-    output = json.dumps(data, indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)
 
 
 def _human_size(num_bytes: int) -> str:

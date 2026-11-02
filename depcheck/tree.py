@@ -7,7 +7,6 @@ health status indicators using Rich.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -15,6 +14,7 @@ from typing import Any
 from rich.console import Console
 from rich.tree import Tree
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus
 from depcheck.osv import OSVClient
 from depcheck.pypi import PyPIClient
@@ -572,13 +572,4 @@ def render_tree_json(result: DependencyTreeResult, console: Console | None = Non
     if console is None:
         console = Console()
 
-    data = result.to_dict()
-    json_str = json.dumps(data, indent=2)
-    # Use no_color to ensure clean JSON output without ANSI escape codes
-    clean_console = Console(
-        file=console.file,
-        force_terminal=False,
-        no_color=True,
-        legacy_windows=False,
-    )
-    clean_console.print(json_str)
+    jsonout.write_json(result.to_dict(), console=console)

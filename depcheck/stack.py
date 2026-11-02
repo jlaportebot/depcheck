@@ -9,7 +9,6 @@ and provides a comprehensive stack report.
 from __future__ import annotations
 
 import enum
-import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -19,6 +18,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
     discover_dependencies,
@@ -1001,4 +1001,4 @@ def render_stack_json(result: StackResult, console: Console | None = None) -> No
     if console is None:
         console = Console(force_terminal=False, no_color=True)
 
-    console.print(json.dumps(result.to_dict(), indent=2))
+    jsonout.write_json(result.to_dict(), console=console)

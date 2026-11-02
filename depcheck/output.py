@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import json
-
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus, ScanResult
 
 # Status icons and colors
@@ -244,7 +243,7 @@ def render_json(result: ScanResult, console: Console | None = None) -> None:
         console = Console()
 
     data = result.to_dict()
-    console.print_json(json.dumps(data, indent=2))
+    jsonout.write_json(data, console=console)
 
 
 def determine_exit_code(result: ScanResult, fail_on: str | None = None) -> int:

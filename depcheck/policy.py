@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import datetime
 import enum
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +20,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
 
@@ -830,7 +830,6 @@ def render_policy_table(report: PolicyReport, console: Console | None = None) ->
 
 def render_policy_json(report: PolicyReport, console: Console | None = None) -> None:
     """Render policy evaluation report as JSON."""
-    output = json.dumps(report.to_dict(), indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)

@@ -13,6 +13,7 @@ from typing import Any
 
 from rich.console import Console
 
+from depcheck import jsonout
 from depcheck.models import HealthStatus, PackageReport
 from depcheck.scanner import scan_project
 
@@ -760,7 +761,6 @@ def render_audit_json(audit: AuditResult, console: Console | None = None) -> Non
         audit: The audit result to render.
         console: Rich console for output (created if not provided).
     """
-    import json
 
     from rich.console import Console as RichConsole
 
@@ -768,4 +768,4 @@ def render_audit_json(audit: AuditResult, console: Console | None = None) -> Non
         console = RichConsole(force_terminal=False, no_color=True)
     assert console is not None
 
-    console.print(json.dumps(audit.to_dict(), indent=2))
+    jsonout.write_json(audit.to_dict(), console=console)

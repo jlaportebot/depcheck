@@ -9,7 +9,6 @@ remediation guidance.
 from __future__ import annotations
 
 import enum
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -19,6 +18,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.osv import OSVClient
 from depcheck.scanner import scan_project
 
@@ -751,7 +751,6 @@ def render_advisories_table(report: AdvisoryReport, console: Console | None = No
 
 def render_advisories_json(report: AdvisoryReport, console: Console | None = None) -> None:
     """Render advisory report as JSON."""
-    output = json.dumps(report.to_dict(), indent=2)
     if console is None:
         console = Console(force_terminal=False, no_color=True)
-    console.print(output)
+    jsonout.write_json(report.to_dict(), console=console)

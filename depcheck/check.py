@@ -12,7 +12,6 @@ project audits.
 from __future__ import annotations
 
 import enum
-import json
 import math
 import time
 from dataclasses import dataclass, field
@@ -22,6 +21,7 @@ from typing import Any
 
 from packaging.version import Version
 
+from depcheck import jsonout
 from depcheck.audit import RiskLevel, run_audit
 from depcheck.models import HealthStatus, ScanResult
 from depcheck.scanner import scan_project
@@ -902,4 +902,4 @@ def render_check_json(report: HealthReport, *, console: Any = None) -> None:
     if console is None:
         console = Console(force_terminal=False, no_color=True)
 
-    console.print(json.dumps(report.to_dict(), indent=2))
+    jsonout.write_json(report.to_dict(), console=console)
