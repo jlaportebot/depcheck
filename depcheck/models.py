@@ -1,10 +1,16 @@
-"""Data models for depcheck."""
+"""Data models for depcheck.
+
+Canonical shared primitives: LicenseInfo, VersionConstraint, ConflictSeverity,
+LicenseCategory. Other modules re-export from here.
+"""
 
 from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, field
 from typing import Any
+
+from packaging.version import Version
 
 
 class HealthStatus(enum.Enum):
@@ -17,6 +23,126 @@ class HealthStatus(enum.Enum):
     YANKED = "yanked"
     REMOVED = "removed"
     UNKNOWN = "unknown"
+
+
+# ---------------------------------------------------------------------------
+# License models (unified)
+# ---------------------------------------------------------------------------
+
+
+class LicenseCategory(enum.StrEnum):
+    """License category as a str-Enum so LicenseCategory.UNKNOWN == 'unknown'."""
+
+    PERMISSIVE = "permissive"
+    COPYLEFT = "copyleft"
+    PROPRIETARY = "proprietary"
+    PUBLIC_DOMAIN = "public_domain"
+    RESTRICTED = "restricted"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class LicenseInfo:
+    """License information for a package.
+
+    Category is stored as a plain string for JSON compatibility.
+    Accepts LicenseCategory enum on input and coerces to .value.
+    """
+
+    spdx_id: str = ""
+    raw_license: str = ""
+    category: str = "unknown"  # permissive, copyleft, proprietary, restricted, unknown
+    is_compliant: bool = True
+    compliance_note: str = ""
+
+    def __post_init__(self) -> None:
+        # Coerce LicenseCategory enum to its string value
+        if isinstance(self.category, LicenseCategory):
+            self.category = self.category.value
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "spdx_id": self.spdx_id,
+            "raw_license": self.raw_license,
+            "category": self.category,
+            "is_compliant": self.is_compliant,
+            "compliance_note": self.compliance_note,
+        }
+
+
+# ---------------------------------------------------------------------------
+# Version constraint (unified — supports both resolve.py and conflicts.py shapes)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class VersionConstraint:
+    """A version constraint.
+
+    Supports both shapes:
+    - resolve.py: package, specifier, source (target defaults to "")
+    - conflicts.py: package, target, specifier, source
+    """
+
+    package: str
+    specifier: str = ""
+    source: str = "direct"  # For resolve.py compatibility, default to "direct"
+    target: str = ""  # For conflicts.py compatibility
+
+    @property
+    def specifier_set(self):
+        """Parse into a packaging SpecifierSet."""
+        from packaging.specifiers import SpecifierSet
+
+        return SpecifierSet(self.specifier)
+
+    def allows(self, version: str) -> bool:
+        """Check whether a version string satisfies this constraint."""
+        from packaging.version import InvalidVersion
+
+        try:
+            return Version(version) in self.specifier_set
+        except InvalidVersion:
+            return version in self.specifier_set
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dict, including target if set (for conflicts.py compat)."""
+        d = {
+            "package": self.package,
+            "specifier": self.specifier,
+            "source": self.source,
+        }
+        if self.target:
+            d["target"] = self.target
+        return d
+
+
+# ---------------------------------------------------------------------------
+# Conflict severity (unified — supports both stack.py and conflicts.py values)
+# ---------------------------------------------------------------------------
+
+
+class ConflictSeverity(enum.StrEnum):
+    """Unified conflict severity supporting both modules.
+
+    stack.py values: WARNING, ERROR, CRITICAL
+    conflicts.py values: HARD, SOFT, WARNING
+    """
+
+    # stack.py values
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+    # conflicts.py values
+    HARD = "hard"
+    SOFT = "soft"
+
+
+# ---------------------------------------------------------------------------
+# Package report and scan result
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -37,27 +163,6 @@ class Vulnerability:
             "severity": self.severity,
             "url": self.url,
             "aliases": self.aliases,
-        }
-
-
-@dataclass
-class LicenseInfo:
-    """License information for a package."""
-
-    spdx_id: str = ""
-    raw_license: str = ""
-    category: str = "unknown"  # permissive, copyleft, proprietary, restricted, unknown
-    is_compliant: bool = True
-    compliance_note: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "spdx_id": self.spdx_id,
-            "raw_license": self.raw_license,
-            "category": self.category,
-            "is_compliant": self.is_compliant,
-            "compliance_note": self.compliance_note,
         }
 
 
@@ -85,8 +190,6 @@ class PackageReport:
         """
         if self.installed_version and self.latest_version:
             try:
-                from packaging.version import Version
-
                 return Version(self.installed_version) < Version(self.latest_version)
             except Exception:
                 # Fallback to string comparison if versions can't be parsed

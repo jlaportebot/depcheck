@@ -20,6 +20,8 @@ from typing import Any
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
 
+from depcheck.models import VersionConstraint
+
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -51,34 +53,6 @@ class LockfileFormat(Enum):
     PIPENV = "pipfile.lock"
     POETRY = "poetry.lock"
     DEPCHECK = "depcheck.lock"
-
-
-@dataclass
-class VersionConstraint:
-    """A single version constraint (e.g. '>=1.2.0,<2.0.0')."""
-
-    package: str
-    specifier: str
-    source: str = ""  # Which package/requirement imposed this constraint
-
-    @property
-    def specifier_set(self) -> SpecifierSet:
-        """Parse into a packaging SpecifierSet."""
-        return SpecifierSet(self.specifier)
-
-    def allows(self, version: str) -> bool:
-        """Check whether a version string satisfies this constraint."""
-        try:
-            return Version(version) in self.specifier_set
-        except InvalidVersion:
-            return version in self.specifier_set
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "package": self.package,
-            "specifier": self.specifier,
-            "source": self.source,
-        }
 
 
 @dataclass

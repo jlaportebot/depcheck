@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime
 import re
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +17,10 @@ from depcheck.models import (
     ScanResult,
     Vulnerability,
 )
+from depcheck.naming import normalize_package_name
 from depcheck.osv import OSVClient
 from depcheck.pypi import PyPIClient
+from depcheck.toml import loads_toml
 
 # Threshold for unmaintained detection (1 year)
 UNMAINTAINED_THRESHOLD_DAYS = 365
@@ -29,18 +30,6 @@ REQUIREMENTS_LINE_RE = re.compile(
     r"^(?P<name>[a-zA-Z0-9][a-zA-Z0-9._-]*)"
     r"(?P<specifier>[><=!~]+\s*(?P<version>[0-9][0-9.a-zA-Z*+-]*))?"
 )
-
-
-def normalize_package_name(name: str) -> str:
-    """Normalize a Python package name per PEP 503.
-
-    Args:
-        name: The raw package name.
-
-    Returns:
-        The normalized package name (lowercased, hyphens to dashes).
-    """
-    return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def parse_requirements_txt(filepath: Path) -> list[ParsedDependency]:
@@ -103,7 +92,7 @@ def parse_pyproject_toml(filepath: Path) -> list[ParsedDependency]:
         return dependencies
 
     try:
-        data = tomllib.loads(content)
+        data = loads_toml(content, path=str(filepath))
     except Exception:
         return dependencies
 
@@ -172,8 +161,7 @@ def _parse_pep621_dependency(dep_str: str) -> ParsedDependency | None:
 def parse_pipfile(filepath: Path) -> list[ParsedDependency]:
     """Parse a Pipfile for dependencies.
 
-    Uses proper TOML parsing (tomllib for Python 3.11+, tomli as fallback)
-    instead of regex-based line parsing.
+    Uses proper TOML parsing (via depcheck.toml) instead of regex-based line parsing.
 
     Args:
         filepath: Path to the Pipfile.
@@ -189,7 +177,7 @@ def parse_pipfile(filepath: Path) -> list[ParsedDependency]:
         return dependencies
 
     try:
-        data = tomllib.loads(content)
+        data = loads_toml(content, path=str(filepath))
     except Exception:
         return dependencies
 
@@ -384,7 +372,7 @@ def _build_license_info(
     return LicenseInfo(
         spdx_id=license_info.spdx_id,
         raw_license=license_info.raw_license,
-        category=license_info.category.value,
+        category=license_info.category,  # Already a string
         is_compliant=license_info.is_compliant,
         compliance_note=license_info.compliance_note,
     )

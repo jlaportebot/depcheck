@@ -26,6 +26,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck.models import ConflictSeverity, VersionConstraint
 from depcheck.pypi import PyPIClient
 
 # Re-export from repomap for node model
@@ -34,32 +35,10 @@ from depcheck.scanner import normalize_package_name
 
 # ── Data Models ──────────────────────────────────────────────────────────
 
-
-class ConflictSeverity:
-    """Severity levels for dependency conflicts."""
-
-    HARD = "hard"  # No compatible version exists
-    SOFT = "soft"  # Compatible version exists but is narrow
-    WARNING = "warning"  # Potential issue (e.g., very old version required)
-
-
-@dataclass
-class VersionConstraint:
-    """A version constraint from a specific package."""
-
-    package: str  # The package imposing the constraint
-    target: str  # The package being constrained
-    specifier: str  # The version specifier (e.g., ">=2.0,<3.0")
-    source: str = "direct"  # "direct" or "transitive"
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "package": self.package,
-            "target": self.target,
-            "specifier": self.specifier,
-            "source": self.source,
-        }
+# NOTE: ConflictSeverity and VersionConstraint are now imported from depcheck.models
+# to provide a single canonical definition. The local classes have been removed.
+# This module re-exports them for backward compatibility:
+#   from depcheck.conflicts import VersionConstraint, ConflictSeverity
 
 
 @dataclass
@@ -68,7 +47,7 @@ class ConflictResult:
 
     package: str  # The conflicting package
     constraints: list[VersionConstraint] = field(default_factory=list)
-    severity: str = ConflictSeverity.WARNING
+    severity: str = ConflictSeverity.WARNING.value
     compatible_versions: list[str] = field(default_factory=list)
     resolution_suggestion: str = ""
     details: str = ""
@@ -186,7 +165,7 @@ def _parse_requirement_spec(req_str: str) -> tuple[str, str] | None:
     """Parse a requirement string into (name, specifier).
 
     Args:
-        req_str: A PEP 508 requirement string like "requests>=2.0,<3.0".
+        req_str: A PEP 508 requirement string like "requests>=2.0,<3.0" or "package[extra]>=1.0".
 
     Returns:
         Tuple of (normalized_name, specifier_string), or None if parsing fails.
@@ -195,7 +174,7 @@ def _parse_requirement_spec(req_str: str) -> tuple[str, str] | None:
 
     # Match: name[extras]specifier
     match = re.match(
-        r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)(?:\[.*?\])?\s*([><=!~].+)?$",
+        r"^([a-zA-Z0-9][a-zA-Z0-9._-]*)(?:\[[^]]*]?)?\s*([><=!~].+)?$",
         req_str.strip(),
     )
     if match is None:
@@ -285,14 +264,14 @@ def _classify_conflict(
         [c.specifier for c in constraints if c.specifier]
         constraint_strs = [f"  {c.package} requires {c.target}{c.specifier}" for c in constraints]
         return (
-            ConflictSeverity.HARD,
+            ConflictSeverity.HARD.value,
             "No compatible version found. Conflicting specifiers:\n" + "\n".join(constraint_strs),
         )
 
     if len(compatible_versions) <= 2:
         # Very narrow compatible range — soft conflict
         return (
-            ConflictSeverity.SOFT,
+            ConflictSeverity.SOFT.value,
             f"Only {len(compatible_versions)} compatible version(s): "
             + ", ".join(compatible_versions[:3]),
         )
@@ -300,11 +279,11 @@ def _classify_conflict(
     # Multiple constraints but wide compatible range — warning
     if len(constraints) > 1:
         return (
-            ConflictSeverity.WARNING,
+            ConflictSeverity.WARNING.value,
             f"Multiple constraints but {len(compatible_versions)} compatible versions exist.",
         )
 
-    return ConflictSeverity.WARNING, ""
+    return ConflictSeverity.WARNING.value, ""
 
 
 def _detect_circular_deps(repo_map: RepoMap) -> list[list[str]]:
@@ -397,10 +376,10 @@ def build_conflict_report(
                 details=_build_conflict_details(target_name, target_constraints),
             )
 
-            if severity == ConflictSeverity.HARD:
+            if severity == ConflictSeverity.HARD.value:
                 report.conflicts.append(result)
                 report.hard_conflict_count += 1
-            elif severity == ConflictSeverity.SOFT:
+            elif severity == ConflictSeverity.SOFT.value:
                 report.conflicts.append(result)
                 report.soft_conflict_count += 1
             else:
@@ -471,7 +450,7 @@ def render_conflict_table(report: ConflictReport, console: Console | None = None
         table.add_column("Suggestion", style="dim", max_width=40)
 
         for conflict in report.conflicts:
-            severity_icon = "🔴" if conflict.severity == ConflictSeverity.HARD else "🟡"
+            severity_icon = "🔴" if conflict.severity == ConflictSeverity.HARD.value else "🟡"
             constraint_lines = []
             for c in conflict.constraints:
                 spec = c.specifier or "any"

@@ -3,22 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from depcheck import jsonout
-
-
-class LicenseCategory(Enum):
-    """Broad license categories for compliance checking."""
-
-    PERMISSIVE = "permissive"
-    COPYLEFT = "copyleft"
-    PROPRIETARY = "proprietary"
-    PUBLIC_DOMAIN = "public_domain"
-    RESTRICTED = "restricted"
-    UNKNOWN = "unknown"
-
+from depcheck.models import LicenseCategory, LicenseInfo
 
 # Permissive licenses: allow use, modification, distribution with minimal restrictions
 PERMISSIVE_IDS: frozenset[str] = frozenset(
@@ -293,27 +281,6 @@ def classify_license(license_id: str) -> LicenseCategory:
     return LicenseCategory.UNKNOWN
 
 
-@dataclass
-class LicenseInfo:
-    """License information for a package."""
-
-    spdx_id: str = ""
-    raw_license: str = ""
-    category: LicenseCategory = LicenseCategory.UNKNOWN
-    is_compliant: bool = True
-    compliance_note: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "spdx_id": self.spdx_id,
-            "raw_license": self.raw_license,
-            "category": self.category.value,
-            "is_compliant": self.is_compliant,
-            "compliance_note": self.compliance_note,
-        }
-
-
 def check_license_compliance(
     license_info: LicenseInfo,
     allowed_categories: list[LicenseCategory] | None = None,
@@ -340,10 +307,11 @@ def check_license_compliance(
         return license_info
 
     if allowed_categories is not None:
-        if license_info.category not in allowed_categories:
+        # Compare string category values
+        if license_info.category not in [c.value for c in allowed_categories]:
             license_info.is_compliant = False
             license_info.compliance_note = (
-                f"License category '{license_info.category.value}' not in allowed: "
+                f"License category '{license_info.category}' not in allowed: "
                 f"{', '.join(c.value for c in allowed_categories)}"
             )
             return license_info
@@ -549,7 +517,7 @@ class PackageComplianceEntry:
             "name": self.name,
             "version": self.version,
             "license": self.license_info.spdx_id or "UNKNOWN",
-            "category": self.license_info.category.value,
+            "category": self.license_info.category,
             "is_compliant": self.is_compliant,
         }
         if not self.is_compliant:
@@ -652,13 +620,13 @@ def render_compliance_table(report: ComplianceReport, *, console: Any = None) ->
             "restricted": "red",
             "uncategorized": "dim",
             "unknown": "dim",
-        }.get(lic.category.value, "white")
+        }.get(lic.category, "white")
 
         table.add_row(
             entry.name,
             entry.version or "unknown",
             lic.spdx_id or "UNKNOWN",
-            f"[{category_style}]{lic.category.value}[/{category_style}]",
+            f"[{category_style}]{lic.category}[/{category_style}]",
             status,
         )
 

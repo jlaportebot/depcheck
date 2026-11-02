@@ -19,6 +19,7 @@ from rich.console import Console
 from rich.table import Table
 
 from depcheck import jsonout
+from depcheck.models import ConflictSeverity
 from depcheck.pypi import PyPIClient
 from depcheck.scanner import (
     discover_dependencies,
@@ -56,14 +57,6 @@ class StackCategory(enum.Enum):
     BUILD = "build"
     PACKAGE_MANAGER = "package_manager"
     UNKNOWN = "unknown"
-
-
-class ConflictSeverity(enum.Enum):
-    """Severity of a detected conflict."""
-
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
 
 
 # Package to stack category mapping
