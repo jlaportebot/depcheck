@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
+from depcheck.cache import PYPI_TTL_SECONDS, OfflineCacheMissError, ResponseCache, get_cache
+from depcheck.http import USER_AGENT
 from depcheck.models import ParsedDependency
 
 # PyPI JSON API base URL
@@ -17,17 +20,38 @@ PYPI_API_URL = "https://pypi.org/pypi"
 # Timeout for API requests (seconds)
 REQUEST_TIMEOUT = 30.0
 
+# Cache namespace for PyPI package metadata
+CACHE_NAMESPACE = "pypi"
+
+# Maximum number of concurrent PyPI requests
+MAX_WORKERS = 8
+
 
 class PyPIClient:
     """Client for querying the PyPI JSON API."""
 
-    def __init__(self, timeout: float = REQUEST_TIMEOUT) -> None:
+    def __init__(
+        self,
+        timeout: float = REQUEST_TIMEOUT,
+        *,
+        cache: ResponseCache | None = None,
+        use_cache: bool = True,
+    ) -> None:
         """Initialize the PyPI client.
 
         Args:
             timeout: Request timeout in seconds.
+            cache: Cache to read from and write to. Defaults to the shared
+                process-wide cache.
+            use_cache: Whether cached responses may be used.
         """
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True)
+        self._client = httpx.Client(
+            timeout=timeout,
+            follow_redirects=True,
+            headers={"User-Agent": USER_AGENT},
+        )
+        self._cache = cache if cache is not None else get_cache()
+        self._use_cache = use_cache
 
     def close(self) -> None:
         """Close the underlying HTTP client."""
@@ -47,6 +71,90 @@ class PyPIClient:
 
         Returns:
             Dictionary of package metadata, or None if the package was not found.
+
+        Raises:
+            OfflineCacheMissError: In offline mode when the package is not
+                cached.
+        """
+        if self._use_cache:
+            cached = self._cache.get(CACHE_NAMESPACE, package_name)
+            if cached is not None:
+                return cached
+
+        if self._cache.offline:
+            raise OfflineCacheMissError(CACHE_NAMESPACE, package_name)
+
+        url = f"{PYPI_API_URL}/{package_name}/json"
+        try:
+            response = self._client.get(url)
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            info = response.json()
+        except httpx.HTTPError:
+            return None
+
+        if self._use_cache and isinstance(info, dict):
+            self._cache.set(
+                CACHE_NAMESPACE,
+                package_name,
+                info,
+                ttl=self._cache.ttl_for(CACHE_NAMESPACE, PYPI_TTL_SECONDS),
+            )
+        return info
+
+    def get_package_info_many(
+        self,
+        package_names: list[str],
+        *,
+        max_workers: int = MAX_WORKERS,
+    ) -> dict[str, dict[str, Any] | None]:
+        """Fetch metadata for many packages concurrently.
+
+        Cached packages never hit the network. The remaining lookups run in a
+        bounded thread pool because ``httpx.Client`` is synchronous.
+
+        Args:
+            package_names: The package names to look up.
+            max_workers: Maximum number of concurrent requests.
+
+        Returns:
+            Mapping of package name to its metadata (None when not found).
+        """
+        if not package_names:
+            return {}
+
+        cached_results: dict[str, dict[str, Any] | None] = {}
+        pending: list[str] = []
+        for name in package_names:
+            cached = self._cache.get(CACHE_NAMESPACE, name) if self._use_cache else None
+            if cached is not None:
+                cached_results[name] = cached
+            else:
+                pending.append(name)
+
+        if not pending:
+            return cached_results
+
+        if self._cache.offline:
+            missing = pending[0]
+            raise OfflineCacheMissError(CACHE_NAMESPACE, missing)
+
+        workers = max(1, min(max_workers, len(pending)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            fetched = list(pool.map(self._fetch_package_info, pending))
+
+        cached_results.update(dict(zip(pending, fetched, strict=True)))
+        return cached_results
+
+    def _fetch_package_info(self, package_name: str) -> dict[str, Any] | None:
+        """Fetch and cache metadata for one package.
+
+        Args:
+            package_name: The normalized package name.
+
+        Returns:
+            The package metadata, or None when the package was not found.
         """
         url = f"{PYPI_API_URL}/{package_name}/json"
         try:
@@ -54,9 +162,18 @@ class PyPIClient:
             if response.status_code == 404:
                 return None
             response.raise_for_status()
-            return response.json()
+            info = response.json()
         except httpx.HTTPError:
             return None
+
+        if self._use_cache and isinstance(info, dict):
+            self._cache.set(
+                CACHE_NAMESPACE,
+                package_name,
+                info,
+                ttl=self._cache.ttl_for(CACHE_NAMESPACE, PYPI_TTL_SECONDS),
+            )
+        return info
 
     def get_latest_version(self, package_name: str) -> str | None:
         """Get the latest stable version of a package.

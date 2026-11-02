@@ -6,7 +6,9 @@ import datetime
 import re
 import tomllib
 from pathlib import Path
+from typing import Any
 
+from depcheck.cache import OfflineCacheMissError
 from depcheck.licenses import LicenseCategory, check_license_compliance, parse_license_from_pypi
 from depcheck.models import (
     HealthStatus,
@@ -14,6 +16,7 @@ from depcheck.models import (
     PackageReport,
     ParsedDependency,
     ScanResult,
+    Vulnerability,
 )
 from depcheck.osv import OSVClient
 from depcheck.pypi import PyPIClient
@@ -278,6 +281,115 @@ def discover_dependencies(project_path: Path) -> tuple[list[ParsedDependency], l
     return unique_deps, files_scanned
 
 
+def build_package_report(
+    dep: ParsedDependency,
+    info: dict[str, Any] | None,
+    pypi_client: PyPIClient,
+    *,
+    vulnerabilities: list[Vulnerability] | None = None,
+    check_licenses: bool = False,
+    allowed_license_categories: list[LicenseCategory] | None = None,
+    denied_licenses: list[str] | None = None,
+) -> PackageReport:
+    """Build a health report from already-fetched package metadata.
+
+    This is the pure half of :func:`check_package_health`: all network access
+    has already happened, so the same metadata can be reused for many packages.
+
+    Args:
+        dep: The parsed dependency to report on.
+        info: The package metadata fetched from PyPI (None when not found).
+        pypi_client: PyPI API client, used for version resolution helpers.
+        vulnerabilities: Vulnerabilities already fetched for this package.
+        check_licenses: Whether to check license compliance.
+        allowed_license_categories: List of allowed license categories.
+        denied_licenses: List of specific SPDX IDs to deny.
+
+    Returns:
+        A PackageReport with health status information.
+    """
+    report = PackageReport(
+        name=dep.name,
+        installed_version=dep.version or "unknown",
+    )
+
+    if info is None:
+        report.status = HealthStatus.REMOVED
+        report.is_removed = True
+        report.error = "Package not found on PyPI"
+        return report
+
+    report.latest_version = info.get("info", {}).get("version")
+
+    resolved_version = pypi_client.resolve_version(dep, info)
+    if resolved_version:
+        report.installed_version = resolved_version
+
+    if report.installed_version and report.installed_version != "unknown":
+        if pypi_client.is_version_yanked(dep.name, report.installed_version, info):
+            report.status = HealthStatus.YANKED
+            report.is_yanked = True
+            return report
+
+    if check_licenses:
+        report.license_info = _build_license_info(
+            info,
+            allowed_license_categories=allowed_license_categories,
+            denied_licenses=denied_licenses,
+        )
+
+    if vulnerabilities:
+        report.vulnerabilities = list(vulnerabilities)
+        report.status = HealthStatus.VULNERABLE
+        return report
+
+    last_release = pypi_client.get_last_release_date(dep.name, info)
+    if last_release:
+        report.last_release_date = last_release.strftime("%Y-%m-%d")
+        days_since = (datetime.datetime.now(tz=last_release.tzinfo) - last_release).days
+        if days_since > UNMAINTAINED_THRESHOLD_DAYS:
+            report.status = HealthStatus.UNMAINTAINED
+            return report
+
+    if report.is_outdated:
+        report.status = HealthStatus.OUTDATED
+        return report
+
+    report.status = HealthStatus.HEALTHY
+    return report
+
+
+def _build_license_info(
+    info: dict[str, Any],
+    *,
+    allowed_license_categories: list[LicenseCategory] | None,
+    denied_licenses: list[str] | None,
+) -> LicenseInfo:
+    """Build the license information for a package from its PyPI metadata.
+
+    Args:
+        info: The package metadata fetched from PyPI.
+        allowed_license_categories: List of allowed license categories.
+        denied_licenses: List of specific SPDX IDs to deny.
+
+    Returns:
+        The license information for the package.
+    """
+    license_info = parse_license_from_pypi(info)
+    license_info = check_license_compliance(
+        license_info,
+        allowed_categories=allowed_license_categories,
+        denied_licenses=denied_licenses,
+    )
+    return LicenseInfo(
+        spdx_id=license_info.spdx_id,
+        raw_license=license_info.raw_license,
+        category=license_info.category.value,
+        is_compliant=license_info.is_compliant,
+        compliance_note=license_info.compliance_note,
+    )
+
+
 def check_package_health(
     dep: ParsedDependency,
     pypi_client: PyPIClient,
@@ -302,79 +414,22 @@ def check_package_health(
     Returns:
         A PackageReport with health status information.
     """
-    report = PackageReport(
-        name=dep.name,
-        installed_version=dep.version or "unknown",
-    )
-
-    # Fetch PyPI info once and reuse it (avoids redundant API calls)
     info = pypi_client.get_package_info(dep.name)
+    vulnerabilities: list[Vulnerability] | None = None
+    if check_vulnerabilities and info is not None:
+        version = pypi_client.resolve_version(dep, info)
+        if version:
+            vulnerabilities = osv_client.query_vulnerabilities(dep.name, version)
 
-    if info is None:
-        report.status = HealthStatus.REMOVED
-        report.is_removed = True
-        report.error = "Package not found on PyPI"
-        return report
-
-    # Get latest version
-    latest_version = info.get("info", {}).get("version")
-    report.latest_version = latest_version
-
-    # Resolve the installed version (pass info to avoid extra API call)
-    resolved_version = pypi_client.resolve_version(dep, info)
-    if resolved_version:
-        report.installed_version = resolved_version
-
-    # Check if yanked (using cached info)
-    if report.installed_version and report.installed_version != "unknown":
-        is_yanked = pypi_client.is_version_yanked(dep.name, report.installed_version, info)
-        if is_yanked:
-            report.status = HealthStatus.YANKED
-            report.is_yanked = True
-            return report
-
-    # Check license compliance (before vulnerability check since it's faster)
-    if check_licenses:
-        license_info = parse_license_from_pypi(info)
-        license_info = check_license_compliance(
-            license_info,
-            allowed_categories=allowed_license_categories,
-            denied_licenses=denied_licenses,
-        )
-        # Convert from licenses.LicenseInfo to models.LicenseInfo
-        report.license_info = LicenseInfo(
-            spdx_id=license_info.spdx_id,
-            raw_license=license_info.raw_license,
-            category=license_info.category.value,
-            is_compliant=license_info.is_compliant,
-            compliance_note=license_info.compliance_note,
-        )
-
-    # Check for vulnerabilities
-    if check_vulnerabilities and report.installed_version != "unknown":
-        vulns = osv_client.query_vulnerabilities(dep.name, report.installed_version)
-        if vulns:
-            report.vulnerabilities = vulns
-            report.status = HealthStatus.VULNERABLE
-            return report
-
-    # Get last release date (using cached info)
-    last_release = pypi_client.get_last_release_date(dep.name, info)
-    if last_release:
-        report.last_release_date = last_release.strftime("%Y-%m-%d")
-        days_since = (datetime.datetime.now(tz=last_release.tzinfo) - last_release).days
-        if days_since > UNMAINTAINED_THRESHOLD_DAYS:
-            report.status = HealthStatus.UNMAINTAINED
-            return report
-
-    # Check if outdated using proper PEP 440 version comparison
-    if report.is_outdated:
-        report.status = HealthStatus.OUTDATED
-        return report
-
-    # All checks passed
-    report.status = HealthStatus.HEALTHY
-    return report
+    return build_package_report(
+        dep,
+        info,
+        pypi_client,
+        vulnerabilities=vulnerabilities,
+        check_licenses=check_licenses,
+        allowed_license_categories=allowed_license_categories,
+        denied_licenses=denied_licenses,
+    )
 
 
 def scan_project(
@@ -424,33 +479,213 @@ def scan_project(
             errors=[f"No requirements.txt, pyproject.toml, or Pipfile found in {project_path}"],
         )
 
-    # Scan each dependency
-    reports: list[PackageReport] = []
-    with PyPIClient() as pypi_client, OSVClient() as osv_client:
-        for dep in dependencies:
-            try:
-                report = check_package_health(
-                    dep,
-                    pypi_client,
-                    osv_client,
-                    check_vulnerabilities=check_vulnerabilities,
-                    check_licenses=check_licenses,
-                    allowed_license_categories=allowed_license_categories,
-                    denied_licenses=denied_licenses,
-                )
-                reports.append(report)
-            except Exception as exc:
-                reports.append(
-                    PackageReport(
-                        name=dep.name,
-                        installed_version=dep.version or "unknown",
-                        status=HealthStatus.UNKNOWN,
-                        error=str(exc),
-                    )
-                )
+    try:
+        reports = scan_dependencies(
+            dependencies,
+            check_vulnerabilities=check_vulnerabilities,
+            check_licenses=check_licenses,
+            allowed_license_categories=allowed_license_categories,
+            denied_licenses=denied_licenses,
+        )
+    except OfflineCacheMissError as exc:
+        return ScanResult(
+            project_path=str(project_path),
+            files_scanned=files_scanned,
+            errors=[str(exc)],
+        )
 
     return ScanResult(
         project_path=str(project_path),
         packages=reports,
         files_scanned=files_scanned,
     )
+
+
+def scan_dependencies(
+    dependencies: list[ParsedDependency],
+    *,
+    check_vulnerabilities: bool = True,
+    check_licenses: bool = False,
+    allowed_license_categories: list[LicenseCategory] | None = None,
+    denied_licenses: list[str] | None = None,
+    pypi_client: PyPIClient | None = None,
+    osv_client: OSVClient | None = None,
+) -> list[PackageReport]:
+    """Check the health of many dependencies with batched network access.
+
+    PyPI metadata is fetched concurrently and OSV vulnerabilities are fetched
+    with the batch endpoint, so the number of HTTP round-trips grows with the
+    number of *cache misses* rather than with the number of packages.
+
+    Args:
+        dependencies: The dependencies to check.
+        check_vulnerabilities: Whether to check for vulnerabilities.
+        check_licenses: Whether to check license compliance.
+        allowed_license_categories: List of allowed license categories.
+        denied_licenses: List of specific SPDX IDs to deny.
+        pypi_client: Optional pre-built PyPI client (a temporary one is used
+            when omitted).
+        osv_client: Optional pre-built OSV client (a temporary one is used
+            when omitted).
+
+    Returns:
+        One PackageReport per dependency, in the order they were given.
+    """
+    if not dependencies:
+        return []
+
+    owns_pypi = pypi_client is None
+    owns_osv = osv_client is None
+    active_pypi = pypi_client or PyPIClient()
+    active_osv = osv_client or OSVClient()
+
+    try:
+        package_infos = _fetch_package_infos(active_pypi, dependencies)
+        versions = _resolve_versions(active_pypi, dependencies, package_infos)
+        vulnerabilities = _fetch_vulnerabilities(
+            active_osv,
+            dependencies,
+            versions,
+            enabled=check_vulnerabilities,
+        )
+        return [
+            _build_report(
+                dep,
+                active_pypi,
+                package_infos.get(dep.name),
+                vulnerabilities.get(dep.name),
+                check_vulnerabilities=check_vulnerabilities,
+                check_licenses=check_licenses,
+                allowed_license_categories=allowed_license_categories,
+                denied_licenses=denied_licenses,
+            )
+            for dep in dependencies
+        ]
+    finally:
+        if owns_pypi:
+            active_pypi.close()
+        if owns_osv:
+            active_osv.close()
+
+
+def _fetch_package_infos(
+    pypi_client: PyPIClient,
+    dependencies: list[ParsedDependency],
+) -> dict[str, dict[str, Any] | None]:
+    """Fetch PyPI metadata for every dependency concurrently.
+
+    Args:
+        pypi_client: The PyPI API client.
+        dependencies: The dependencies to look up.
+
+    Returns:
+        Mapping of package name to its metadata (None when not found).
+    """
+    names = list(dict.fromkeys(dep.name for dep in dependencies))
+    return pypi_client.get_package_info_many(names)
+
+
+def _resolve_versions(
+    pypi_client: PyPIClient,
+    dependencies: list[ParsedDependency],
+    package_infos: dict[str, dict[str, Any] | None],
+) -> dict[str, str]:
+    """Resolve the concrete version of every dependency.
+
+    Args:
+        pypi_client: The PyPI API client.
+        dependencies: The dependencies to resolve.
+        package_infos: Mapping of package name to its metadata.
+
+    Returns:
+        Mapping of package name to its resolved version.
+    """
+    resolved: dict[str, str] = {}
+    for dep in dependencies:
+        info = package_infos.get(dep.name)
+        if info is None:
+            continue
+        version = pypi_client.resolve_version(dep, info)
+        if version:
+            resolved[dep.name] = version
+    return resolved
+
+
+def _fetch_vulnerabilities(
+    osv_client: OSVClient,
+    dependencies: list[ParsedDependency],
+    versions: dict[str, str],
+    *,
+    enabled: bool,
+) -> dict[str, list[Vulnerability]]:
+    """Fetch vulnerabilities for every dependency in one batch.
+
+    Args:
+        osv_client: The OSV API client.
+        dependencies: The dependencies to look up.
+        versions: Mapping of package name to its resolved version.
+        enabled: Whether vulnerability checking is enabled.
+
+    Returns:
+        Mapping of package name to its vulnerabilities.
+    """
+    if not enabled:
+        return {}
+
+    queries = [
+        (dep.name, versions[dep.name])
+        for dep in dependencies
+        if dep.name in versions and versions[dep.name] != "unknown"
+    ]
+    if not queries:
+        return {}
+
+    batch = osv_client.query_vulnerabilities_batch(queries)
+    return {name: vulns for (name, _), vulns in batch.items()}
+
+
+def _build_report(
+    dep: ParsedDependency,
+    pypi_client: PyPIClient,
+    info: dict[str, Any] | None,
+    vulnerabilities: list[Vulnerability] | None,
+    *,
+    check_vulnerabilities: bool,
+    check_licenses: bool,
+    allowed_license_categories: list[LicenseCategory] | None,
+    denied_licenses: list[str] | None,
+) -> PackageReport:
+    """Build the report for one dependency, converting failures to UNKNOWN.
+
+    Args:
+        dep: The dependency to report on.
+        pypi_client: The PyPI API client.
+        info: The package metadata fetched from PyPI.
+        vulnerabilities: The vulnerabilities fetched for this package.
+        check_vulnerabilities: Whether vulnerability checking was enabled.
+        check_licenses: Whether to check license compliance.
+        allowed_license_categories: List of allowed license categories.
+        denied_licenses: List of specific SPDX IDs to deny.
+
+    Returns:
+        The PackageReport for the dependency.
+    """
+    try:
+        return build_package_report(
+            dep,
+            info,
+            pypi_client,
+            vulnerabilities=vulnerabilities if check_vulnerabilities else None,
+            check_licenses=check_licenses,
+            allowed_license_categories=allowed_license_categories,
+            denied_licenses=denied_licenses,
+        )
+    except OfflineCacheMissError:
+        raise
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        return PackageReport(
+            name=dep.name,
+            installed_version=dep.version or "unknown",
+            status=HealthStatus.UNKNOWN,
+            error=str(exc),
+        )

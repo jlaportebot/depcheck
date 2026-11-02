@@ -9,6 +9,7 @@ import click
 from rich.console import Console
 
 from depcheck import __version__, jsonout
+from depcheck.cache import configure_cache
 from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
 from depcheck.scanner import scan_project
@@ -16,13 +17,43 @@ from depcheck.scanner import scan_project
 
 @click.group()
 @click.version_option(version=__version__, prog_name="depcheck")
-def main() -> None:
+@click.option(
+    "--no-cache",
+    "no_cache",
+    is_flag=True,
+    default=False,
+    help="Disable the on-disk response cache for this run.",
+)
+@click.option(
+    "--offline",
+    is_flag=True,
+    default=False,
+    help="Never touch the network: serve every response from the local cache.",
+)
+@click.option(
+    "--cache-ttl",
+    type=int,
+    default=None,
+    help="Override the cache TTL in seconds (0 disables caching).",
+)
+@click.pass_context
+def main(ctx: click.Context, no_cache: bool, offline: bool, cache_ttl: int | None) -> None:
     """depcheck — A dependency health checker for Python projects.
 
     Scan your project's dependencies for vulnerabilities, outdated packages,
     unmaintained libraries, yanked or removed packages, and license compliance.
     """
-    pass
+    ttl_overrides = None
+    if cache_ttl is not None:
+        ttl_overrides = {"pypi": cache_ttl, "osv": cache_ttl}
+    configure_cache(
+        enabled=not no_cache and cache_ttl != 0,
+        offline=offline,
+        ttl_overrides=ttl_overrides,
+    )
+    ctx.ensure_object(dict)
+    ctx.obj["offline"] = offline
+    ctx.obj["cache_ttl"] = cache_ttl
 
 
 @main.command()
@@ -127,6 +158,13 @@ def scan(
         allowed_license_categories=allowed_categories,
         denied_licenses=denied_list,
     )
+
+    if result.errors and not result.packages:
+        for error in result.errors:
+            console.print(f"[red]Error:[/red] {error}")
+        if output_json:
+            jsonout.write_text(jsonout.to_json(result.to_dict()))
+        sys.exit(2)
 
     # Render output
     if output_json:
