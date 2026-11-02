@@ -72,5 +72,5 @@ ENV/
 Thumbs.db
 
 # Project
-ruff_cache/
+.ruff_cache/
 .venv/

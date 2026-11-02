@@ -5,15 +5,45 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "automated"
+    groups:
+      python-dev-deps:
+        patterns:
+          - "pytest*"
+          - "ruff*"
+          - "ty*"
+          - "pytest-asyncio*"
+          - "pytest-cov*"
+        update-types:
+          - "minor"
+          - "patch"
+      python-runtime-deps:
+        patterns:
+          - "click*"
+          - "rich*"
+          - "httpx*"
+          - "packaging*"
+          - "tomli*"
+        update-types:
+          - "minor"
+          - "patch"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
