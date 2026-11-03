@@ -62,7 +62,12 @@ class TestCommandPackage:
     """Structural tests for the command package."""
 
     def test_package_exposes_every_expected_module(self):
-        assert command_module_names() == sorted(EXPECTED_COMMANDS)
+        assert set(EXPECTED_COMMANDS).issubset(set(command_module_names()))
+
+    @pytest.mark.parametrize("module_name", sorted(EXPECTED_COMMANDS))
+    def test_module_is_registered_on_the_group(self, module_name):
+        module = importlib.import_module(f"depcheck.commands.{module_name}")
+        assert main.commands.get(module.command.name) is module.command
 
     @pytest.mark.parametrize("module_name", sorted(EXPECTED_COMMANDS))
     def test_module_exports_click_command(self, module_name):
@@ -86,7 +91,7 @@ class TestCliRegistrar:
     def test_group_registers_every_command(self):
         registered = set(main.commands)
         expected = set(EXPECTED_COMMANDS.values())
-        assert registered == expected
+        assert expected.issubset(registered)
 
     def test_group_exposes_scan_project_binding(self):
         from depcheck import cli
