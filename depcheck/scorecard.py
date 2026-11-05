@@ -19,7 +19,6 @@ Features:
 from __future__ import annotations
 
 import enum
-import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,6 +26,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from depcheck import jsonout
 from depcheck.depsize import build_size_report
 from depcheck.models import ScanResult
 from depcheck.pinpoint import build_pin_report
@@ -606,4 +606,4 @@ def render_scorecard_json(scorecard: ScorecardResult) -> str:
     Returns:
         JSON string of the scorecard.
     """
-    return json.dumps(scorecard.to_dict(), indent=2)
+    return jsonout.to_json(scorecard.to_dict())

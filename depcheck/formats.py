@@ -342,7 +342,8 @@ def to_markdown(result: ScanResult) -> str:
         lines.append("|---------|---------|---------|----------|--------|")
         for pkg in license_packages:
             lic = pkg.license_info
-            assert lic is not None
+            if lic is None:
+                continue
             status = "Compliant" if lic.is_compliant else "Non-compliant"
             if lic.compliance_note and not lic.is_compliant:
                 status += f" - {lic.compliance_note}"

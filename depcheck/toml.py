@@ -11,8 +11,6 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-pass
-
 
 class TomlParseError(ValueError):
     """Raised when TOML parsing fails.

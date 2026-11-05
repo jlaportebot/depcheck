@@ -5,6 +5,4 @@ in :mod:`depcheck.cli` imports these modules and registers their command
 object, which keeps both the group and the individual commands small.
 """
 
-from __future__ import annotations
-
 __all__: list[str] = []

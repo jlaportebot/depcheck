@@ -9,6 +9,7 @@ from rich.console import Console
 
 from depcheck import jsonout
 from depcheck.commands import _common
+from depcheck.formats import FORMAT_CHOICES, render_format
 from depcheck.licenses import LicenseCategory
 from depcheck.output import determine_exit_code, render_json, render_table
 
@@ -25,6 +26,16 @@ from depcheck.output import determine_exit_code, render_json, render_table
     is_flag=True,
     default=False,
     help="Output results as JSON (useful for CI/CD pipelines).",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(
+        ["table", "json", *FORMAT_CHOICES],
+        case_sensitive=False,
+    ),
+    default="table",
+    help="Output format: table (default), json, sarif, markdown or junit.",
 )
 @click.option(
     "--fail-on",
@@ -74,6 +85,7 @@ from depcheck.output import determine_exit_code, render_json, render_table
 def command(
     path: str,
     output_json: bool,
+    fmt: str,
     fail_on: str | None,
     no_vuln_check: bool,
     check_licenses: bool,
@@ -85,6 +97,9 @@ def command(
 
     PATH is the project directory to scan (defaults to current directory).
     depcheck looks for requirements.txt, pyproject.toml, or Pipfile.
+
+    Use --format to pick the output format: table (default), json, sarif
+    (for GitHub code scanning), markdown (for PR comments) or junit.
     """
     console = Console(quiet=quiet)
 
@@ -124,10 +139,7 @@ def command(
         sys.exit(2)
 
     # Render output
-    if output_json:
-        render_json(result, console=Console(quiet=False) if quiet else None)
-    elif not quiet:
-        render_table(result)
+    _render_result(result, fmt=fmt, output_json=output_json, quiet=quiet)
 
     # Determine exit code
     exit_code = determine_exit_code(result, fail_on)
@@ -137,3 +149,22 @@ def command(
             console.print(f"[red]✗ Scan failed: --fail-on {fail_on} condition met[/red]")
 
     sys.exit(exit_code)
+
+
+def _render_result(result, *, fmt: str, output_json: bool, quiet: bool) -> None:
+    """Render a scan result in the requested format.
+
+    Args:
+        result: The scan result to render.
+        fmt: Format name: "table", "json", "sarif", "markdown" or "junit".
+        output_json: Whether the legacy --json flag was given.
+        quiet: Whether to suppress output entirely.
+    """
+    if output_json or fmt == "json":
+        render_json(result, console=Console(quiet=False) if quiet else None)
+        return
+    if fmt != "table":
+        jsonout.write_text(render_format(result, fmt))
+        return
+    if not quiet:
+        render_table(result)

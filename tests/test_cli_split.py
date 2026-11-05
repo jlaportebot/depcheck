@@ -17,13 +17,20 @@ from depcheck import commands
 from depcheck.cli import main
 
 #: Every command module in :mod:`depcheck.commands` and the CLI name it uses.
+#: Kept alphabetical and complete -- a command must never silently vanish.
 EXPECTED_COMMANDS = {
     "advisories": "advisories",
+    "annotations": "annotations",
     "audit": "audit",
+    "badge": "badge",
     "budget": "budget",
     "bundle": "bundle",
+    "cache": "cache",
+    "ci": "ci",
     "check": "check",
     "compat": "compat",
+    "completions": "completions",
+    "config": "config",
     "depdrift": "depdrift",
     "diff": "diff",
     "doctor": "doctor",
@@ -31,20 +38,27 @@ EXPECTED_COMMANDS = {
     "export": "export",
     "graph": "graph",
     "history": "history",
+    "init": "init",
     "isolate": "isolate",
     "license": "license",
     "lockfile": "lockfile",
     "outdated": "outdated",
     "policy": "policy",
+    "predict": "predict",
+    "remediate": "remediate",
     "risks": "risks",
     "scan": "scan",
+    "search": "search",
     "size": "size",
     "sizescore": "sizescore",
+    "stack": "stack",
+    "summary": "summary",
     "suggest": "suggest",
     "tree": "tree",
     "unused": "unused",
     "update": "update",
     "watch": "watch",
+    "workspace": "workspace",
     "why": "why",
 }
 

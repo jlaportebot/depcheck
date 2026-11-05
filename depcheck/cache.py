@@ -314,7 +314,7 @@ class ResponseCache:
             payload: The JSON-serializable payload to store.
             ttl: Time-to-live in seconds.
         """
-        if not self._enabled or ttl <= 0:
+        if not self._enabled:
             return
         try:
             connection = self._connect()

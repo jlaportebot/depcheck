@@ -191,7 +191,8 @@ def render_table(result: ScanResult, console: Console | None = None) -> None:
 
         for pkg in license_packages:
             lic = pkg.license_info
-            assert lic is not None  # Guaranteed by filter above
+            if lic is None:
+                continue
             lic_icon, lic_color = _license_category_style(lic.category)
             status_text = "✅ Compliant" if lic.is_compliant else "❌ Non-compliant"
             status_color = "green" if lic.is_compliant else "red"

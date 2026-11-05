@@ -140,6 +140,80 @@ Owner: jlaportebot. Target: Python 3.11+, zero-cost, no runtime service dependen
    real run for the main ones) with JSON validated by `json.loads`.
 10. CI green on the PR; Dependabot PRs #105–#108 resolved.
 
+## 7.5 Phase H — Resume session (2026-11-03)
+
+Phases A–F landed as commits `1afb072`..`87df4df`. The resume session closes
+the remaining gaps and ships them.
+
+### H1. Register the newly-written command modules (BLOCKER)
+
+Twelve command modules exist on disk but were never attached to the CLI group,
+so `depcheck --help` showed 28 commands while the tree carried 40:
+
+`annotations`, `badge`, `ci`, `completions`, `config`, `init`, `predict`,
+`remediate`, `search`, `stack`, `summary`, `workspace`.
+
+- Register all twelve in `depcheck/cli.py::_COMMAND_MODULES`.
+- Extend `tests/test_cli_split.py::EXPECTED_COMMANDS` so the structural test
+  locks the *complete* set (not a subset) — a command can never silently vanish.
+- Add a test that every registered command's `--help` renders and that
+  `depcheck --help` lists all of them.
+
+### H2. Fix the defects found in the new command modules
+
+- `commands/remediate.py`: duplicated `--apply requires --repo` guard (dead
+  second copy) and a Click flag collision — `--apply` and `--dry-run/--no-dry-run`
+  both write `dry_run`, so the last one parsed wins. Replace with a single
+  `--apply/--dry-run` boolean pair.
+- `commands/predict.py`, `commands/stack.py`: replace the `io.StringIO` +
+  `Console(width=1000)` capture hack with a direct `to_dict()` → `jsonout` path.
+- `commands/config.py`: `import json` inside the function and a raw
+  `json.dumps` bypass of the canonical emitter.
+- `commands/summary.py`, `commands/search.py`: route through `jsonout.to_json`.
+- `commands/{config,predict,remediate,search,stack,summary,workspace}.py`:
+  remove the empty `if TYPE_CHECKING: pass` blocks.
+- `depcheck/toml.py`: drop the stray module-level `pass`.
+- `depcheck/output.py`, `depcheck/formats.py`: remove production `assert`s
+  (they vanish under `python -O`).
+- `depcheck/scorecard.py`, `depcheck/search.py`, `depcheck/workspace_report.py`:
+  use the canonical `jsonout` serializer instead of raw `json.dumps`.
+
+### H3. Missing convenience features
+
+- **H3a `depcheck cache`** — new command group with `clear`, `stats`, `path`
+  subcommands over the existing `depcheck/cache.py` SQLite store.
+- **H3b `--config PATH`** — global flag pointing at an explicit config file;
+  `DEPCHECK_*` environment variables override file values.
+- **H3c `depcheck doctor --fix`** — write the actionable fixes the doctor
+  already knows how to recommend (Dependabot config, pre-commit hook config).
+- **H3d `depcheck scan --format`** — already implemented; keep `--json` as an
+  alias for `--format json` and make the other formats reachable from `scan`.
+
+### H4. Docs and packaging polish
+
+- README: document every registered command (the table currently lists 19 of 40),
+  the `--format` flag, the cache commands, `depcheck init`, `depcheck ci`,
+  `depcheck completions`, and the `depcheck-cli` PyPI name.
+- `docs/` usage pages: `docs/commands.md`, `docs/ci.md`, `docs/configuration.md`.
+- `CHANGELOG.md`: move the v1 work out of `[Unreleased]`.
+- CI hygiene: `cache-dependency-glob: "uv.lock"`, `uv sync --frozen`,
+  build job installs the built wheel and smoke-tests the installed artifact.
+
+### H5. Verification gates (all must be green before merge)
+
+1. `pytest -q` → 0 failures.
+2. `pytest --cov=depcheck --cov-fail-under=75` → ≥ 75 %.
+3. `ruff check .` → clean.
+4. `ruff format --check .` → clean.
+5. `ty check depcheck/` → clean with `error-on-warning = true`.
+6. `uv lock --check` → lockfile consistent.
+7. `pip-audit` → 0 known vulnerabilities.
+8. `uv build` → sdist + wheel; wheel installed in a **clean venv** and
+   `depcheck --version`, `depcheck scan --json` executed from the installed artifact.
+9. End-to-end smoke of **every** registered command (`--help` for all, real run
+   for the main ones) with JSON validated by `json.loads`.
+10. CI green on the PR; PR #109 updated with the full story.
+
 ## 8. Explicit non-goals
 
 - No runtime daemon, no paid API, no telemetry, no auth requirement.
