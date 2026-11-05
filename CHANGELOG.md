@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Global `--config` flag** — point `depcheck` at an explicit config file instead of `pyproject.toml` (`depcheck --config path/to/pyproject.toml scan ...`).
+- **`DEPCHECK_*` environment overrides** — `DEPCHECK_FAIL_ON`, `DEPCHECK_CHECK_VULNERABILITIES`, `DEPCHECK_CHECK_LICENSES`, `DEPCHECK_QUIET`, `DEPCHECK_OUTPUT_JSON` override config-file values (explicit CLI flags win over env, which win over the config file).
+- **`depcheck doctor --fix` / `--dry-run`** — automatically pin unpinned requirements in `requirements.txt` to their latest stable version from PyPI; `--dry-run` previews changes without writing files.
+- **Conditional (ETag) requests** — PyPI and OSV clients now send `If-None-Match` and reuse `304 Not Modified` responses, so repeated scans avoid re-downloading unchanged package metadata.
+- **Unified HTTP client** — PyPI and OSV clients both build via `depcheck.http.build_client()`, sharing the pooled client, retry/backoff policy, and `User-Agent`.
+
 ### Changed
 - **Distribution renamed to `depcheck-cli` on PyPI** — The PyPI package name `depcheck` is already taken by an unrelated project (flix-tech/depcheck). The console command remains `depcheck` so existing workflows and muscle memory continue to work.
   - **Migration note**: `pip install depcheck` now installs a DIFFERENT, unrelated package. To install this tool, use `pip install depcheck-cli`.
+
+### Fixed
+- **Cache TTL expired-entry bug** — `ResponseCache.set()` no longer drops entries whose TTL had already expired, so cache stats and hit counting are correct.
+- **`annotations` command shadowing** — removed `from __future__ import annotations` from `depcheck/commands/__init__.py` so the `annotations` subcommand registers correctly instead of returning `__future__._Feature`.
 
 ## [0.4.0] - 2026-11-02
 

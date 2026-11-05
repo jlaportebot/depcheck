@@ -29,7 +29,7 @@
 - 📝 **GitHub Actions annotations** — `depcheck annotations` for inline CI error reporting
 - 📦 **Dependency tree** — ASCII/JSON tree view with health status (`depcheck tree`)
 - 📊 **Project summary** — quick health score with letter grade (`depcheck summary`)
-- 🔬 **Doctor** — best practices check for CI, pre-commit, Dependabot, security files, etc. (`depcheck doctor`)
+- 🔬 **Doctor** — best practices check for CI, pre-commit, Dependabot, security files, etc. (`depcheck doctor`). Auto-fixes with `depcheck doctor --fix` (preview with `--dry-run`).
 - 📦 **Workspace/monorepo support** — scan uv/Poetry/Hatch/PDM workspaces (`depcheck workspace`)
 - 🔮 **Deprecation prediction** — predict version releases and detect deprecation risk (`depcheck predict`)
 - 🏗️ **Tech stack analysis** — detect conflicts and known incompatibilities (`depcheck stack`)
@@ -252,6 +252,8 @@ depcheck summary --no-vuln-check --quiet
 depcheck doctor
 depcheck doctor --json
 depcheck doctor /path/to/project
+depcheck doctor --fix          # pin unpinned requirements to latest stable versions
+depcheck doctor --fix --dry-run  # preview fixes without writing files
 ```
 
 ### Scan workspace/monorepo
@@ -293,6 +295,34 @@ depcheck config --validate
 depcheck config --init
 depcheck config --init --output pyproject.toml
 ```
+
+### Global options & environment overrides
+
+Every `depcheck` command accepts these global options:
+
+```bash
+# Use an explicit config file instead of pyproject.toml
+depcheck --config path/to/pyproject.toml scan /project
+
+# Override the on-disk cache TTL (seconds; 0 disables caching)
+depcheck --cache-ttl 3600 scan /project
+```
+
+Behavior can also be controlled through `DEPCHECK_*` environment variables,
+which override values loaded from the config file (explicit CLI flags win
+over env vars, which win over the config file):
+
+| Variable | Meaning | Example |
+|----------|---------|---------|
+| `DEPCHECK_FAIL_ON` | Exit non-zero on this severity | `DEPCHECK_FAIL_ON=vulnerable` |
+| `DEPCHECK_CHECK_VULNERABILITIES` | Enable/disable vulnerability checks | `DEPCHECK_CHECK_VULNERABILITIES=false` |
+| `DEPCHECK_CHECK_LICENSES` | Enable/disable license checks | `DEPCHECK_CHECK_LICENSES=true` |
+| `DEPCHECK_QUIET` | Suppress non-error output | `DEPCHECK_QUIET=true` |
+| `DEPCHECK_OUTPUT_JSON` | Emit JSON instead of tables | `DEPCHECK_OUTPUT_JSON=true` |
+
+Repeated scans are faster thanks to conditional (ETag) requests: unchanged
+PyPI/OSV responses return `304 Not Modified` and are served from the on-disk
+cache instead of being re-downloaded.
 
 ### Python version compatibility
 

@@ -27,6 +27,7 @@ from rich.console import Console
 from rich.table import Table
 
 from depcheck import jsonout
+from depcheck.pypi import PyPIClient
 from depcheck.scanner import discover_dependencies, normalize_package_name
 
 # ---------------------------------------------------------------------------
@@ -855,8 +856,6 @@ def apply_fixes(
 
     # Resolve the latest stable version for each package (single PyPI client,
     # reuses the shared cache and ETag store).
-    from depcheck.pypi import PyPIClient
-
     latest: dict[str, str | None] = {}
     packages: set[str] = {f.package for findings in by_file.values() for f in findings if f.package}
     with PyPIClient(use_cache=True) as pypi:
