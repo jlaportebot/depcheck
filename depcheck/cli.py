@@ -11,6 +11,7 @@ command resolves the scanner through, and tests patch it at this path.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import click
@@ -86,8 +87,22 @@ __all__ = ["main", "scan_project"]
     default=None,
     help="Override the cache TTL in seconds (0 disables caching).",
 )
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(file_okay=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to an explicit depcheck config file (defaults to pyproject.toml). "
+    "DEPCHECK_* environment variables override values loaded from the file.",
+)
 @click.pass_context
-def main(ctx: click.Context, no_cache: bool, offline: bool, cache_ttl: int | None) -> None:
+def main(
+    ctx: click.Context,
+    no_cache: bool,
+    offline: bool,
+    cache_ttl: int | None,
+    config_path: Path | None,
+) -> None:
     """depcheck — A dependency health checker for Python projects.
 
     Scan your project's dependencies for vulnerabilities, outdated packages,
@@ -104,6 +119,7 @@ def main(ctx: click.Context, no_cache: bool, offline: bool, cache_ttl: int | Non
     ctx.ensure_object(dict)
     ctx.obj["offline"] = offline
     ctx.obj["cache_ttl"] = cache_ttl
+    ctx.obj["config_path"] = config_path
 
 
 #: Every command module, in the order they are listed by ``depcheck --help``.

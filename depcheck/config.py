@@ -7,6 +7,7 @@ with defaults for all depcheck subcommands.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,19 @@ from typing import Any
 
 from depcheck.budget import BudgetConfig
 from depcheck.policy import PolicyConfig
+
+#: Environment variable prefix for depcheck configuration overrides.
+DEPCHECK_ENV_PREFIX = "DEPCHECK_"
+
+#: Map environment variable names to ``(section, key)`` overrides on the config.
+#: Section is one of ``scan``, ``budget``, or ``policy``.
+ENV_OVERRIDES: dict[str, tuple[str, str]] = {
+    "DEPCHECK_CHECK_VULNERABILITIES": ("scan", "check_vulnerabilities"),
+    "DEPCHECK_CHECK_LICENSES": ("scan", "check_licenses"),
+    "DEPCHECK_FAIL_ON": ("scan", "fail_on"),
+    "DEPCHECK_QUIET": ("scan", "quiet"),
+    "DEPCHECK_OUTPUT_JSON": ("scan", "output_json"),
+}
 
 
 @dataclass
@@ -64,15 +78,27 @@ class Config:
     def load(
         cls,
         project_path: Path | str = ".",
+        config_path: Path | str | None = None,
         cli_overrides: dict[str, Any] | None = None,
     ) -> Config:
-        """Load configuration from pyproject.toml and apply CLI overrides."""
+        """Load configuration from pyproject.toml and apply CLI overrides.
+
+        Args:
+            project_path: Project directory (used to locate the default config).
+            config_path: Explicit config file to load instead of the default
+                ``<project_path>/pyproject.toml``.
+            cli_overrides: Overrides applied after file/environment values.
+                CLI flags always win.
+        """
         path = Path(project_path).resolve()
-        pyproject_path = path / "pyproject.toml"
+        if config_path is not None:
+            pyproject_path = Path(config_path)
+        else:
+            pyproject_path = path / "pyproject.toml"
 
         config = cls(project_path=path)
 
-        # Load from pyproject.toml if it exists
+        # Load from the config file if it exists
         if pyproject_path.is_file():
             try:
                 content = pyproject_path.read_text(encoding="utf-8")
@@ -106,19 +132,52 @@ class Config:
                 # Silently ignore parse errors - use defaults
                 pass
 
-        # Apply CLI overrides
+        # Environment variables override file values (DEPCHECK_* namespace).
+        apply_env_overrides(config)
+
+        # Apply CLI overrides last so command-line flags always win.
         if cli_overrides:
             _apply_overrides(config, cli_overrides)
 
         return config
 
 
+def _env_bool(raw: str) -> bool:
+    """Return whether an environment variable string holds a truthy value."""
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def apply_env_overrides(config: Config) -> None:
+    """Apply ``DEPCHECK_*`` environment variables to a config object.
+
+    Environment variables take precedence over values loaded from the config
+    file but are overridden by explicit CLI flags (applied separately).
+
+    Args:
+        config: The config object to update in place.
+    """
+    for env_name, (section, key) in ENV_OVERRIDES.items():
+        raw = os.environ.get(env_name)
+        if raw is None:
+            continue
+        section_obj = getattr(config, section)
+        if not hasattr(section_obj, key):
+            continue
+        current = getattr(section_obj, key)
+        if isinstance(current, bool):
+            value = _env_bool(raw)
+        else:
+            value = raw
+        setattr(section_obj, key, value)
+
+
 def load_config(
     project_path: Path | str = ".",
+    config_path: Path | str | None = None,
     cli_overrides: dict[str, Any] | None = None,
 ) -> Config:
     """Load configuration from pyproject.toml and apply CLI overrides."""
-    return Config.load(project_path, cli_overrides)
+    return Config.load(project_path, config_path=config_path, cli_overrides=cli_overrides)
 
 
 def _apply_overrides(config: Config, overrides: dict[str, Any]) -> None:
