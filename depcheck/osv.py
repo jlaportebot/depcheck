@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from depcheck.cache import OSV_TTL_SECONDS, OfflineCacheMissError, ResponseCache, get_cache
-from depcheck.http import USER_AGENT
+from depcheck.http import build_client
 from depcheck.models import Vulnerability
 
 # OSV.dev API URLs
@@ -58,11 +58,7 @@ class OSVClient:
                 process-wide cache.
             use_cache: Whether cached responses may be used.
         """
-        self._client = httpx.Client(
-            timeout=timeout,
-            follow_redirects=True,
-            headers={"User-Agent": USER_AGENT},
-        )
+        self._client = build_client(timeout=timeout)
         self._cache = cache if cache is not None else get_cache()
         self._use_cache = use_cache
 

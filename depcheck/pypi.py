@@ -11,7 +11,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
 from depcheck.cache import PYPI_TTL_SECONDS, OfflineCacheMissError, ResponseCache, get_cache
-from depcheck.http import USER_AGENT
+from depcheck.http import ETagStore, build_client, conditional_get_json
 from depcheck.models import ParsedDependency
 
 # PyPI JSON API base URL
@@ -45,11 +45,8 @@ class PyPIClient:
                 process-wide cache.
             use_cache: Whether cached responses may be used.
         """
-        self._client = httpx.Client(
-            timeout=timeout,
-            follow_redirects=True,
-            headers={"User-Agent": USER_AGENT},
-        )
+        self._client = build_client(timeout=timeout)
+        self._etags = ETagStore()
         self._cache = cache if cache is not None else get_cache()
         self._use_cache = use_cache
 
@@ -86,11 +83,13 @@ class PyPIClient:
 
         url = f"{PYPI_API_URL}/{package_name}/json"
         try:
-            response = self._client.get(url)
-            if response.status_code == 404:
+            payload, _etag, status = conditional_get_json(self._client, url, self._etags)
+            if status == 304:
+                # Not modified -- return the cached copy.
+                return self._cache.get(CACHE_NAMESPACE, package_name)
+            if status == 404 or payload is None:
                 return None
-            response.raise_for_status()
-            info = response.json()
+            info = payload
         except httpx.HTTPError:
             return None
 
@@ -158,11 +157,13 @@ class PyPIClient:
         """
         url = f"{PYPI_API_URL}/{package_name}/json"
         try:
-            response = self._client.get(url)
-            if response.status_code == 404:
+            payload, _etag, status = conditional_get_json(self._client, url, self._etags)
+            if status == 304:
+                # Not modified -- return the cached copy.
+                return self._cache.get(CACHE_NAMESPACE, package_name)
+            if status == 404 or payload is None:
                 return None
-            response.raise_for_status()
-            info = response.json()
+            info = payload
         except httpx.HTTPError:
             return None
 
