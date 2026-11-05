@@ -816,6 +816,153 @@ def run_doctor(project_path: str) -> DoctorReport:
     return report
 
 
+def apply_fixes(
+    report: DoctorReport,
+    project_path: str | Path,
+    *,
+    dry_run: bool = False,
+) -> list[dict[str, Any]]:
+    """Apply safe automatic fixes for the findings in ``report``.
+
+    Currently handles unpinned requirements in ``requirements.txt`` by pinning
+    each to its latest stable version from PyPI. Other findings (missing
+    lockfiles, setup.py migration, ...) are reported but not auto-fixed,
+    because they require project-specific decisions.
+
+    Args:
+        report: The :class:`DoctorReport` whose findings should be fixed.
+        project_path: The project directory containing the files to edit.
+        dry_run: When ``True``, compute the fixes but do not write any files.
+
+    Returns:
+        A list of fix result dicts with keys ``package``, ``file``, ``line``,
+        ``version`` and ``status`` (one of ``applied``, ``would_apply``,
+        ``skipped`` or ``failed``).
+    """
+    applied: list[dict[str, Any]] = []
+
+    # Group requirements.txt findings by file so each file is rewritten once.
+    by_file: dict[Path, list[Finding]] = {}
+    for finding in report.findings:
+        if finding.title != "Unpinned requirement in requirements.txt":
+            continue
+        if not finding.file_path or finding.line_number is None or not finding.package:
+            continue
+        by_file.setdefault(Path(finding.file_path), []).append(finding)
+
+    if not by_file:
+        return applied
+
+    # Resolve the latest stable version for each package (single PyPI client,
+    # reuses the shared cache and ETag store).
+    from depcheck.pypi import PyPIClient
+
+    latest: dict[str, str | None] = {}
+    packages: set[str] = {f.package for findings in by_file.values() for f in findings if f.package}
+    with PyPIClient(use_cache=True) as pypi:
+        for package in sorted(packages):
+            try:
+                latest[package] = pypi.get_latest_version(package)
+            except Exception:
+                latest[package] = None
+
+    name_re = re.compile(r"^(\s*)([A-Za-z0-9][A-Za-z0-9._-]*)(\[[^\]]*\])?\s*(?:#.*)?$")
+
+    for file_path, findings in by_file.items():
+        if not file_path.is_file():
+            continue
+        try:
+            lines = file_path.read_text(encoding="utf-8").splitlines(keepends=True)
+        except OSError:
+            continue
+
+        any_change = False
+        for finding in findings:
+            package = finding.package
+            line_number = finding.line_number
+            if not package or line_number is None:
+                applied.append(
+                    {
+                        "package": package or "",
+                        "file": str(file_path),
+                        "line": line_number,
+                        "version": None,
+                        "status": "skipped",
+                    }
+                )
+                continue
+
+            idx = line_number - 1
+            if idx < 0 or idx >= len(lines):
+                applied.append(
+                    {
+                        "package": package,
+                        "file": str(file_path),
+                        "line": line_number,
+                        "version": None,
+                        "status": "skipped",
+                    }
+                )
+                continue
+
+            version = latest.get(package)
+            if not version:
+                applied.append(
+                    {
+                        "package": package,
+                        "file": str(file_path),
+                        "line": line_number,
+                        "version": None,
+                        "status": "failed",
+                    }
+                )
+                continue
+
+            raw = lines[idx]
+            stripped = raw.strip()
+            match = name_re.match(stripped)
+            if not match:
+                applied.append(
+                    {
+                        "package": package,
+                        "file": str(file_path),
+                        "line": line_number,
+                        "version": version,
+                        "status": "skipped",
+                    }
+                )
+                continue
+
+            name = match.group(2)
+            extras = match.group(3) or ""
+            new_content = f"{name}{extras}=={version}\n"
+            if raw.rstrip("\n") != new_content.rstrip("\n"):
+                # Preserve the original leading whitespace.
+                leading = raw[: len(raw) - len(raw.lstrip())]
+                lines[idx] = f"{leading}{new_content}"
+                any_change = True
+            applied.append(
+                {
+                    "package": name,
+                    "file": str(file_path),
+                    "line": line_number,
+                    "version": version,
+                    "status": "would_apply" if dry_run else "applied",
+                }
+            )
+
+        if any_change and not dry_run:
+            try:
+                file_path.write_text("".join(lines), encoding="utf-8")
+            except OSError:
+                # Mark every fix for this file as failed since the write failed.
+                for result in applied:
+                    if result["file"] == str(file_path) and result["status"] == "applied":
+                        result["status"] = "failed"
+
+    return applied
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
